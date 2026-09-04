@@ -2,14 +2,11 @@
 // the server, never read to build a prompt. A file that no longer matches
 // the record's hash is reported as drift with its text; a missing file is
 // simply re-created. The prompt block is empty for an empty soul.
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+// Test isolation is provided by server/testing/setup.ts's per-file throwaway HOME.
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
-
-import { removeTempDir } from "./testing/cleanup.ts";
-
-const DATA_ROOT = mkdtempSync(join(tmpdir(), "omb-bot-folder-"));
+import { describe, expect, it } from "vitest";
 
 const {
   BOTS_DIR,
@@ -21,10 +18,6 @@ const {
   soulSystemPrompt,
   writeSoulMirror,
 } = await import("./bot-folder.ts");
-
-afterAll(async () => {
-  await removeTempDir(DATA_ROOT);
-});
 
 describe("bot folder", () => {
   it("lives under DATA_DIR/bots/<id>", () => {
