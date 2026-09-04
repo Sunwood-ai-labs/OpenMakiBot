@@ -9548,6 +9548,14 @@ const server = createServer(async (req, res) => {
       if (!bot) return json(res, 404, { error: "no such bot" });
       const drift = checkSoulDrift(bot.id, bot.soul ?? "", bot.soulHash ?? "");
       if (!drift.drift) return json(res, 409, { error: "SOUL.md matches the record; nothing to apply" });
+      // Optional body carries the exact text the client displayed. If the
+      // file has moved on since (another edit landed between the GET and
+      // this click), applying it now would silently apply text the user
+      // never saw. Absent body: backward-compatible for scripts.
+      const body = await readBody(req);
+      if (typeof body?.fileText === "string" && body.fileText !== drift.fileText) {
+        return json(res, 409, { error: "SOUL.md changed since you read it; reload and look again" });
+      }
       // The file is user input like any other: same cap, same error copy.
       const parsed = parseBotProfilePatch({ soul: drift.fileText });
       if (!parsed.ok) return json(res, 400, { error: parsed.error });
@@ -9561,7 +9569,11 @@ const server = createServer(async (req, res) => {
     if (m && method === "POST") {
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
-      writeSoulMirror(bot.id, bot.soul ?? "");
+      try {
+        writeSoulMirror(bot.id, bot.soul ?? "");
+      } catch (e) {
+        console.warn(`[bot-folder] could not write SOUL.md mirror for ${bot.id}: ${(e as Error).message}`);
+      }
       const updated = store.patchBot(bot.id, { soulDrift: false }) ?? bot;
       const visible = wireBot(updated);
       broadcast({ kind: "bot", bot: visible });

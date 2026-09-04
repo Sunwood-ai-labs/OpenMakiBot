@@ -4681,6 +4681,30 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("never lets an out-of-band SOUL.md edit reach the prompt, and surfaces it as drift instead", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker" })).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+        soul: "Record text.",
+      })).status).toBe(200);
+      // An edit made directly to the mirror file, bypassing the app entirely.
+      writeFileSync(join(home, ".openmausbot", "bots", bot.id, "SOUL.md"), "File text.");
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
+      await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
+      const seen = JSON.parse(readFileSync(fakeClaudeDump, "utf8"));
+      const systemPrompt: string = seen.systemPrompt ?? "";
+      expect(systemPrompt).toContain("Record text.");
+      expect(systemPrompt).not.toContain("File text.");
+      const bots = (await api("GET", "/api/bots")).body.bots;
+      expect(bots.find((candidate: { id: string }) => candidate.id === bot.id)?.soulDrift).toBe(true);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
   it("mounts the verification skill only for the latest channel request", async () => {
     const bot = (await api("POST", "/api/bots", {
       modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
@@ -7180,6 +7204,31 @@ describe("bot memory API", () => {
       writeFileSync(soulFileOf(bot.id), "x".repeat(24_001));
       expect((await api("POST", `/api/bots/${bot.id}/soul/apply-file`)).status).toBe(400);
       expect((await api("GET", "/api/bots/does-not-exist/soul")).status).toBe(404);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("apply-file refuses to apply text the client did not actually see", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    try {
+      await api("PATCH", `/api/bots/${bot.id}`, { soul: "Be brief." });
+      // A: the text the client read and displayed.
+      writeFileSync(soulFileOf(bot.id), "A");
+      const seen = (await api("GET", `/api/bots/${bot.id}/soul`)).body;
+      expect(seen.fileText).toBe("A");
+
+      // The file moved on again before the click.
+      writeFileSync(soulFileOf(bot.id), "B");
+      const stale = await api("POST", `/api/bots/${bot.id}/soul/apply-file`, { fileText: "A" });
+      expect(stale.status).toBe(409);
+      expect(stale.body.error).toBe("SOUL.md changed since you read it; reload and look again");
+      expect((await api("GET", `/api/bots/${bot.id}/soul`)).body.soul).toBe("Be brief.");
+
+      // Sending the text that actually matches the file now applies it.
+      const fresh = await api("POST", `/api/bots/${bot.id}/soul/apply-file`, { fileText: "B" });
+      expect(fresh.status).toBe(200);
+      expect(fresh.body.bot.soul).toBe("B");
     } finally {
       await api("DELETE", `/api/bots/${bot.id}`);
     }

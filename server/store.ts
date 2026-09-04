@@ -1307,8 +1307,13 @@ export class Store {
     this.bots.unshift(bot);
     this.saveBots();
     // The folder exists from the first moment, so the user can open
-    // SOUL.md before the bot has said a word.
-    writeSoulMirror(bot.id, "");
+    // SOUL.md before the bot has said a word. The record is canonical: a
+    // mirror-write failure must never fail bot creation.
+    try {
+      writeSoulMirror(bot.id, "");
+    } catch (e) {
+      console.warn(`[bot-folder] could not write SOUL.md mirror for ${bot.id}: ${(e as Error).message}`);
+    }
     // Announce the owner before its onboarding transcript. SSE clients need
     // the bot/thread mapping before they can place either message.
     this.emit({ type: "bot", botId: bot.id });
@@ -1363,7 +1368,13 @@ export class Store {
    * soul goes through here, so the mirror can never lag the record. */
   setSoul(id: string, soul: string): BotRecord | null {
     const bot = this.patchBot(id, { soul, soulHash: soulHash(soul), soulDrift: false });
-    if (bot) writeSoulMirror(id, soul);
+    if (bot) {
+      try {
+        writeSoulMirror(id, soul);
+      } catch (e) {
+        console.warn(`[bot-folder] could not write SOUL.md mirror for ${id}: ${(e as Error).message}`);
+      }
+    }
     return bot;
   }
 

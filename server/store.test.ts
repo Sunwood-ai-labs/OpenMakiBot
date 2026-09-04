@@ -1181,4 +1181,23 @@ describe("soul", () => {
     store.deleteBot(bot.id);
     expect(existsSync(join(DATA_DIR, "bots", bot.id))).toBe(false);
   });
+
+  it("setSoul still returns the updated record when the mirror write fails", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    const folder = join(DATA_DIR, "bots", bot.id);
+    // Make the bot's folder path unwritable by putting a *file* there:
+    // writeSoulMirror's mkdirSync(folder) then fails with ENOTDIR.
+    rmSync(folder, { recursive: true, force: true });
+    writeFileSync(folder, "not a directory");
+    try {
+      const call = () => store.setSoul(bot.id, "Be brief.");
+      expect(call).not.toThrow();
+      const updated = call();
+      expect(updated?.soul).toBe("Be brief.");
+      expect(updated?.soulHash).toBe(soulHash("Be brief."));
+    } finally {
+      rmSync(folder, { force: true });
+    }
+  });
 });
