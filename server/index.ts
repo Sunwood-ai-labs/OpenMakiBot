@@ -8,6 +8,7 @@ import { extname, join } from "node:path";
 
 import { z } from "zod";
 import { botAvatarUrlFromStoredPath } from "../shared/bot-avatar.ts";
+import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { escapeAttribute } from "../src/lib/composer-attachments.ts";
 import {
   CREDENTIAL_TARGETS,
@@ -224,7 +225,7 @@ import {
 import { fetchSkillFromSource } from "./skill-fetch.ts";
 import { expandLearnTurnText, learnSource } from "./skill-learn.ts";
 import type { SkillRequestCardData } from "../shared/skill-request.ts";
-import { checkSoulDrift } from "./bot-folder.ts";
+import { checkSoulDrift, soulFile, writeSoulMirror } from "./bot-folder.ts";
 import {
   buildSystemPrompt,
   computerPrompt,
@@ -976,6 +977,58 @@ const wireBot = (bot: NonNullable<ReturnType<typeof store.bot>>) => {
   const { resumeCursors: _resumeCursors, tasks, ...rest } = bot;
   return { ...rest, avatarUrl: rest.avatarUrl ?? null, ...(tasks ? { tasks: tasks.map(wireTask) } : {}) };
 };
+
+/** The system prompt a plain direct turn would carry right now, for the
+ * "what the model sees" panel. Built by the same builder as a real turn,
+ * from the bot's settings alone: no task note, no per-message skills or
+ * playbooks, and the engine-dependent parts (computer, browser, connected
+ * apps, team tools) are included when the settings ask for them, since
+ * which engine will mount them is not known until dispatch. */
+function previewSystemPrompt(bot: BotRecord) {
+  // `cfg` is the module-level config (`const cfg = loadConfig()` near the
+  // top of index.ts), the same object the turn code reads.
+  const persona = [
+    `You are ${bot.name}, a personal bot in OpenMausBot.`,
+    bot.title && `Role: ${bot.title}.`,
+    bot.description && `About: ${bot.description}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const computerPromptKind: ComputerPromptKind | null =
+    bot.computer === "vm"
+      ? localVmMode(cfg) === "per-bot" ? "vm-private" : "vm-shared"
+      : bot.computer === "cloud"
+        ? bot.cloudBackend === "vps" ? "vps" : "box"
+        : bot.computer === "local"
+          ? "local"
+          : null;
+  const peers = reachablePeers(store.bots, bot);
+  const coordination = bot.chiefOfStaff
+    ? chiefOfStaffSystemPrompt(bot.id, store.bots, true, openMausStatusSystemPrompt())
+    : peers.length > 0
+      ? peerRosterSystemPrompt(peers)
+      : "";
+  ensureWorkspace(bot.id);
+  const built = buildSystemPrompt(persona, bot.soul ?? "", [
+    { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
+    { id: "composio", label: "Connected apps", text: bot.composio !== false && composio.configured(cfg) ? COMPOSIO_PROMPT : "" },
+    { id: "browser", label: "Browser", text: bot.browser !== false && bot.computer !== "off" ? BUILT_IN_BROWSER_SYSTEM_PROMPT : "" },
+    { id: "coordination", label: "Team", text: coordination ? ` ${coordination}` : "" },
+    { id: "credential", label: "Credentials", text: CREDENTIAL_PROMPT },
+    { id: "routine", label: "Routines", text: ROUTINE_PROMPT },
+    { id: "section-context", label: "Section context", text: sectionContextSystemPrompt(bot.section) },
+    { id: "memory", label: "Memory", text: memorySystemPrompt(bot.id) },
+    { id: "skills", label: "Skills index", text: skillsSystemPrompt(bot.id) },
+  ]);
+  const totalBytes = built.sections.reduce((n, s) => n + s.bytes, 0);
+  return {
+    sections: built.sections,
+    totalBytes,
+    approxTokens: Math.ceil(totalBytes / 4),
+    note:
+      "Built for a plain direct turn from this bot's current settings. A real turn adds the task's own note, any skill or playbook matched by the message, and only the tool sections its engine can mount.",
+  };
+}
 
 /** Profile URLs are app-owned references, not merely strings with a trusted
  * prefix. Resolve them before persistence so every accepted avatar can be
@@ -8882,7 +8935,9 @@ const server = createServer(async (req, res) => {
       if (parsed.patch.avatarUrl && !storedAvatarExists(parsed.patch.avatarUrl)) {
         return json(res, 400, { error: "avatarUrl must reference an existing stored image" });
       }
-      const bot = store.patchBot(m[1], parsed.patch);
+      const { soul, ...profilePatch } = parsed.patch;
+      let bot = store.patchBot(m[1], profilePatch);
+      if (bot && soul !== undefined) bot = store.setSoul(m[1], soul);
       if (!bot) return json(res, 404, { error: "no such bot" });
       const visible = wireBot(bot);
       broadcast({ kind: "bot", bot: visible });
@@ -8987,6 +9042,10 @@ const server = createServer(async (req, res) => {
       }
       const patch: Record<string, unknown> = {};
       Object.assign(patch, profile.patch);
+      // soul has its own write path (hash + mirror); keep it out of the
+      // generic patch so the mirror can never lag the record
+      const soul = profile.patch.soul;
+      delete patch.soul;
       let section: string | undefined | null;
       if (body.section !== undefined) {
         if (body.section === null) section = null;
@@ -9172,6 +9231,7 @@ const server = createServer(async (req, res) => {
         sectionKey(existingBot?.section) !== sectionKey(section);
       const bot = store.patchBot(m[1], patch);
       if (!bot) return json(res, 404, { error: "no such bot" });
+      if (soul !== undefined) store.setSoul(bot.id, soul);
       const chiefChanges =
         body.chiefOfStaff === true || chiefMovedSections
           ? store.setChiefOfStaff(bot.id)
@@ -9465,6 +9525,53 @@ const server = createServer(async (req, res) => {
         updatedAt: context?.updatedAt ?? null,
         maxBytes: SECTION_CONTEXT_MAX_BYTES,
       });
+    }
+
+    m = path.match(/^\/api\/bots\/([\w-]+)\/soul$/);
+    if (m && method === "GET") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      const soul = bot.soul ?? "";
+      const drift = checkSoulDrift(bot.id, soul, bot.soulHash ?? "");
+      return json(res, 200, {
+        soul,
+        bytes: Buffer.byteLength(soul, "utf8"),
+        limit: BOT_PROFILE_LIMITS.soul,
+        file: soulFile(bot.id),
+        drift: drift.drift,
+        ...(drift.drift ? { fileText: drift.fileText } : {}),
+      });
+    }
+    m = path.match(/^\/api\/bots\/([\w-]+)\/soul\/apply-file$/);
+    if (m && method === "POST") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      const drift = checkSoulDrift(bot.id, bot.soul ?? "", bot.soulHash ?? "");
+      if (!drift.drift) return json(res, 409, { error: "SOUL.md matches the record; nothing to apply" });
+      // The file is user input like any other: same cap, same error copy.
+      const parsed = parseBotProfilePatch({ soul: drift.fileText });
+      if (!parsed.ok) return json(res, 400, { error: parsed.error });
+      const updated = store.setSoul(bot.id, parsed.patch.soul ?? "");
+      if (!updated) return json(res, 404, { error: "no such bot" });
+      const visible = wireBot(updated);
+      broadcast({ kind: "bot", bot: visible });
+      return json(res, 200, { bot: visible });
+    }
+    m = path.match(/^\/api\/bots\/([\w-]+)\/soul\/discard-file$/);
+    if (m && method === "POST") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      writeSoulMirror(bot.id, bot.soul ?? "");
+      const updated = store.patchBot(bot.id, { soulDrift: false }) ?? bot;
+      const visible = wireBot(updated);
+      broadcast({ kind: "bot", bot: visible });
+      return json(res, 200, { bot: visible });
+    }
+    m = path.match(/^\/api\/bots\/([\w-]+)\/system-prompt$/);
+    if (m && method === "GET") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      return json(res, 200, previewSystemPrompt(bot));
     }
 
     // ── bot memory: MEMORY.md + memory/ topic files ─────────────────────

@@ -4658,6 +4658,29 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("injects the bot's standing instructions (soul) into a real turn, directly after the persona", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker" })).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+        soul: "File bugs. Never file noise.",
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
+      await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
+      const seen = JSON.parse(readFileSync(fakeClaudeDump, "utf8"));
+      const system: string = seen.systemPrompt ?? "";
+      expect(system.startsWith("You are Kiwi, a personal bot in OpenMausBot. Role: Tracker.")).toBe(true);
+      const persona = "You are Kiwi, a personal bot in OpenMausBot. Role: Tracker.";
+      const afterPersona = system.slice(persona.length);
+      expect(afterPersona.startsWith("\n\nYour standing instructions follow.")).toBe(true);
+      expect(system).toContain("--- BEGIN STANDING INSTRUCTIONS (SOUL.md, 28 bytes) ---\nFile bugs. Never file noise.\n--- END STANDING INSTRUCTIONS ---");
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
   it("mounts the verification skill only for the latest channel request", async () => {
     const bot = (await api("POST", "/api/bots", {
       modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
@@ -7090,6 +7113,103 @@ describe("bot memory API", () => {
       expect(raw.text).not.toContain("TOP-SECRET");
       // malformed percent-encoding is a clean 400, not a crash
       expect((await rawGet(`/api/bots/${bot.id}/memory/topics/%zz.md`)).status).toBe(400);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  const soulFileOf = (botId: string) => join(home, ".openmausbot", "bots", botId, "SOUL.md");
+
+  it("round-trips soul through both PATCH routes and mirrors it to SOUL.md", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    try {
+      expect(bot.soul).toBe("");
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe("");
+
+      const broad = await api("PATCH", `/api/bots/${bot.id}`, { soul: "Be brief." });
+      expect(broad.status).toBe(200);
+      expect(broad.body.bot.soul).toBe("Be brief.");
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe("Be brief.");
+
+      const paired = await api("PATCH", `/api/bots/${bot.id}/profile`, { soul: "Be kind." });
+      expect(paired.status).toBe(200);
+      expect(paired.body.bot.soul).toBe("Be kind.");
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe("Be kind.");
+
+      const over = await api("PATCH", `/api/bots/${bot.id}`, { soul: "x".repeat(24_001) });
+      expect(over).toEqual({ status: 400, body: { error: "standing instructions must be at most 24000 bytes" } });
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+    expect(existsSync(join(home, ".openmausbot", "bots", bot.id))).toBe(false);
+  });
+
+  it("reads the soul with its file path, and reports, applies, or discards drift", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    try {
+      await api("PATCH", `/api/bots/${bot.id}`, { soul: "Be brief." });
+      const clean = await api("GET", `/api/bots/${bot.id}/soul`);
+      expect(clean.status).toBe(200);
+      expect(clean.body).toEqual({
+        soul: "Be brief.",
+        bytes: 9,
+        limit: 24_000,
+        file: soulFileOf(bot.id),
+        drift: false,
+      });
+      expect((await api("POST", `/api/bots/${bot.id}/soul/apply-file`)).status).toBe(409);
+
+      writeFileSync(soulFileOf(bot.id), "Be verbose.");
+      const drifted = await api("GET", `/api/bots/${bot.id}/soul`);
+      expect(drifted.body.drift).toBe(true);
+      expect(drifted.body.fileText).toBe("Be verbose.");
+      expect(drifted.body.soul).toBe("Be brief.");
+
+      const discarded = await api("POST", `/api/bots/${bot.id}/soul/discard-file`);
+      expect(discarded.status).toBe(200);
+      expect(discarded.body.bot.soul).toBe("Be brief.");
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe("Be brief.");
+
+      writeFileSync(soulFileOf(bot.id), "Be thorough.");
+      const applied = await api("POST", `/api/bots/${bot.id}/soul/apply-file`);
+      expect(applied.status).toBe(200);
+      expect(applied.body.bot.soul).toBe("Be thorough.");
+      expect(applied.body.bot.soulDrift).toBe(false);
+      expect((await api("GET", `/api/bots/${bot.id}/soul`)).body.drift).toBe(false);
+
+      writeFileSync(soulFileOf(bot.id), "x".repeat(24_001));
+      expect((await api("POST", `/api/bots/${bot.id}/soul/apply-file`)).status).toBe(400);
+      expect((await api("GET", "/api/bots/does-not-exist/soul")).status).toBe(404);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("previews the system prompt the model will see, section by section", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker", description: "Files bugs." })).body.bot;
+    try {
+      const before = await api("GET", `/api/bots/${bot.id}/system-prompt`);
+      expect(before.status).toBe(200);
+      expect(before.body.sections[0]).toEqual({
+        id: "persona",
+        label: "Identity",
+        text: "You are Kiwi, a personal bot in OpenMausBot. Role: Tracker. About: Files bugs.",
+        bytes: 78,
+      });
+      expect(before.body.sections.map((s: { id: string }) => s.id)).not.toContain("soul");
+      expect(before.body.sections.map((s: { id: string }) => s.id)).toContain("memory");
+      expect(before.body.totalBytes).toBe(
+        before.body.sections.reduce((n: number, s: { bytes: number }) => n + s.bytes, 0),
+      );
+      expect(before.body.approxTokens).toBe(Math.ceil(before.body.totalBytes / 4));
+      expect(typeof before.body.note).toBe("string");
+
+      await api("PATCH", `/api/bots/${bot.id}`, { soul: "Never file noise." });
+      const after = await api("GET", `/api/bots/${bot.id}/system-prompt`);
+      expect(after.body.sections[1].id).toBe("soul");
+      expect(after.body.sections[1].text).toContain("Never file noise.");
+      expect(after.body.sections[1].bytes).toBe(Buffer.byteLength(after.body.sections[1].text, "utf8"));
+      expect((await api("GET", "/api/bots/does-not-exist/system-prompt")).status).toBe(404);
     } finally {
       await api("DELETE", `/api/bots/${bot.id}`);
     }
