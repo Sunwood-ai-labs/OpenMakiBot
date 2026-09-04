@@ -33,12 +33,18 @@ export function SoulField({
     setDraft(bot.soul ?? "");
   }, [bot.id, bot.soul]);
 
+  // Mirror path, drift state, and file text don't depend on the soul text
+  // itself, so this must not key off bot.soul: onPatch updates it
+  // optimistically on every keystroke, which would refetch on every
+  // keystroke. bot.soulDrift changes whenever the server's drift state
+  // changes, and resolve() below already calls refresh() explicitly after
+  // Apply/Discard, so nothing is lost by dropping bot.soul here.
   const refresh = () => {
     void api(`/api/bots/${bot.id}/soul`)
       .then((read: SoulRead) => setInfo(read))
       .catch(() => setInfo(null));
   };
-  useEffect(refresh, [bot.id, bot.soulDrift, bot.soul]);
+  useEffect(refresh, [bot.id, bot.soulDrift]);
 
   const bytes = utf8Bytes(draft);
   const over = bytes > limit;
