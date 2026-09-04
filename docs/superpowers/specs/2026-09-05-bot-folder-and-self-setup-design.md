@@ -391,7 +391,7 @@ and skill-state directories, in the same `deleteBot` path.
 ## Error handling
 
 - `soul` over the cap: the same 400 shape as today's profile errors, with
-  copy "standing instructions must be at most 24,000 bytes". The editor
+  copy "standing instructions must be at most 24000 bytes". The editor
   counter turns red before submit; the tool call returns the error to the bot,
   which is told to shorten and move procedure into a skill.
 - Card approval after the record moved: fails closed with "this bot changed
@@ -452,3 +452,8 @@ Each step ships on its own, in order, and the product is coherent after each:
   behavior change; the folder view symlinks.
 - Sequential cards in v1, not one bundled setup card. The card machinery
   exists per kind; a bundle needs a new transaction path and can follow.
+- The mirror-is-never-read rule protects against a bot with file tools; it
+  does not protect against a bot with shell or HTTP tools, because any
+  loopback process is trusted by `server/request-auth.ts` and can call the
+  routes directly. This branch does not widen that boundary; the guarantee
+  is "a bot cannot rewrite its persona through the filesystem".
