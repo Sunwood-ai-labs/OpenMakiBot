@@ -18,6 +18,7 @@ import { BOT_PROFILE_LIMITS } from "../../shared/bot-profile";
 import { Switch } from "./SettingsPrimitives";
 import { RoutineEditor } from "./RoutinesPage";
 import { BotInstructionsDialog } from "./BotInstructionsDialog";
+import { SoulField } from "./SoulField";
 
 function Field({
   label,
@@ -556,6 +557,7 @@ export function SettingsPanel({ bot }: { bot: Bot }) {
         | "name"
         | "title"
         | "description"
+        | "soul"
         | "notifications"
         | "cloudBackend"
         | "autoStartVps"
@@ -685,6 +687,8 @@ export function SettingsPanel({ bot }: { bot: Bot }) {
               </span>
             </div>
           </div>
+
+          <SoulField bot={bot} onPatch={patch} />
 
           <div className="rounded-xl bg-card p-4">
             <div className="flex items-center gap-2">
