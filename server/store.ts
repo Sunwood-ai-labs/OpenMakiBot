@@ -420,6 +420,13 @@ export interface BotRecord {
   name: string;
   title: string;
   description: string;
+  /** Standing instructions — the persona body. Canonical HERE; SOUL.md in
+   * the bot folder is a mirror the server writes. Never read the file to
+   * build a prompt: a bot that reads untrusted content must not be able to
+   * rewrite its own persona through the filesystem. Optional only so a
+   * bots.json written before the field existed still parses; load
+   * backfills it, so every live record has a string. */
+  soul?: string;
   notifications: boolean;
   color: MausColor;
   mascotExpression?: MausExpression | null;
