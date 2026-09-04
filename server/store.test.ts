@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { soulFile, soulHash } from "./bot-folder.ts";
 import { DATA_DIR } from "./config.ts";
 import type { ModelSelection } from "./contracts.ts";
 import * as mdb from "./message-db.ts";
@@ -1131,5 +1132,53 @@ describe("Store task working folder — cloud runs", () => {
     expect(store.taskByThread(bot.id, bot.threadId)?.cwd).toBeNull();
     // and it stays pinned even if a host run follows
     expect(store.pinTaskCwd(bot.id, bot.threadId)).toBeNull();
+  });
+});
+
+describe("soul", () => {
+  beforeEach(() => {
+    rmSync(DATA_DIR, { recursive: true, force: true });
+  });
+
+  it("seeds an empty soul with its hash and writes the SOUL.md mirror on create", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    expect(bot.soul).toBe("");
+    expect(bot.soulHash).toBe(soulHash(""));
+    expect(readFileSync(soulFile(bot.id), "utf8")).toBe("");
+  });
+
+  it("setSoul rewrites the record, the hash, the mirror, and clears drift", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    store.patchBot(bot.id, { soulDrift: true });
+    const updated = store.setSoul(bot.id, "Be brief.");
+    expect(updated?.soul).toBe("Be brief.");
+    expect(updated?.soulHash).toBe(soulHash("Be brief."));
+    expect(updated?.soulDrift).toBe(false);
+    expect(readFileSync(soulFile(bot.id), "utf8")).toBe("Be brief.");
+    expect(store.setSoul("nope", "x")).toBeNull();
+  });
+
+  it("backfills soul and soulHash for bots saved before the field existed", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    const raw = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Record<string, unknown>[];
+    for (const record of raw) {
+      delete record.soul;
+      delete record.soulHash;
+    }
+    writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(raw));
+    const reloaded = new Store(selection);
+    expect(reloaded.bot(bot.id)?.soul).toBe("");
+    expect(reloaded.bot(bot.id)?.soulHash).toBe(soulHash(""));
+  });
+
+  it("deleteBot removes the bot folder with the workspace", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    expect(existsSync(soulFile(bot.id))).toBe(true);
+    store.deleteBot(bot.id);
+    expect(existsSync(join(DATA_DIR, "bots", bot.id))).toBe(false);
   });
 });

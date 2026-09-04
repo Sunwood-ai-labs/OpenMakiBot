@@ -7,6 +7,7 @@ import { existsSync, readFileSync, mkdirSync, rmSync, unlinkSync } from "node:fs
 import { join } from "node:path";
 
 import { writeFileAtomic } from "./atomic.ts";
+import { removeBotFolder, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
 import { DATA_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
@@ -427,6 +428,11 @@ export interface BotRecord {
    * bots.json written before the field existed still parses; load
    * backfills it, so every live record has a string. */
   soul?: string;
+  /** sha256 of `soul`, for spotting a SOUL.md edited outside the app. */
+  soulHash?: string;
+  /** The mirror differed from `soul` at the last turn dispatch. The Soul
+   * editor shows the diff; a user action (apply or discard) clears it. */
+  soulDrift?: boolean;
   notifications: boolean;
   color: MausColor;
   mascotExpression?: MausExpression | null;
@@ -675,6 +681,14 @@ export class Store {
       if (b.busy || (b.activity !== undefined && b.activity !== "idle")) botsMigrated = true;
       b.busy = false;
       b.activity = "idle";
+      if (typeof b.soul !== "string") {
+        b.soul = "";
+        botsMigrated = true;
+      }
+      if (b.soulHash !== soulHash(b.soul)) {
+        b.soulHash = soulHash(b.soul);
+        botsMigrated = true;
+      }
       if (b.browserProfile) {
         const browserProfile = browserProfileAliases.get(b.browserProfile);
         if (browserProfile && browserProfile !== b.browserProfile) {
@@ -1277,6 +1291,8 @@ export class Store {
       name,
       title: profile.title ?? "",
       description: profile.description ?? "",
+      soul: "",
+      soulHash: soulHash(""),
       notifications: true,
       color: profile.color ?? COLORS[this.bots.length % COLORS.length],
       ...(profile.mascotExpression ? { mascotExpression: profile.mascotExpression } : {}),
@@ -1290,6 +1306,9 @@ export class Store {
     bot.tasks = [{ threadId: bot.threadId, title: UNTITLED_TASK, createdAt: bot.createdAt, resumeCursors: {} }];
     this.bots.unshift(bot);
     this.saveBots();
+    // The folder exists from the first moment, so the user can open
+    // SOUL.md before the bot has said a word.
+    writeSoulMirror(bot.id, "");
     // Announce the owner before its onboarding transcript. SSE clients need
     // the bot/thread mapping before they can place either message.
     this.emit({ type: "bot", botId: bot.id });
@@ -1323,6 +1342,8 @@ export class Store {
     try {
       rmSync(join(DATA_DIR, "skill-state", id), { recursive: true, force: true });
     } catch {}
+    // The bot folder (SOUL.md mirror) is the bot's too.
+    removeBotFolder(id);
     this.saveBots();
     this.emit({ type: "bot.deleted", botId: id });
     return true;
@@ -1334,6 +1355,15 @@ export class Store {
     Object.assign(bot, patch);
     this.saveBots();
     this.emit({ type: "bot", botId: id });
+    return bot;
+  }
+
+  /** The one write path for standing instructions: record, hash, mirror,
+   * and any drift flag cleared, in that order. Every route that accepts a
+   * soul goes through here, so the mirror can never lag the record. */
+  setSoul(id: string, soul: string): BotRecord | null {
+    const bot = this.patchBot(id, { soul, soulHash: soulHash(soul), soulDrift: false });
+    if (bot) writeSoulMirror(id, soul);
     return bot;
   }
 
