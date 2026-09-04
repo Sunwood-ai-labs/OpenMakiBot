@@ -7,8 +7,8 @@ import { useEffect, useState } from "react";
 
 import { BOT_PROFILE_LIMITS } from "../../shared/bot-profile";
 import { cn } from "@/lib/cn";
-import { firstSentence, utf8Bytes } from "@/lib/soul";
-import { api, type Bot } from "@/state/store";
+import { firstSentence, soulPatchFor, utf8Bytes } from "@/lib/soul";
+import { api, useStore, type Bot } from "@/state/store";
 
 type SoulRead = { soul: string; bytes: number; limit: number; file: string; drift: boolean; fileText?: string };
 
@@ -23,6 +23,7 @@ export function SoulField({
   bot: Bot;
   onPatch: (patch: { soul?: string; description?: string }) => void;
 }) {
+  const { dispatch } = useStore();
   const limit = BOT_PROFILE_LIMITS.soul;
   const [draft, setDraft] = useState(bot.soul ?? "");
   const [info, setInfo] = useState<SoulRead | null>(null);
@@ -50,12 +51,19 @@ export function SoulField({
   const over = bytes > limit;
   const change = (value: string) => {
     setDraft(value);
-    if (utf8Bytes(value) <= limit) onPatch({ soul: value });
+    const patch = soulPatchFor(value, limit);
+    if (patch) onPatch(patch);
   };
   const resolve = (action: "apply-file" | "discard-file") => {
-    void api(`/api/bots/${bot.id}/soul/${action}`, { method: "POST" })
+    void api(`/api/bots/${bot.id}/soul/${action}`, {
+      method: "POST",
+      body: action === "apply-file" ? JSON.stringify({ fileText: info?.fileText }) : undefined,
+    })
       .then(refresh)
-      .catch(() => {});
+      .catch((error: unknown) => {
+        dispatch({ type: "error", message: error instanceof Error ? error.message : String(error) });
+        refresh();
+      });
   };
   const canMigrate = bot.description.length > 400 && !(bot.soul ?? "").trim();
 
@@ -96,7 +104,6 @@ export function SoulField({
         id={`bot-soul-${bot.id}`}
         className={cn(inputCls, "min-h-[220px] resize-y font-mono leading-relaxed", over && "ring-2 ring-red-500/60")}
         placeholder="Who this bot is and the rules it never breaks. Keep it short; put step-by-step procedure into a skill."
-        aria-label="Standing instructions"
         aria-invalid={over || undefined}
         value={draft}
         onChange={(e) => change(e.target.value)}
