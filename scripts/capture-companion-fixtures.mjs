@@ -98,7 +98,7 @@ const json = async (url, init) => {
 let deviceToken = "";
 const asDevice = (init = {}) => ({
   ...init,
-  headers: { ...(init.headers ?? {}), authorization: `Bearer ${deviceToken}` },
+  headers: { ...init.headers, authorization: `Bearer ${deviceToken}` },
 });
 
 /** Read the event stream until it has produced `wanted` frames, running

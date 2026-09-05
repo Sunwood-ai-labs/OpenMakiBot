@@ -5,19 +5,8 @@ import { StoreProvider, api, useStore, type Bot } from "../state/store";
 import { applySkin } from "../lib/skins";
 import "../styles.css";
 
-// Delay only reads from this fixture's server, after taking their snapshot,
-// to reproduce an old bot's response arriving after the user switches bots.
 let slowReads = false;
 let readDelayMs = 1500;
-const realFetch = window.fetch.bind(window);
-window.fetch = async (input, init) => {
-  const response = await realFetch(input, init);
-  const url = input instanceof Request ? input.url : String(input);
-  if (slowReads && /\/(history|overview|soul)(?:\?|$)/.test(url) && (!init?.method || init.method === "GET")) {
-    await new Promise((resolve) => setTimeout(resolve, readDelayMs));
-  }
-  return response;
-};
 
 function Fixture() {
   const { state, dispatch, flushBotPatches } = useStore();
@@ -25,6 +14,23 @@ function Fixture() {
   const [saved, setSaved] = useState<Bot[]>([]);
   const [delayReads, setDelayReads] = useState(false);
   const toggleDelay = () => { slowReads = !slowReads; setDelayReads(slowReads); };
+  useEffect(() => {
+    // Delay reads after taking their snapshot to reproduce stale responses.
+    const realFetch = window.fetch;
+    const delayedFetch: typeof window.fetch = async (input, init) => {
+      const response = await realFetch.call(window, input, init);
+      const url = input instanceof Request ? input.url : String(input);
+      const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+      if (slowReads && /\/(history|overview|soul)(?:\?|$)/.test(url) && method === "GET") {
+        await new Promise((resolve) => setTimeout(resolve, readDelayMs));
+      }
+      return response;
+    };
+    window.fetch = delayedFetch;
+    return () => {
+      if (window.fetch === delayedFetch) window.fetch = realFetch;
+    };
+  }, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.altKey && event.code === "KeyD") {
@@ -69,4 +75,6 @@ function Fixture() {
 }
 
 applySkin("midnight");
-createRoot(document.getElementById("root")!).render(<StoreProvider><Fixture /></StoreProvider>);
+const root = createRoot(document.getElementById("root")!);
+root.render(<StoreProvider><Fixture /></StoreProvider>);
+if (import.meta.hot) import.meta.hot.dispose(() => root.unmount());

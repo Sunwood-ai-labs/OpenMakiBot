@@ -1395,24 +1395,20 @@ describe("ClaudeDriver turns (fake CLI)", () => {
 
     // Same connection stays open across the turn ending — the exact
     // condition that let a still-alive child raise an unanswerable card.
-    const conn = connect(permissionSocketPath("t-perm-late"));
-    await new Promise<void>((resolve, reject) => {
-      conn.on("connect", resolve);
-      conn.on("error", reject);
-    });
+    const conn = await connectSocket(permissionSocketPath("t-perm-late"));
+    const nextAnswer = answerQueue(conn);
+    const initialReply = nextAnswer();
+    conn.write(JSON.stringify({ t: "ask", id: "ask-ready", tool: "Bash", input: { command: "echo ready" } }) + "\n");
+    // Windows can signal client connect before the server accepts the pipe.
+    // Prove the broker owns this connection before closing its listener.
+    await recorder.until((e) => e.type === "request.opened" && e.requestId === "ask-ready");
 
     await instance.adapter.interruptTurn("t-perm-late");
+    await expect(initialReply).resolves.toMatchObject({ id: "ask-ready", behavior: "deny" });
     await recorder.until((e) => e.type === "turn.completed");
 
     const opensBefore = recorder.events.filter((e) => e.type === "request.opened").length;
-    const reply = new Promise<{ id: string; behavior: string; message?: string }>((resolve) => {
-      let buf = "";
-      conn.on("data", (c) => {
-        buf += c;
-        const nl = buf.indexOf("\n");
-        if (nl !== -1) resolve(JSON.parse(buf.slice(0, nl)));
-      });
-    });
+    const reply = nextAnswer();
     conn.write(JSON.stringify({ t: "ask", id: "ask-late", tool: "Bash", input: { command: "rm -rf /" } }) + "\n");
 
     // A dead card is a request.opened with no way to ever answer it — assert
@@ -1438,24 +1434,19 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     await instance.adapter.sendTurn({ threadId: "t-question-late", text: "go" });
     await recorder.until((e) => e.type === "session.started");
 
-    const conn = connect(permissionSocketPath("t-question-late"));
-    await new Promise<void>((resolve, reject) => {
-      conn.on("connect", resolve);
-      conn.on("error", reject);
-    });
+    const conn = await connectSocket(permissionSocketPath("t-question-late"));
+    const nextAnswer = answerQueue(conn);
+    const initialReply = nextAnswer();
+    conn.write(JSON.stringify({ t: "ask", kind: "question", id: "q-ready", tool: "ask_user", input: { question: "ready?" } }) + "\n");
+    // Wait for server-side acceptance, not only the named-pipe connect event.
+    await recorder.until((e) => e.type === "request.opened" && e.requestId === "q-ready");
 
     await instance.adapter.interruptTurn("t-question-late");
+    await expect(initialReply).resolves.toMatchObject({ id: "q-ready", behavior: "answer" });
     await recorder.until((e) => e.type === "turn.completed");
 
     const opensBefore = recorder.events.filter((e) => e.type === "request.opened").length;
-    const reply = new Promise<{ id: string; behavior: string; message?: string }>((resolve) => {
-      let buf = "";
-      conn.on("data", (c) => {
-        buf += c;
-        const nl = buf.indexOf("\n");
-        if (nl !== -1) resolve(JSON.parse(buf.slice(0, nl)));
-      });
-    });
+    const reply = nextAnswer();
     conn.write(JSON.stringify({ t: "ask", kind: "question", id: "q-late", tool: "ask_user", input: { question: "still there?" } }) + "\n");
 
     expect(await reply).toMatchObject({

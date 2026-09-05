@@ -85,7 +85,7 @@ describe("HistorySection", () => {
 
   it("fails closed if an older server omits restoration eligibility", () => {
     const { canRestore: _canRestore, ...legacyRow } = soulRow;
-    const markup = render([legacyRow as HistoryRow]);
+    const markup = render([legacyRow]);
     expect(markup).not.toContain("Undo this change");
     expect(markup).toContain("The exact previous instructions are unavailable");
   });

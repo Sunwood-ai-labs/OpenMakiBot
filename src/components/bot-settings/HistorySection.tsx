@@ -18,7 +18,7 @@ export interface HistoryRow {
   via: string;
   field: string;
   summary: string;
-  canRestore: boolean;
+  canRestore?: boolean;
   restoreUnavailableReason?: string;
   before?: string;
   after?: string;
