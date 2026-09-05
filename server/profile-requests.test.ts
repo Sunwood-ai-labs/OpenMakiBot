@@ -312,18 +312,17 @@ describe("ProfileRequestService", () => {
       .toEqual({ claimed: true, state: "invalid", error: "This profile request does not match its card", status: 409 });
   });
 
-  it("truncates a long soul diff at 400 lines with a count of what was cut", () => {
+  it("shows the complete proposed instructions when a detailed diff is too large", () => {
     const { service, store, bot } = harness({ name: "Scout" });
     const before = Array.from({ length: 500 }, (_, i) => `line ${i}`).join("\n");
     const after = Array.from({ length: 500 }, (_, i) => `changed ${i}`).join("\n");
     store.patchBot(bot.id, { title: "already set" });
     store.setSoul(bot.id, before);
     const { detail } = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { soul: after }, reason: "r" });
-    const diffLines = detail.split("\n").filter((line) => /^[+\- ]/.test(line));
-    expect(diffLines).toHaveLength(400);
-    const moreLine = detail.split("\n").find((line) => /^… \(\+\d+ more lines\)$/.test(line));
-    expect(moreLine).toBeDefined();
-    expect(moreLine).toBe(`… (+${1000 - 400} more lines)`);
+    expect(detail).toContain("complete proposed instructions");
+    expect(detail).toContain(after);
+    expect(detail).toContain("changed 499");
+    expect(detail).not.toContain("more lines)");
   });
 });
 

@@ -191,8 +191,11 @@ export function profileCardCopy(
     lines.push(`SOUL.md (${bytesBefore} → ${bytesAfter} bytes):`);
     const diff = lineDiff(beforeSoul, afterSoul);
     if (diff.length > MAX_DIFF_LINES) {
-      lines.push(...diff.slice(0, MAX_DIFF_LINES));
-      lines.push(`… (+${diff.length - MAX_DIFF_LINES} more lines)`);
+      // Truncating a diff can hide the very instructions being approved.
+      // The full replacement is already byte-bounded by profile validation
+      // and is readable in the same generic card on desktop and phones.
+      lines.push("Large change — complete proposed instructions (replaces the current SOUL.md):");
+      lines.push(afterSoul || "(empty)");
     } else {
       lines.push(...diff);
     }
