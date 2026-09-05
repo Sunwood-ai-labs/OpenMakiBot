@@ -43,6 +43,7 @@ function toolLabel(tool?: string): string {
     manage_routine: "change a routine",
     stage_skill: "enable a learned skill",
     update_skill: "update a learned skill",
+    update_profile: "update its profile",
   };
   return nice[tool] ?? bare;
 }
@@ -60,6 +61,7 @@ export function ApprovalCard({
   const settled = card.answered;
   const isRoutineRequest = Boolean(card.routineRequest);
   const isSkillRequest = Boolean(card.skillRequest);
+  const isProfileRequest = Boolean(card.profileRequest);
   const routineAction = card.routineRequest?.operation.action;
   const skillAction = card.skillRequest?.action;
   const routineSettledLabel = routineAction ? ROUTINE_SETTLED_LABEL[routineAction] : undefined;
@@ -68,6 +70,8 @@ export function ApprovalCard({
     ? routineAction === "create" ? "schedule_routine" : "manage_routine"
     : isSkillRequest
       ? skillAction === "update" ? "update_skill" : "stage_skill"
+    : isProfileRequest
+      ? "update_profile"
     : card.tool;
 
   return (
@@ -88,7 +92,15 @@ export function ApprovalCard({
       {/* what, exactly */}
       <pre
         tabIndex={0}
-        aria-label={isRoutineRequest ? "Routine details" : isSkillRequest ? "Skill details" : "Approval details"}
+        aria-label={
+          isRoutineRequest
+            ? "Routine details"
+            : isSkillRequest
+              ? "Skill details"
+              : isProfileRequest
+                ? "Profile change"
+                : "Approval details"
+        }
         className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-inset px-3 py-2 font-mono text-[12.5px] leading-relaxed text-ink"
       >
         {card.subtitle}
@@ -108,16 +120,26 @@ export function ApprovalCard({
         {settled === "allow" ? (
           <>
             <Check size={14} className="text-success" />
-            {skillSettledLabel ?? routineSettledLabel ?? (isRoutineRequest ? "Routine confirmed" : isSkillRequest ? "Skill confirmed" : "Allowed")}
+            {skillSettledLabel ??
+              routineSettledLabel ??
+              (isProfileRequest
+                ? "Profile updated"
+                : isRoutineRequest
+                  ? "Routine confirmed"
+                  : isSkillRequest
+                    ? "Skill confirmed"
+                    : "Allowed")}
           </>
         ) : settled ? (
           <>
-            <X size={14} /> {isRoutineRequest || isSkillRequest ? "Cancelled" : "Denied"}
+            <X size={14} /> {isRoutineRequest || isSkillRequest || isProfileRequest ? "Cancelled" : "Denied"}
           </>
         ) : (
           <>
             <ShieldCheck size={14} className="text-accent" />
-            {isRoutineRequest || isSkillRequest ? "Waiting for your confirmation below" : "Waiting for your answer below"}
+            {isRoutineRequest || isSkillRequest || isProfileRequest
+              ? "Waiting for your confirmation below"
+              : "Waiting for your answer below"}
           </>
         )}
       </div>
