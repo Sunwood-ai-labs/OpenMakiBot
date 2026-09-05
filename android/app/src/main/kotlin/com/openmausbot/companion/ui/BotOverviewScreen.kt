@@ -124,9 +124,15 @@ fun BotOverviewScreen(botId: String, onBack: () -> Unit) {
 private fun OverviewBody(overview: BotOverview) {
     FormSection(header = OverviewRules.WHO) {
         Text(overview.who.name, fontWeight = FontWeight.SemiBold)
-        Text(overview.who.title)
-        Text(overview.who.blurb)
-        Text(overview.who.soulLead, color = secondaryTint, fontSize = 13.sp)
+        if (overview.who.title.isNotBlank()) {
+            Text(overview.who.title)
+        }
+        if (overview.who.blurb.isNotBlank()) {
+            Text(overview.who.blurb)
+        }
+        if (overview.who.soulLead.isNotBlank()) {
+            Text(overview.who.soulLead, color = secondaryTint, fontSize = 13.sp)
+        }
     }
 
     FormSection(header = OverviewRules.DOES) {

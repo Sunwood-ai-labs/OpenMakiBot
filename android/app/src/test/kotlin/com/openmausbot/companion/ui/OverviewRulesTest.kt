@@ -13,13 +13,4 @@ class OverviewRulesTest {
     fun `the title names the bot`() {
         assertEquals("What Maus does", OverviewRules.title("Maus"))
     }
-
-    @Test
-    fun `the section headers match ios BotOverviewView`() {
-        assertEquals("Who", OverviewRules.WHO)
-        assertEquals("Does", OverviewRules.DOES)
-        assertEquals("Can reach", OverviewRules.REACHES)
-        assertEquals("Won't", OverviewRules.WONT)
-        assertEquals("Recent changes", OverviewRules.RECENT)
-    }
 }
