@@ -7434,8 +7434,10 @@ const server = createServer(async (req, res) => {
         }
         if (name.length > 80) return json(res, 400, { error: "name must be at most 80 characters" });
         if (role.length > 120) return json(res, 400, { error: "role must be at most 120 characters" });
-        if (instructions.length > 1_000) {
-          return json(res, 400, { error: "instructions must be at most 1000 characters" });
+        // Same ceiling as the user-editable description, which is where the
+        // instructions land.
+        if (instructions.length > BOT_PROFILE_LIMITS.description) {
+          return json(res, 400, { error: `instructions must be at most ${BOT_PROFILE_LIMITS.description} characters` });
         }
         const duplicate = store.bots.find(
           (candidate) =>

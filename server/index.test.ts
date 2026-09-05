@@ -1472,6 +1472,69 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("caps create_bot instructions at the description limit, 4000 characters", async () => {
+    const chief = (await api("POST", "/api/bots")).body.bot;
+    const createdBotIds: string[] = [];
+    try {
+      const selected = await api("PATCH", `/api/bots/${chief.id}`, {
+        name: "Cap Test Chief",
+        section: "Cap test section",
+        chiefOfStaff: true,
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      });
+      expect(selected.status).toBe(200);
+
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${chief.id}/messages`, { text: "prepare the team" })).status).toBe(202);
+      const dump = z.object({
+        mcpConfig: z.object({
+          mcpServers: z.object({
+            agents: z.object({ env: z.object({ OMB_COMMS_TOKEN: z.string() }) }),
+          }),
+        }),
+      }).parse(await readJsonFileWhenReady(fakeClaudeDump));
+      const internalHeaders = {
+        authorization: `Bearer ${dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN}`,
+        "content-type": "application/json",
+      };
+      expect((await api("POST", `/api/bots/${chief.id}/interrupt`)).status).toBe(200);
+
+      const ok = await fetch(`${BASE}/api/internal/create-bot`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({
+          fromBotId: chief.id,
+          fromThreadId: chief.threadId,
+          name: "Cap Ok",
+          role: "Specialist",
+          instructions: "x".repeat(4_000),
+        }),
+      });
+      expect(ok.status).toBe(201);
+      const okBody = z.object({ id: z.string() }).passthrough().parse(await ok.json());
+      if (okBody.id) createdBotIds.push(okBody.id);
+
+      const over = await fetch(`${BASE}/api/internal/create-bot`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({
+          fromBotId: chief.id,
+          fromThreadId: chief.threadId,
+          name: "Cap Over",
+          role: "Specialist",
+          instructions: "x".repeat(4_001),
+        }),
+      });
+      expect(over.status).toBe(400);
+      const overBody = await over.json();
+      expect(overBody).toEqual({ error: "instructions must be at most 4000 characters" });
+    } finally {
+      await api("POST", `/api/bots/${chief.id}/interrupt`);
+      for (const botId of createdBotIds) await api("DELETE", `/api/bots/${botId}`);
+      await api("DELETE", `/api/bots/${chief.id}`);
+    }
+  });
+
   it("rejects null and array task, channel, and bot mutation bodies", async () => {
     const bot = (await api("POST", "/api/bots")).body.bot;
     const room = (await api("POST", "/api/groups", { name: "Object bodies", memberIds: [bot.id] })).body.group;
