@@ -28,11 +28,11 @@ describe("profileRevision", () => {
   it("is stable for equal profiles and moves when any field moves", () => {
     expect(profileRevision(base)).toBe(profileRevision({ ...base }));
     expect(profileRevision(base)).toMatch(/^[0-9a-f]{64}$/);
-    for (const field of ["name", "title", "description", "soul"] as const) {
+    for (const field of ["name", "title", "description", "soul", "cwd"] as const) {
       expect(profileRevision({ ...base, [field]: "x" })).not.toBe(profileRevision(base));
     }
     expect(profileSnapshot({ name: "A", title: "B", description: "C", soul: undefined })).toEqual({
-      name: "A", title: "B", description: "C", soul: "",
+      name: "A", title: "B", description: "C", soul: "", cwd: "",
     });
   });
 });

@@ -493,16 +493,20 @@ export function scheduleText(schedule: RoutineRequestSchedule, timeZone: string)
 
 /** One plain sentence describing how often a routine will actually run, so
  * the approval card states the consequence rather than just the schedule. */
-export function consequenceLine(schedule: RoutineRequestSchedule): string {
+export function consequenceLine(schedule: RoutineRequestSchedule, continuity = false): string {
+  // A continuity routine still gets a fresh session per run; what carries
+  // over is the previous run's report, so say that rather than contradict
+  // the Continuity line above it.
+  const session = continuity ? "each run starts a fresh session with the previous run's report" : "each run starts a fresh session";
   if (schedule.type === "once") return "Will run once; that run starts a fresh session.";
   if (schedule.type === "interval") {
     const runsPerDay = Math.round(1440 / schedule.everyMinutes);
     const cadence = runsPerDay <= 1 ? "about once a day" : `about ${runsPerDay} times a day`;
-    return `Will run ${cadence}; each run starts a fresh session.`;
+    return `Will run ${cadence}; ${session}.`;
   }
   const days = schedule.weekdays.length;
   const cadence = days === 7 ? "every day" : days === 1 ? "one day a week" : `${days} days a week`;
-  return `Will run ${cadence}; each run starts a fresh session.`;
+  return `Will run ${cadence}; ${session}.`;
 }
 
 function effectiveDefinition(operation: RoutineRequestOperation, manager: RoutineManager): RoutineRequestDefinition | null {
@@ -586,10 +590,12 @@ function cardCopy(
       `Next run: ${nextDescription}`,
       `Runs on: ${destination}`,
       `Run limit: ${definition.timeoutMinutes === undefined ? "No limit" : `${definition.timeoutMinutes} minutes`}`,
-      ...(operation.action === "create" || operation.action === "update"
-        ? [consequenceLine(definition.schedule)]
-        : []),
       `Continuity: ${definition.continuity ? "Carries the previous run's report into the next run" : "Each run starts fresh"}`,
+      // Last before the instructions: the one sentence that says what
+      // confirming actually does, in the reader's terms.
+      ...(operation.action === "create" || operation.action === "update"
+        ? [consequenceLine(definition.schedule, Boolean(definition.continuity))]
+        : []),
       "",
       "Instructions:",
       visibleInstructions,

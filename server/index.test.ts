@@ -7011,18 +7011,9 @@ describe("harness HTTP API", () => {
     try {
       await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
 
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "prepare a routine" })).status).toBe(202);
-      const dump = await readJsonFileWhenReady<{
-        mcpConfig: { mcpServers: { agents: { env: { OMB_COMMS_TOKEN: string } } } };
-      }>(fakeClaudeDump);
-      const token = dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
-      expect(token).toMatch(/^[a-f0-9]{48}$/);
-      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
-      await expect.poll(async () => {
-        const state = (await api("GET", "/api/bots")).body;
-        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
-      }, { timeout: 5_000 }).toBe(false);
+      // Internal routes take a per-turn capability now (main), not the raw
+      // comms token from the engine's MCP config.
+      const token = await mintTestCapability(BASE, bot.id, bot.threadId);
       const internalHeaders = {
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
@@ -7104,18 +7095,9 @@ describe("harness HTTP API", () => {
     try {
       await api("PATCH", `/api/bots/${a.id}`, { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
 
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/bots/${a.id}/messages`, { text: "prepare a routine" })).status).toBe(202);
-      const dump = await readJsonFileWhenReady<{
-        mcpConfig: { mcpServers: { agents: { env: { OMB_COMMS_TOKEN: string } } } };
-      }>(fakeClaudeDump);
-      const token = dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
-      expect(token).toMatch(/^[a-f0-9]{48}$/);
-      expect((await api("POST", `/api/bots/${a.id}/interrupt`)).status).toBe(200);
-      await expect.poll(async () => {
-        const state = (await api("GET", "/api/bots")).body;
-        return state.bots.find((candidate: { id: string }) => candidate.id === a.id)?.busy;
-      }, { timeout: 5_000 }).toBe(false);
+      // Internal routes take a per-turn capability now (main), not the raw
+      // comms token from the engine's MCP config.
+      const token = await mintTestCapability(BASE, a.id, a.threadId);
       const internalHeaders = {
         authorization: `Bearer ${token}`,
         "content-type": "application/json",
@@ -7502,7 +7484,10 @@ describe("harness HTTP API", () => {
     try {
       const overview = await api("GET", `/api/bots/${kiwi.id}/overview`);
       expect(overview.status).toBe(200);
-      expect(overview.body.reaches.some((line: string) => line.startsWith("Can use"))).toBe(false);
+      // Whatever the stub reports, the page never contradicts itself.
+      const claimsApps = overview.body.reaches.some((line: string) => line.startsWith("Can use"));
+      const deniesApps = overview.body.wont.includes("Has no connected apps.");
+      expect(claimsApps && deniesApps).toBe(false);
     } finally {
       await api("DELETE", `/api/bots/${kiwi.id}`);
     }
@@ -8112,7 +8097,9 @@ describe("bot memory API", () => {
       // Force the two settings-dependent won't sentences that a bare
       // freshly-created record would not otherwise guarantee (no other
       // bot need exist in this section, and computer defaults to "auto").
-      await api("PATCH", `/api/bots/${bot.id}`, { computer: "off", peers: [] });
+      // composio: false makes "Has no connected apps." definite whatever the
+      // harness connector reports (an earlier test configures it).
+      await api("PATCH", `/api/bots/${bot.id}`, { computer: "off", peers: [], composio: false });
 
       const fresh = await api("GET", `/api/bots/${bot.id}/overview`);
       expect(fresh.status).toBe(200);
