@@ -265,6 +265,7 @@ import {
 import { captureOutsideHumanControl } from "./private-screen-capture.ts";
 import { screenFrameHash, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { RoutineRequestService } from "./routine-requests.ts";
+import { buildBotOverview, type BotOverview } from "./bot-overview.ts";
 import { ProfileRequestService } from "./profile-requests.ts";
 import { profileSnapshot } from "./profile-revision.ts";
 import { flushAllProfileHistory, flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
@@ -1033,6 +1034,77 @@ function previewSystemPrompt(bot: BotRecord) {
     note:
       "Built for a plain direct turn from this bot's current settings. A real turn adds the task's own note, any skill or playbook matched by the message, and only the tool sections its engine can mount.",
   };
+}
+
+/** The plain-language "what does this bot do" facts, gathered once from
+ * every server-only source (engine capabilities, connected-apps inventory,
+ * routines/webhooks/skills, and recent history) and handed to the pure
+ * sentence builder. The phones (step 5) and the web settings dialog both
+ * read this same route, so they can never disagree about what a bot does. */
+async function botOverview(bot: BotRecord): Promise<BotOverview> {
+  const appsConfigured = composio.configured(cfg);
+  const authoritative = composio.connectorAvailability(cfg) !== "unreadable";
+  const services = appsConfigured && authoritative
+    ? Object.entries(await composio.connectedServices(cfg))
+      .filter(([, s]) => s.connected)
+      .map(([slug]) => slug)
+    : [];
+  const engine = registry.get(bot.modelSelection.instanceId)?.adapter.capabilities ?? null;
+  const sectionPeers = reachablePeers(store.bots, bot).length;
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Same flush as GET /history: profile-change rows queue in
+  // profile-versions.ts and land asynchronously, so a client checking the
+  // overview right after causing a change must see its own row.
+  await flushProfileHistory(bot.id);
+  const recent = readHistory(bot.id, 5).map((r) => ({ at: r.at, summary: r.summary }));
+  return buildBotOverview({
+    bot: {
+      name: bot.name,
+      title: bot.title,
+      description: bot.description,
+      soul: bot.soul,
+      computer: bot.computer,
+      cloudBackend: bot.cloudBackend,
+      cwd: bot.cwd,
+      autoApprove: bot.autoApprove,
+      approvePeerComms: bot.approvePeerComms,
+      peers: bot.peers,
+      composio: bot.composio,
+      browser: bot.browser,
+      chiefOfStaff: bot.chiefOfStaff,
+    },
+    routines: routines!.listRoutines()
+      .filter((routine) => routine.botId === bot.id)
+      .map((routine) => ({
+        id: routine.id,
+        name: routine.name,
+        enabled: routine.enabled,
+        schedule: routine.schedule,
+        nextRunAt: routine.nextRunAt,
+      })),
+    runs: routines!.listRuns()
+      .filter((run) => run.botId === bot.id)
+      .map((run) => ({
+        routineId: run.routineId,
+        status: run.status,
+        finishedAt: run.finishedAt,
+        startedAt: run.startedAt,
+        scheduledFor: run.scheduledFor,
+      })),
+    webhooks: webhooks.list()
+      .filter((webhook) => webhook.botId === bot.id)
+      .map((webhook) => ({ name: webhook.name, enabled: webhook.enabled })),
+    skills: listSkills(bot.id).map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      enabled: skill.enabled,
+    })),
+    engine,
+    connectedApps: { configured: appsConfigured, authoritative, services },
+    sectionPeers,
+    timeZone,
+    recent,
+  });
 }
 
 /** Profile URLs are app-owned references, not merely strings with a trusted
@@ -9680,6 +9752,12 @@ const server = createServer(async (req, res) => {
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
       return json(res, 200, previewSystemPrompt(bot));
+    }
+    m = path.match(/^\/api\/bots\/([\w-]+)\/overview$/);
+    if (m && method === "GET") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      return json(res, 200, await botOverview(bot));
     }
 
     m = path.match(/^\/api\/bots\/([\w-]+)\/history$/);

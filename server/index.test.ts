@@ -7436,6 +7436,38 @@ describe("bot memory API", () => {
       await api("DELETE", `/api/bots/${bot.id}`);
     }
   });
+
+  it("builds a plain-language overview from a bot's real settings and history", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker", description: "Files bugs." })).body.bot;
+    try {
+      // Force the two settings-dependent won't sentences that a bare
+      // freshly-created record would not otherwise guarantee (no other
+      // bot need exist in this section, and computer defaults to "auto").
+      await api("PATCH", `/api/bots/${bot.id}`, { computer: "off", peers: [] });
+
+      const fresh = await api("GET", `/api/bots/${bot.id}/overview`);
+      expect(fresh.status).toBe(200);
+      expect(fresh.body.who.name).toBe("Kiwi");
+      expect(fresh.body.wont).toEqual([
+        "Won't run commands without asking you first.",
+        "Won't contact other bots without asking.",
+        "Has no connected apps.",
+        "Can't use a computer.",
+        "Won't act on a schedule.",
+        "Won't change its own instructions without your approval.",
+      ]);
+      expect(fresh.body.recent).toEqual([]);
+
+      await api("PATCH", `/api/bots/${bot.id}`, { soul: "Never file noise.\n\nSecond paragraph." });
+      const after = await api("GET", `/api/bots/${bot.id}/overview`);
+      expect(after.body.who.soulLead).toBe("Never file noise.");
+      expect(after.body.recent[0].summary).toMatch(/^soul:/);
+
+      expect((await api("GET", "/api/bots/does-not-exist/overview")).status).toBe(404);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
 });
 
 // Hydration is one call that returns every bot's entire transcript. Over

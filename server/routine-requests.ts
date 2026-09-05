@@ -473,7 +473,7 @@ function formatInstant(at: number, timeZone: string): string {
   }
 }
 
-function scheduleText(schedule: RoutineRequestSchedule, timeZone: string): string {
+export function scheduleText(schedule: RoutineRequestSchedule, timeZone: string): string {
   if (schedule.type === "once") return `${formatInstant(schedule.at, timeZone)} (${timeZone})`;
   if (schedule.type === "interval") {
     return schedule.anchorAt === undefined
