@@ -18,11 +18,13 @@ function formatWhen(at: number): string {
 
 export function OverviewSection({
   overview,
+  refreshError,
   prompt,
   promptError,
   onOpen,
 }: {
   overview: BotOverview | null;
+  refreshError?: boolean;
   prompt: PromptPreviewData | null;
   promptError?: boolean;
   onOpen: (section: BotSettingsSection) => void;
@@ -35,6 +37,12 @@ export function OverviewSection({
 
   return (
     <div className="flex flex-col gap-4">
+      {refreshError && (
+        <div className="rounded-lg bg-inset px-3 py-2 text-[12.5px] text-ink-secondary">
+          Couldn’t refresh — showing the last loaded overview.
+        </div>
+      )}
+
       <div className="rounded-xl bg-card p-4">
         <div className="text-[15px] font-medium text-ink">{overview.who.name}</div>
         {overview.who.title && <div className="mt-0.5 text-[13px] text-ink-secondary">{overview.who.title}</div>}

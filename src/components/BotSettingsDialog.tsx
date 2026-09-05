@@ -74,29 +74,46 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   // block reading "couldn't load" rather than throwing and breaking the
   // rest of the dialog.
   useEffect(() => {
+    // Guards every setState below the same way AccessSection's connected-apps
+    // preload does: a quick open/close (or a fast bot switch) can unmount
+    // this dialog before either fetch settles, and without this flag the
+    // resolved promise would still call setOverview/setPrompt/setError on a
+    // component that's already gone.
+    let cancelled = false;
     const fetchOverviewAndPrompt = () => {
       void api(`/api/bots/${bot.id}/overview`)
         .then((data: BotOverview) => {
+          if (cancelled) return;
           setOverview(data);
           setOverviewError(false);
         })
-        .catch(() => setOverviewError(true));
+        .catch(() => {
+          if (!cancelled) setOverviewError(true);
+        });
       void api(`/api/bots/${bot.id}/system-prompt`)
         .then((data: PromptPreviewData) => {
+          if (cancelled) return;
           setPrompt(data);
           setPromptError(false);
         })
-        .catch(() => setPromptError(true));
+        .catch(() => {
+          if (!cancelled) setPromptError(true);
+        });
     };
 
     if (firstLoadRef.current) {
       firstLoadRef.current = false;
       fetchOverviewAndPrompt();
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
 
     const timer = window.setTimeout(fetchOverviewAndPrompt, 500);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [bot.id, bot, state.routines, state.webhooks]);
 
   // History is fetched only once the section is actually opened — every
@@ -250,11 +267,17 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
 
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
             {section === "overview" &&
-              (overviewError ? (
+              (overview === null && overviewError ? (
                 <div className="rounded-xl bg-card p-4 text-[13px] text-ink-secondary">Couldn’t load the overview.</div>
               ) : (
+                // Data wins over a transient refetch failure: once an overview has
+                // loaded once, a later failed refetch (routines/webhooks/bot-record
+                // changed, the request errored) keeps showing it rather than
+                // replacing a fully populated card with an error block — the same
+                // precedence PromptPreview already gives its own data vs. error.
                 <OverviewSection
                   overview={overview}
+                  refreshError={overview !== null && overviewError}
                   prompt={prompt}
                   promptError={promptError}
                   onOpen={(target) => dispatch({ type: "toggleSettings", open: true, section: target })}

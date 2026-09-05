@@ -79,4 +79,25 @@ describe("OverviewSection", () => {
     // header must not be stuck offering a preview that will never arrive.
     expect(markup).toContain("What the model sees");
   });
+
+  it("keeps showing the loaded overview and adds a quiet banner when a background refresh fails", () => {
+    const markup = render(
+      createElement(OverviewSection, { overview: sentences, refreshError: true, prompt, onOpen: vi.fn() }),
+    );
+
+    expect(markup).toContain("Couldn’t refresh — showing the last loaded overview.");
+    // The data itself must still be there — a refresh failure is not a load
+    // failure, so none of the sections should be replaced by an error state.
+    for (const line of sentences.wont) {
+      expect(markup).toContain(line);
+    }
+  });
+
+  it("omits the refresh banner when there was no refresh error", () => {
+    const markup = render(
+      createElement(OverviewSection, { overview: sentences, refreshError: false, prompt, onOpen: vi.fn() }),
+    );
+
+    expect(markup).not.toContain("Couldn’t refresh");
+  });
 });
