@@ -585,10 +585,10 @@ export function SettingsModal() {
       >
         {/* section nav */}
         <nav className="flex w-[190px] shrink-0 flex-col gap-0.5 border-r border-hairline/40 p-3">
-          <div id="app-settings-title" className="px-2 pb-2 pt-1 text-[15px] font-semibold text-ink">
+          <div id="app-settings-title" className="px-2 py-3 text-[15px] font-semibold leading-none text-ink">
             Settings
           </div>
-          <div className="mb-1.5 flex items-center gap-2 rounded-lg bg-control/70 px-2.5 py-1.5">
+          <div className="mb-2 mt-1 flex items-center gap-2 rounded-lg bg-control/70 px-2.5 py-2">
             <Search size={14} className="shrink-0 text-ink-secondary" />
             <input
               value={query}
