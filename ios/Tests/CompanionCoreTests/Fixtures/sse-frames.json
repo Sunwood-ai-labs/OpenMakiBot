@@ -1,15 +1,15 @@
 [
   {
     "kind": "hello",
-    "cursor": "71dbe616:2",
+    "cursor": "f3082457:3",
     "resumed": false
   },
   {
     "kind": "bot",
     "bot": {
-      "id": "f67c3299-85c3-433a-9def-d3541b10ad4a",
-      "threadId": "5be4bfda-54fd-433b-a254-48d0975f60e4",
-      "name": "Nova",
+      "id": "457bc370-8e60-4025-817e-30d6e9c473cf",
+      "threadId": "c881be3c-5d87-4151-b082-b23eea815d1b",
+      "name": "Kiwi",
       "title": "",
       "description": "",
       "soul": "",
@@ -21,37 +21,37 @@
         "instanceId": "claude",
         "model": "claude-sonnet-5"
       },
-      "createdAt": 1788603594053,
+      "createdAt": 1788604269567,
       "avatarUrl": null,
       "tasks": [
         {
-          "threadId": "5be4bfda-54fd-433b-a254-48d0975f60e4",
+          "threadId": "c881be3c-5d87-4151-b082-b23eea815d1b",
           "title": "fixture message 0",
-          "createdAt": 1788603594053
+          "createdAt": 1788604269567
         }
       ]
-    },
-    "seq": 3
-  },
-  {
-    "kind": "message",
-    "threadId": "5be4bfda-54fd-433b-a254-48d0975f60e4",
-    "message": {
-      "id": "6c515ddf-1abf-482f-a9a8-0acbc12c3588",
-      "at": 1788603594072,
-      "parentId": "b5a86fd0-aba9-4dc5-8ef1-9ac5dc6d9cb1",
-      "role": "user",
-      "kind": "text",
-      "text": "fixture message 0"
     },
     "seq": 4
   },
   {
+    "kind": "message",
+    "threadId": "c881be3c-5d87-4151-b082-b23eea815d1b",
+    "message": {
+      "id": "3b428b2a-ffc3-48c9-9e53-a93a94502ef2",
+      "at": 1788604269604,
+      "parentId": "7e32d49f-fcc4-4a75-873c-5e8a5ad38214",
+      "role": "user",
+      "kind": "text",
+      "text": "fixture message 0"
+    },
+    "seq": 5
+  },
+  {
     "kind": "bot",
     "bot": {
-      "id": "f67c3299-85c3-433a-9def-d3541b10ad4a",
-      "threadId": "5be4bfda-54fd-433b-a254-48d0975f60e4",
-      "name": "Nova",
+      "id": "457bc370-8e60-4025-817e-30d6e9c473cf",
+      "threadId": "c881be3c-5d87-4151-b082-b23eea815d1b",
+      "name": "Kiwi",
       "title": "",
       "description": "",
       "soul": "",
@@ -63,18 +63,18 @@
         "instanceId": "claude",
         "model": "claude-sonnet-5"
       },
-      "createdAt": 1788603594053,
+      "createdAt": 1788604269567,
       "activity": "working",
       "busy": true,
       "avatarUrl": null,
       "tasks": [
         {
-          "threadId": "5be4bfda-54fd-433b-a254-48d0975f60e4",
+          "threadId": "c881be3c-5d87-4151-b082-b23eea815d1b",
           "title": "fixture message 0",
-          "createdAt": 1788603594053
+          "createdAt": 1788604269567
         }
       ]
     },
-    "seq": 5
+    "seq": 6
   }
 ]

@@ -6,7 +6,7 @@
     "soulLead": "File bugs."
   },
   "does": [
-    "Every 5 minutes, anchored at Sep 5, 2026, 3:49 PM (Asia/Calcutta): Triage Discord. Next run 3:54 PM."
+    "Every 5 minutes, anchored at Sep 5, 2026, 4:01 PM (Asia/Calcutta): Triage Discord. Next run 4:06 PM."
   ],
   "reaches": [
     "Picks a computer automatically.",
@@ -20,7 +20,7 @@
   ],
   "recent": [
     {
-      "at": 1788603595443,
+      "at": 1788604271132,
       "summary": "soul: 0 → 29 bytes"
     }
   ]

@@ -196,6 +196,23 @@ async function main() {
   const bot = created.body.bot;
   if (!bot) throw new Error(`could not create a bot: ${JSON.stringify(created.body)}`);
 
+  // The harness seeds a lone starter bot on a fresh, empty store
+  // (Store.seedIfEmpty, "so the app never opens empty") before it ever
+  // starts listening, well before this script's own fetches happen — that
+  // seeded bot is real state, not something this script created, but a
+  // second bot in the fleet is not this fixture's story and Android's
+  // ClientTest.botJson() specifically expects one. Remove it directly on the
+  // harness (no phone route deletes bots at all) before anything gets
+  // captured.
+  const preseeded = (await json(`${SIDECAR}/api/bots`, asDevice())).body.bots ?? [];
+  for (const extra of preseeded) {
+    if (extra.id === bot.id) continue;
+    const removed = await json(`${HARNESS}/api/bots/${extra.id}`, { method: "DELETE" });
+    if (removed.status !== 200) {
+      throw new Error(`could not remove the seeded starter bot: ${JSON.stringify(removed.body)}`);
+    }
+  }
+
   console.log("capturing frames");
   const frames = await captureFrames(4, async () => {
     for (let i = 0; i < 3; i++) {
