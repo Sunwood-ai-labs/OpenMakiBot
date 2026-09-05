@@ -1778,6 +1778,17 @@ class Session(
         }
     }
 
+    suspend fun loadOverview(botId: String): BotOverview? {
+        val activeClient = client ?: return null
+        return try {
+            activeClient.overview(botId)
+        } catch (error: Throwable) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _actionError.value = error.message
+            null
+        }
+    }
+
     suspend fun loadRoutineRunAvailability(): RoutineRunAvailability? {
         val activeClient = client ?: return null
         return try {
