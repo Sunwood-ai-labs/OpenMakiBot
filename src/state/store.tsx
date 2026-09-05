@@ -455,6 +455,20 @@ export type AppSettingsSection =
   | "computer"
   | "usage";
 
+export type BotSettingsSection =
+  | "overview"
+  | "identity"
+  | "soul"
+  | "skills"
+  | "memory"
+  | "routines"
+  | "access"
+  | "model"
+  | "permissions"
+  | "voice"
+  | "history"
+  | "usage";
+
 export interface AppState {
   bots: Bot[];
   groups: Group[];
@@ -475,6 +489,7 @@ export interface AppState {
   inspectorOpen: boolean;
   appSettingsOpen: boolean;
   appSettingsSection: AppSettingsSection;
+  botSettingsSection: BotSettingsSection;
   /** latest live frame of a bot's computer, per botId */
   screens: Record<string, { png: string; mime: string }>;
   /** bots whose cloud computer is being provisioned */
@@ -662,7 +677,7 @@ export type Action =
   | { type: "interrupt"; botId: string; threadId?: string; onError?: () => void }
   | { type: "connected"; value: boolean }
   | { type: "error"; message: string | null }
-  | { type: "toggleSettings"; open?: boolean }
+  | { type: "toggleSettings"; open?: boolean; section?: BotSettingsSection }
   | { type: "togglePlugins"; open?: boolean }
   | { type: "toggleComputer"; open?: boolean }
   | { type: "toggleInspector"; open?: boolean }
@@ -915,11 +930,12 @@ export function reducer(state: AppState, action: Action): AppState {
           ...state,
           activeView: "chat",
           selectedId: action.id,
+          botSettingsSection: "overview",
           groups: state.groups.map((g) => (g.id === action.id ? { ...g, unread: false } : g)),
         };
       }
       return updateBot(
-        withMascotMotion({ ...state, activeView: "chat", selectedId: action.id }, action.id, "switch"),
+        withMascotMotion({ ...state, activeView: "chat", selectedId: action.id, botSettingsSection: "overview" }, action.id, "switch"),
         action.id,
         (b) => ({ ...b, unread: false }),
       );
@@ -1193,6 +1209,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         settingsOpen: open,
+        botSettingsSection: action.section ?? state.botSettingsSection,
         computerOpen: open ? false : state.computerOpen,
         inspectorOpen: open ? false : state.inspectorOpen,
         appSettingsOpen: open ? false : state.appSettingsOpen,
@@ -1468,6 +1485,7 @@ export const initialState: AppState = {
   inspectorOpen: false,
   appSettingsOpen: false,
   appSettingsSection: "general",
+  botSettingsSection: "overview",
   screens: {},
   provisioning: {},
   deletingBots: {},

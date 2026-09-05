@@ -977,3 +977,60 @@ describe("messageAdded leaf adoption", () => {
     expect(next.bots[0].messages.map((m) => m.id)).toContain("shot");
   });
 });
+
+describe("bot settings section", () => {
+  const bot = {
+    id: "test-bot",
+    threadId: "test-thread",
+    name: "Test",
+    title: "",
+    description: "",
+    notifications: true,
+    color: "green",
+    unread: false,
+    modelSelection: { instanceId: "x", model: "y" },
+    messages: [],
+  } as never as Bot;
+
+  it("toggleSettings with a section sets it and opens", () => {
+    const next = reducer(initialState, {
+      type: "toggleSettings",
+      open: true,
+      section: "identity",
+    });
+    expect(next.settingsOpen).toBe(true);
+    expect(next.botSettingsSection).toBe("identity");
+  });
+
+  it("toggleSettings without a section keeps it", () => {
+    const state = reducer(initialState, {
+      type: "toggleSettings",
+      open: true,
+      section: "soul",
+    });
+    const next = reducer(state, {
+      type: "toggleSettings",
+      open: true,
+    });
+    expect(next.botSettingsSection).toBe("soul");
+  });
+
+  it("selecting another bot resets botSettingsSection to overview", () => {
+    let state = reducer(initialState, {
+      type: "toggleSettings",
+      open: true,
+      section: "identity",
+    });
+    state = reducer(state, {
+      type: "botAdded",
+      bot: { ...bot, id: "other-bot", threadId: "other-thread" },
+    });
+    expect(state.botSettingsSection).toBe("identity");
+
+    const next = reducer(state, {
+      type: "select",
+      id: "other-bot",
+    });
+    expect(next.botSettingsSection).toBe("overview");
+  });
+});
