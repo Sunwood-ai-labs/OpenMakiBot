@@ -13,6 +13,10 @@ import { useBotSettingsDerived } from "./bot-settings/useBotSettingsDerived";
 import { OverviewSection } from "./bot-settings/OverviewSection";
 import { IdentitySection } from "./bot-settings/IdentitySection";
 import { SoulSection } from "./bot-settings/SoulSection";
+import { SkillsSection } from "./bot-settings/SkillsSection";
+import { MemorySection } from "./bot-settings/MemorySection";
+import { RoutinesSection } from "./bot-settings/RoutinesSection";
+import { AccessSection } from "./bot-settings/AccessSection";
 import type { PromptPreviewData } from "./bot-settings/PromptPreview";
 
 function sectionMatches(entry: (typeof BOT_SECTIONS)[number], query: string): boolean {
@@ -210,9 +214,25 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
 
             {section === "soul" && <SoulSection bot={bot} patch={derived.patch} />}
 
-            {section !== "overview" && section !== "identity" && section !== "soul" && (
-              <div className="text-[13px] text-ink-secondary">Moving in the next commit.</div>
+            {section === "skills" && <SkillsSection bot={bot} />}
+
+            {section === "memory" && <MemorySection bot={bot} />}
+
+            {section === "routines" && (
+              <RoutinesSection bot={bot} routines={derived.botRoutines} runs={state.routineRuns} />
             )}
+
+            {section === "access" && <AccessSection bot={bot} derived={derived} />}
+
+            {section !== "overview" &&
+              section !== "identity" &&
+              section !== "soul" &&
+              section !== "skills" &&
+              section !== "memory" &&
+              section !== "routines" &&
+              section !== "access" && (
+                <div className="text-[13px] text-ink-secondary">Moving in the next commit.</div>
+              )}
           </div>
         </div>
       </div>

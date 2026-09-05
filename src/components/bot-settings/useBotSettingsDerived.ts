@@ -24,6 +24,7 @@ export type BotPatch = Partial<
     | "mascotBody"
     | "avatarUrl"
     | "avatarCrop"
+    | "alwaysAllow"
     | "autoApprove"
     | "autoReview"
     | "speakReplies"
