@@ -5833,7 +5833,7 @@ function skillCardCopy(staged: { action: "create" | "update"; name: string; gist
     title: staged.action === "create"
       ? `Enable skill "${staged.name}"?`
       : `Update skill "${staged.name}"?`,
-    subtitle: `${staged.gist || staged.name}${warnings}`,
+    subtitle: `${staged.gist || staged.name}\n\nAdds one line to the prompt index; the body is read only when used.${warnings}`,
     tool: "stage_skill",
   };
 }
@@ -7496,7 +7496,7 @@ const server = createServer(async (req, res) => {
           secret: {
             target: credentialId,
             label: target.label,
-            description: reason ? `${target.description} ${reason}` : target.description,
+            description: `${reason ? `${target.description} ${reason}` : target.description} Stored in the secure store. ${from.name} can use it but never read it back.`,
             placeholder: target.placeholder,
             helpUrl: target.helpUrl,
             requestKey: randomUUID(),

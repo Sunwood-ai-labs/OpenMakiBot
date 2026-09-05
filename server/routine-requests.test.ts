@@ -192,6 +192,71 @@ describe("RoutineRequestService", () => {
     expect(card.subtitle).toContain("-END");
   });
 
+  it("states the run cadence consequence before Instructions for an interval routine", async () => {
+    const { service, store } = harness();
+    await service.propose({
+      botId: "bot-a",
+      threadId: "thread-a",
+      proposal: createProposal({ schedule: { type: "interval", everyMinutes: 5 } }),
+    });
+    const card = store.messagesFor("thread-a")[0]!.card!;
+
+    expect(card.subtitle).toContain(
+      "Will run about 288 times a day; each run starts a fresh session.\n\nInstructions:",
+    );
+  });
+
+  it("states the run cadence consequence for a weekday routine", async () => {
+    const { service, store } = harness();
+    await service.propose({
+      botId: "bot-a",
+      threadId: "thread-a",
+      proposal: createProposal({
+        schedule: {
+          type: "weekly",
+          time: "09:00",
+          weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        },
+      }),
+    });
+    const card = store.messagesFor("thread-a")[0]!.card!;
+
+    expect(card.subtitle).toContain(
+      "Will run 5 days a week; each run starts a fresh session.\n\nInstructions:",
+    );
+  });
+
+  it("states every day for a full-week routine and once for a one-time routine", async () => {
+    const { service, store, clock } = harness();
+    await service.propose({
+      botId: "bot-a",
+      threadId: "thread-a",
+      proposal: createProposal({
+        schedule: {
+          type: "weekly",
+          time: "09:00",
+          weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+        },
+      }),
+    });
+    const everyDayCard = store.messagesFor("thread-a")[0]!.card!;
+    expect(everyDayCard.subtitle).toContain(
+      "Will run every day; each run starts a fresh session.\n\nInstructions:",
+    );
+
+    await service.propose({
+      botId: "bot-a",
+      threadId: "thread-b",
+      proposal: createProposal({
+        schedule: { type: "once", at: new Date(clock.now + 60_000).toISOString() },
+      }),
+    });
+    const onceCard = store.messagesFor("thread-b")[0]!.card!;
+    expect(onceCard.subtitle).toContain(
+      "Will run once; that run starts a fresh session.\n\nInstructions:",
+    );
+  });
+
   it("never returns an existing routine's credential-shaped text to the proposing bot", async () => {
     const { service, routines, store } = harness();
     const secret = "sk-proj-existingroutineabcdefghijkl";

@@ -484,6 +484,18 @@ export function scheduleText(schedule: RoutineRequestSchedule, timeZone: string)
   return `${days} at ${schedule.time} (${timeZone})`;
 }
 
+/** One plain sentence describing how often a routine will actually run, so
+ * the approval card states the consequence rather than just the schedule. */
+function consequenceLine(schedule: RoutineRequestSchedule): string {
+  if (schedule.type === "once") return "Will run once; that run starts a fresh session.";
+  if (schedule.type === "interval") {
+    const runsPerDay = Math.round(1440 / schedule.everyMinutes);
+    return `Will run about ${runsPerDay} times a day; each run starts a fresh session.`;
+  }
+  const cadence = schedule.weekdays.length === 7 ? "every day" : `${schedule.weekdays.length} days a week`;
+  return `Will run ${cadence}; each run starts a fresh session.`;
+}
+
 function effectiveDefinition(operation: RoutineRequestOperation, manager: RoutineManager): RoutineRequestDefinition | null {
   if (operation.action === "create") return operation.routine;
   const existing = manager.listRoutines().find((routine) => routine.id === operation.routineId);
@@ -564,6 +576,9 @@ function cardCopy(
       `Next run: ${nextDescription}`,
       `Runs on: ${destination}`,
       `Run limit: ${definition.timeoutMinutes === undefined ? "No limit" : `${definition.timeoutMinutes} minutes`}`,
+      ...(operation.action === "create" || operation.action === "update"
+        ? [consequenceLine(definition.schedule)]
+        : []),
       "",
       "Instructions:",
       visibleInstructions,

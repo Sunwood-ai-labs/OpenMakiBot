@@ -3471,6 +3471,9 @@ describe("harness HTTP API", () => {
         kind: "secret",
         text: "Securely provide the OpenAI API key from OpenMausBot on your phone or computer. It is never added to chat.",
       });
+      expect(directCard.secret.description).toContain(
+        `Stored in the secure store. ${bot.name} can use it but never read it back.`,
+      );
       expect(directCard).not.toHaveProperty("from");
 
       const encryptedEnvelope = {
@@ -6729,6 +6732,7 @@ describe("harness HTTP API", () => {
         expect(card?.title).toBe(action === "create" ? `Enable skill "${name}"?` : `Update skill "${name}"?`);
         expect(card?.options).toEqual([action === "create" ? "Enable" : "Update", "Deny"]);
         expect(card?.skillRequest?.action).toBe(action);
+        expect(card?.subtitle).toContain("Adds one line to the prompt index; the body is read only when used.");
         expect(card?.skillRequest?.preview).toContain(`# ${name}`);
         expect(card?.skillRequest?.sha256).toMatch(/^[a-f0-9]{64}$/);
         expect(createHash("sha256").update(card.skillRequest.preview).digest("hex"))
