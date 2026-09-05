@@ -11003,6 +11003,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       if (!row || row.field !== "soul" || typeof row.before !== "string") {
         return json(res, 400, { error: "rollback is available for SOUL.md entries only" });
       }
+      if (!row.canRestore) {
+        return json(res, 400, { error: row.restoreUnavailableReason });
+      }
       const parsed = parseBotProfilePatch({ soul: row.before });
       if (!parsed.ok) return json(res, 400, { error: parsed.error });
       const before = profileSnapshot(bot);

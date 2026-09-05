@@ -45,9 +45,12 @@ confirmation. Chiefs may propose for their section, not arbitrary bots. Sender
 IDs in the body are assertions, not authority. Approval rejects a profile that
 changed after the proposal was displayed.
 
-Cards show before/after fields and a bounded line diff. Tool-returned display
-data is redacted too, not just persisted messages. Undo uses an immutable
-history-row ID and the current profile revision, not a timestamp.
+Cards show before/after fields and a bounded line diff; large instruction
+changes show the complete proposed text. Tool-returned display data is redacted
+too, not just persisted messages. Undo uses an immutable history-row ID and the
+current profile revision, not a timestamp. If the prior text was redacted,
+history explains that it cannot be restored exactly and refuses the operation.
+History does not create an additional archive of plaintext credentials.
 
 This is an application tool boundary, **not an OS sandbox**. Full host-shell
 access can reach user files and other trusted local interfaces. Neither SOUL nor
@@ -81,8 +84,9 @@ successfully mounted tools can change dispatch. Token counts are approximate.
 Inspecting a preview must not provision a computer or start a model turn.
 
 Settings retain the previous controls. Changing bots resets bot-scoped drafts
-and requests; stale responses cannot populate another bot's editor. Re-entering
-Overview refreshes file-backed skill and memory information.
+and requests; stale responses cannot populate another bot's editor or overwrite
+a newer History read. Re-entering Overview refreshes file-backed skill and
+memory information.
 
 ## Storage and endpoints
 

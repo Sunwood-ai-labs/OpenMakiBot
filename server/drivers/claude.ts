@@ -860,7 +860,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         if (live.idleTimer) clearTimeout(live.idleTimer);
         live.turn = { turnId, settled: false, sawStreamDelta: false };
         active.set(threadId, { stop: () => {
-          live.closing = true;
+          closeSession(threadId, "interrupted");
           killCliTree(live.child);
         }, turnId, broker: live.broker });
         emit({ ...base(threadId, turnId), type: "turn.started" });
@@ -1260,9 +1260,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       });
 
       const stop = () => {
-        // taskkill is asynchronous on Windows. Refuse further steers now,
-        // so the harness queues them instead of writing to a dying process.
-        session.closing = true;
+        // taskkill is asynchronous on Windows. Retire steering and approvals
+        // now, before a still-connected child can submit more work.
+        closeSession(threadId, "interrupted");
         retry.cancelled = true;
         retryAbort.abort();
         killCliTree(child);

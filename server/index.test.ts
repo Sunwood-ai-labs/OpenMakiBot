@@ -8150,6 +8150,47 @@ describe("bot memory API", () => {
     } finally { await api("DELETE", `/api/bots/${bot.id}`); }
   });
 
+  it("refuses redacted history restores without changing SOUL and still restores exact safe text", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Redacted history" })).body.bot;
+    const file = join(home, ".openmausbot", "bots", bot.id, "history.ndjson");
+    const exact = "  Be brief.\n\nKeep this whitespace.  \n";
+    const current = "Current instructions.";
+    try {
+      for (const soul of [exact, "Use sk-ant-api03-SECRETSECRETSECRETSECRET privately.", current]) {
+        expect((await api("PATCH", `/api/bots/${bot.id}`, { soul })).status).toBe(200);
+      }
+      const history = (await api("GET", `/api/bots/${bot.id}/history`)).body;
+      const unsafe = history.rows[0];
+      expect(unsafe).toMatchObject({ field: "soul", canRestore: false });
+      expect(unsafe.before).toBeUndefined();
+      expect(unsafe.restoreUnavailableReason).toMatch(/redacted.*cannot be restored/);
+      const full = (await api("GET", `/api/bots/${bot.id}/history?full=1`)).body;
+      expect(JSON.stringify(full)).not.toContain("SECRETSECRET");
+      expect(readFileSync(file, "utf8")).not.toContain("SECRETSECRET");
+      const safe = full.rows.find((row: any) => row.before === exact);
+      expect(safe.canRestore).toBe(true);
+
+      // Logs written before eligibility metadata existed must also fail safe.
+      writeFileSync(file, JSON.stringify({ at: 1, actor: "user", field: "soul", before: "Use «redacted 40 chars».", after: current }) + "\n", { flag: "a" });
+      const legacyHistory = (await api("GET", `/api/bots/${bot.id}/history`)).body;
+      const legacy = legacyHistory.rows[0];
+      expect(legacy.canRestore).toBe(false);
+      for (const row of [unsafe, legacy]) {
+        const rejected = await api("POST", `/api/bots/${bot.id}/history/rollback`, { id: row.id, expectedRevision: history.revision });
+        expect(rejected.status).toBe(400);
+        expect(rejected.body.error).toMatch(/redacted.*cannot be restored/);
+        const unchanged = (await api("GET", `/api/bots/${bot.id}/soul`)).body;
+        expect(unchanged.soul).toBe(current);
+        expect(unchanged.revision).toBe(history.revision);
+        expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe(current);
+      }
+      const restored = await api("POST", `/api/bots/${bot.id}/history/rollback`, { id: safe.id, expectedRevision: history.revision });
+      expect(restored.status).toBe(200);
+      expect(restored.body.bot.soul).toBe(exact);
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe(exact);
+    } finally { await api("DELETE", `/api/bots/${bot.id}`); }
+  });
+
   it("guards file actions against new profile/file edits and reports unreadable mirrors", async () => {
     const bot = (await api("POST", "/api/bots", { name: "File safety" })).body.bot;
     let held: Awaited<ReturnType<typeof delayedJsonBody>> | undefined;

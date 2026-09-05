@@ -47,6 +47,7 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   const [historyRows, setHistoryRows] = useState<HistoryRow[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
   const [historyRevision, setHistoryRevision] = useState<string | null>(null);
+  const historyRequest = useRef(0);
   const [rollingBack, setRollingBack] = useState(false);
   const [rollbackTarget, setRollbackTarget] = useState<{ id: string; expectedRevision: string } | null>(null);
 
@@ -127,21 +128,27 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     };
   }, [bot.id, section, factsSignature, state.routines, state.webhooks, flushBotPatches]);
 
-  // Read the file-backed history only when its section is opened.
+  // Read the file-backed history only when its section is opened. A newer
+  // load (or leaving History) invalidates older rows, revision, and errors.
   const loadHistory = useCallback(() => {
+    const request = ++historyRequest.current;
     setHistoryError(false);
     return flushBotPatches(bot.id)
       .then(() => api(`/api/bots/${bot.id}/history?limit=100`))
       .then((data: { rows: HistoryRow[]; revision: string }) => {
+        if (request !== historyRequest.current) return;
         setHistoryRows(data.rows);
         setHistoryRevision(data.revision);
       })
-      .catch(() => setHistoryError(true));
+      .catch(() => {
+        if (request === historyRequest.current) setHistoryError(true);
+      });
   }, [bot.id, flushBotPatches]);
 
   useEffect(() => {
     if (section !== "history") return;
     void loadHistory();
+    return () => { historyRequest.current++; };
   }, [section, loadHistory]);
 
   // A rollback failure (the row's soul text no longer round-trips the

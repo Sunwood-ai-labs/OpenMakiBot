@@ -42,6 +42,17 @@ Check these user paths:
 8. Enable Delay profile reads before opening settings, open History, then
    use Alt+1/Alt+2 to switch bots while that read is pending. Never show one bot's
    history or memory under the other's name.
+9. For the same-bot race, set Read delay (ms) to 20000, enable delayed
+   reads, and open History. While it is loading, change that fixture bot's
+   SOUL through the printed isolated API URL (or the Soul editor). Press
+   Alt+D to disable delays without closing settings, visit Identity, then
+   return to History. The new row must appear immediately and remain after
+   the older 20-second response arrives. Undo that new row and confirm;
+   it must use the new history revision and restore the exact prior text.
+10. On the isolated fixture only, save a clearly fake key-shaped SOUL
+    value, then replace it with ordinary instructions. History must explain
+    why the redacted previous version cannot be restored, without an Undo
+    button on that row. Exact safe rows must still offer Undo.
 
 This browser fixture verifies renderer interaction and persistence, not
 packaged Electron privileges, actual operating-system access, or the
@@ -61,3 +72,12 @@ With 1.5-second read delays enabled, switching Atlas → Juniper during a
 pending History read showed only Juniper's rows when both requests settled.
 The overview was also inspected visually. Native Full-access permissions
 were not exercised by this browser run.
+
+A second isolated run in Safari on 2026-09-06 used a visibly confirmed
+20,000ms delay for the same-bot History race. A new SOUL revision was saved
+while the old read was pending; reopening History with delays off showed
+the new row, which remained after the old response settled. Confirming
+Undo then succeeded and recorded the exact prior text, proving the current
+history revision was retained too. A fake key-shaped prior version showed
+the unavailable-restore explanation without an Undo button; safe rows kept
+their buttons. The dedicated tab and fixture were closed afterward.

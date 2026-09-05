@@ -18,6 +18,8 @@ export interface HistoryRow {
   via: string;
   field: string;
   summary: string;
+  canRestore: boolean;
+  restoreUnavailableReason?: string;
   before?: string;
   after?: string;
 }
@@ -61,7 +63,7 @@ export function HistorySection({
               {" · "}
               <span>{row.summary}</span>
             </div>
-            {row.field === "soul" && (
+            {row.field === "soul" && row.canRestore === true && (
               <button
                 type="button"
                 disabled={rollingBack}
@@ -72,6 +74,11 @@ export function HistorySection({
               </button>
             )}
           </div>
+          {row.field === "soul" && row.canRestore !== true && (
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-secondary">
+              {row.restoreUnavailableReason ?? "The exact previous instructions are unavailable, so this change cannot be undone."}
+            </p>
+          )}
         </div>
       ))}
     </div>

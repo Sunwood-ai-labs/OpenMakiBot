@@ -2,8 +2,8 @@
 // one row per changed field. Same discipline as decision-log.ts — 0600,
 // through redactSecrets, serialized per file, fire-and-forget — because a
 // history write must never fail the change it records. Full before/after
-// text is kept only for the soul (so rollback is a plain write); other
-// fields keep short one-liners.
+// text is kept only for the soul; redacted versions cannot be restored
+// exactly and are not rollback targets. Other fields keep short one-liners.
 import { appendFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync } from "node:fs";
@@ -25,6 +25,9 @@ export interface HistoryRow {
   summary: string;
   before?: string;
   after?: string;
+  /** False when the saved before-text cannot be restored exactly. */
+  canRestore?: boolean;
+  restoreUnavailableReason?: string;
 }
 
 const FILE_NAME = "history.ndjson";
@@ -51,6 +54,20 @@ function rowFor(field: string, at: number, actor: HistoryActor, via: string, bef
   return { id: randomUUID(), at, actor, via, field, summary: `${field}: ${JSON.stringify(b)} → ${JSON.stringify(a)}`, before: b, after: a };
 }
 
+function withRestoreEligibility(row: HistoryRow): HistoryRow {
+  const redacted = redactSecrets(row) as HistoryRow;
+  const canRestore = row.field === "soul" && typeof row.before === "string" &&
+    row.canRestore !== false && row.before === redacted.before &&
+    !/«redacted \d+ chars»/.test(row.before);
+  return {
+    ...redacted,
+    canRestore,
+    restoreUnavailableReason: row.field === "soul" && !canRestore
+      ? "This version is missing exact text or contains redacted sensitive text and cannot be restored."
+      : undefined,
+  };
+}
+
 async function writeRows(botId: string, rows: HistoryRow[]): Promise<void> {
   // A bot's folder is created when the bot is (writeSoulMirror on bot
   // creation), so a real change always finds it there. If it is gone, the
@@ -59,7 +76,7 @@ async function writeRows(botId: string, rows: HistoryRow[]): Promise<void> {
   if (!existsSync(botFolder(botId))) return;
   const file = historyFile(botId);
   mkdirSync(botFolder(botId), { recursive: true, mode: 0o700 });
-  const text = rows.map((row) => JSON.stringify(redactSecrets(row))).join("\n") + "\n";
+  const text = rows.map((row) => JSON.stringify(withRestoreEligibility(row))).join("\n") + "\n";
   await appendFile(file, text, { mode: 0o600 });
 }
 
@@ -150,7 +167,9 @@ export function readHistory(botId: string, limit = 100): HistoryRow[] {
         const id = typeof value.id === "string" && value.id
           ? value.id
           : `legacy-${createHash("sha256").update(`${end}:${line}`).digest("hex")}`;
-        rows.push({ ...value, id });
+        // Recheck old logs too: they predate eligibility metadata and may
+        // already contain irreversible redaction markers in the before-text.
+        rows.push(withRestoreEligibility({ ...value, id }));
       }
     } catch {
       /* torn line — skip */

@@ -8,12 +8,13 @@ import "../styles.css";
 // Delay only reads from this fixture's server, after taking their snapshot,
 // to reproduce an old bot's response arriving after the user switches bots.
 let slowReads = false;
+let readDelayMs = 1500;
 const realFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const response = await realFetch(input, init);
   const url = input instanceof Request ? input.url : String(input);
   if (slowReads && /\/(history|overview|soul)(?:\?|$)/.test(url) && (!init?.method || init.method === "GET")) {
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, readDelayMs));
   }
   return response;
 };
@@ -22,8 +23,16 @@ function Fixture() {
   const { state, dispatch, flushBotPatches } = useStore();
   const bot = state.bots.find((candidate) => candidate.id === state.selectedId) ?? state.bots[0];
   const [saved, setSaved] = useState<Bot[]>([]);
+  const [delayReads, setDelayReads] = useState(false);
+  const toggleDelay = () => { slowReads = !slowReads; setDelayReads(slowReads); };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.altKey && event.code === "KeyD") {
+        event.preventDefault();
+        slowReads = !slowReads;
+        setDelayReads(slowReads);
+        return;
+      }
       if (!event.altKey || !/^[1-9]$/.test(event.key)) return;
       const target = state.bots[Number(event.key) - 1];
       if (target) { event.preventDefault(); dispatch({ type: "select", id: target.id }); }
@@ -38,8 +47,9 @@ function Fixture() {
   };
   return <main className="min-h-screen bg-panel p-8 text-ink">
     <h1 className="text-xl font-semibold">Isolated bot settings verification</h1>
-    <p className="my-3">Alt+1–9 switches bots, including while settings is open. All data is disposable.</p>
-    <label><input type="checkbox" onChange={(event) => { slowReads = event.target.checked; }} /> Delay profile reads by 1.5 seconds</label>
+    <p className="my-3">Alt+1–9 switches bots; Alt+D toggles delayed reads, including while settings is open. All data is disposable.</p>
+    <label><input type="checkbox" checked={delayReads} onChange={toggleDelay} /> Delay profile reads</label>
+    <label className="ml-3">Read delay (ms) <input type="number" defaultValue={1500} min={0} className="w-24 bg-control" onChange={(event) => { readDelayMs = Number(event.target.value); }} /></label>
     <div className="my-4 flex flex-wrap gap-3">
       {state.bots.map((candidate, index) => <button key={candidate.id} className="rounded bg-control px-3 py-2" onClick={() => dispatch({ type: "select", id: candidate.id })}>
         {index + 1}: {candidate.name}

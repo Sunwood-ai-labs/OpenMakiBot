@@ -834,11 +834,11 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(done).toMatchObject({ ok: false, stopReason: "exit_before_result" });
   });
 
-  it.each([false, true])("refuses steering after interrupt before process exit (retained=%s)", async (retained) => {
+  it.each([false, true])("refuses steering and retires approvals after interrupt before process exit (retained=%s)", async (retained) => {
     const finishGate = join(scratch, "finish-gate");
     const dump = join(scratch, "interrupt-dump.json");
     await create("slow", { FAKE_CLAUDE_SLOW_FINISH_GATE: finishGate, FAKE_CLAUDE_DUMP: dump });
-    const threadId = "t-stop-steer";
+    const threadId = `t-stop-steer-${retained ? "retained" : "fresh"}`;
     if (retained) {
       writeFileSync(finishGate, "finish");
       const first = await instance.adapter.sendTurn({ threadId, text: "first" });
@@ -850,13 +850,29 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const stoppedPid = JSON.parse(readFileSync(dump, "utf8")).pid;
     // Windows taskkill returns before the child exits. Hold that window open
     // deterministically: the pipe remains writable until we release the kill.
+    const conn = await connectSocket(permissionSocketPath(threadId));
+    const nextAnswer = answerQueue(conn);
     const kill = procs.killCliTree;
     const delayedKill = vi.spyOn(procs, "killCliTree").mockImplementation(() => {});
     try {
+      const pendingAnswer = nextAnswer();
+      conn.write(JSON.stringify({ t: "ask", id: "before-stop", tool: "Bash", input: { command: "sleep 60" } }) + "\n");
+      await recorder.until((e) => e.type === "request.opened" && e.requestId === "before-stop");
+      const openedBefore = recorder.events.filter((e) => e.type === "request.opened").length;
       await instance.adapter.interruptTurn(threadId);
       expect(instance.adapter.hasSession(threadId)).toBe(true);
       await expect(instance.adapter.steer!(threadId, "replacement")).resolves.toBe(false);
+      expect(recorder.events).toContainEqual(expect.objectContaining({
+        type: "request.resolved", requestId: "before-stop", behavior: "deny", source: "system",
+      }));
+      await expect(pendingAnswer).resolves.toMatchObject({ id: "before-stop", behavior: "deny" });
+      const lateAnswer = nextAnswer();
+      conn.write(JSON.stringify({ t: "ask", id: "after-stop", tool: "Bash", input: { command: "echo too late" } }) + "\n");
+      await expect(lateAnswer).resolves.toMatchObject({ id: "after-stop", behavior: "deny", message: "OpenMausBot: the turn ended" });
+      expect(recorder.events.filter((e) => e.type === "request.opened")).toHaveLength(openedBefore);
+      await expect(instance.adapter.respondToRequest(threadId, "after-stop", { behavior: "allow" })).resolves.toBe("unavailable");
     } finally {
+      conn.destroy();
       const children = delayedKill.mock.calls.map(([child]) => child);
       delayedKill.mockRestore();
       for (const child of children) kill(child);

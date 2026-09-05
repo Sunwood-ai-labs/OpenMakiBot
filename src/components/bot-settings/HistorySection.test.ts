@@ -26,6 +26,7 @@ const soulRow: HistoryRow = {
   via: "ui",
   field: "soul",
   summary: "soul: 120 → 340 bytes",
+  canRestore: true,
 };
 
 const titleRow: HistoryRow = {
@@ -35,6 +36,7 @@ const titleRow: HistoryRow = {
   via: "api",
   field: "title",
   summary: "Title changed",
+  canRestore: false,
 };
 
 function render(rows: HistoryRow[] | null, onRollback = vi.fn()) {
@@ -72,6 +74,20 @@ describe("HistorySection", () => {
   it("omits the Undo button entirely when no row is a soul row", () => {
     const markup = render([titleRow]);
     expect(markup).not.toContain("Undo this change");
+  });
+
+  it("explains why redacted instructions cannot be restored, without offering Undo", () => {
+    const reason = "This version is missing exact text or contains redacted sensitive text and cannot be restored.";
+    const markup = render([{ ...soulRow, canRestore: false, restoreUnavailableReason: reason }]);
+    expect(markup).not.toContain("Undo this change");
+    expect(markup).toContain(reason);
+  });
+
+  it("fails closed if an older server omits restoration eligibility", () => {
+    const { canRestore: _canRestore, ...legacyRow } = soulRow;
+    const markup = render([legacyRow as HistoryRow]);
+    expect(markup).not.toContain("Undo this change");
+    expect(markup).toContain("The exact previous instructions are unavailable");
   });
 
   it("orders rows newest first regardless of input order", () => {

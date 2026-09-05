@@ -96,6 +96,33 @@ describe("profile history", () => {
     expect(readFileSync(historyFile(id), "utf8").trim().split("\n")).toHaveLength(1);
   });
 
+  it("does not offer redacted before-text for restore, but keeps exact non-secret versions restorable", async () => {
+    const id = "hist-restore-redaction";
+    withBotFolder(id);
+    const exact = "  Be brief.\n\nKeep the user's whitespace.  \n";
+    const secret = "Use sk-ant-api03-SECRETSECRETSECRETSECRET privately.";
+    recordProfileChange(id, "user", "ui", { ...base, soul: exact }, { ...base, soul: secret });
+    recordProfileChange(id, "user", "ui", { ...base, soul: secret }, { ...base, soul: "Current instructions." });
+    await flushProfileHistory(id);
+    const [unsafe, safe] = readHistory(id);
+    expect(unsafe).toMatchObject({ canRestore: false });
+    expect(unsafe.restoreUnavailableReason).toMatch(/redacted.*cannot be restored/);
+    expect(unsafe.before).toContain("«redacted ");
+    expect(safe).toMatchObject({ before: exact, canRestore: true });
+    expect(safe.restoreUnavailableReason).toBeUndefined();
+    const stored = readFileSync(historyFile(id), "utf8");
+    expect(stored).not.toContain("SECRETSECRET");
+    expect(JSON.parse(stored.trim().split("\n")[1]).canRestore).toBe(false);
+  });
+
+  it("rejects legacy redaction markers even if the row claims it can be restored", () => {
+    const id = "hist-legacy-redaction";
+    withBotFolder(id);
+    const row = { at: 1, actor: "user", field: "soul", before: "Keep «redacted 40 chars» private.", after: "Current." };
+    writeFileSync(historyFile(id), [row, { ...row, at: 2, canRestore: true }].map((value) => JSON.stringify(value)).join("\n") + "\n");
+    expect(readHistory(id).map((value) => value.canRestore)).toEqual([false, false]);
+  });
+
   it("caps reads and survives a torn line", async () => {
     const id = "hist-3";
     withBotFolder(id);
