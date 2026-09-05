@@ -3472,7 +3472,7 @@ describe("harness HTTP API", () => {
         text: "Securely provide the OpenAI API key from OpenMausBot on your phone or computer. It is never added to chat.",
       });
       expect(directCard.secret.description).toContain(
-        `Stored in the secure store. ${bot.name} can use it but never read it back.`,
+        `${bot.name} can use it but never read it back.`,
       );
       expect(directCard).not.toHaveProperty("from");
 

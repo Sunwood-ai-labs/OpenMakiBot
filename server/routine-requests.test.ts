@@ -257,6 +257,53 @@ describe("RoutineRequestService", () => {
     );
   });
 
+  it("recomputes the run cadence line from the routine's effective schedule, not the change set", async () => {
+    const { service, store, routines } = harness();
+    const created = await service.propose({
+      botId: "bot-a",
+      threadId: "thread-a",
+      proposal: createProposal({ schedule: { type: "interval", everyMinutes: 5 } }),
+    });
+    expect(service.resolve({
+      botId: "bot-a",
+      threadId: "thread-a",
+      requestId: created.requestId,
+      behavior: "allow",
+    })).toMatchObject({ claimed: true, state: "applied", action: "create" });
+    const routineId = routines.listRoutines()[0]!.id;
+
+    const apply = async (proposal: RoutineProposalInput) => {
+      await service.propose({ botId: "bot-a", threadId: "thread-a", proposal });
+      const card = store.messagesFor("thread-a").at(-1)!.card!;
+      const result = service.resolve({
+        botId: "bot-a",
+        threadId: "thread-a",
+        requestId: card.requestId!,
+        behavior: "allow",
+      });
+      expect(result).toMatchObject({ claimed: true, state: "applied" });
+      return card;
+    };
+
+    const scheduleChanged = await apply({
+      action: "update",
+      routineId,
+      changes: { schedule: { type: "interval", everyMinutes: 60 } },
+    });
+    expect(scheduleChanged.subtitle).toContain(
+      "Will run about 24 times a day; each run starts a fresh session.",
+    );
+
+    const nameOnly = await apply({
+      action: "update",
+      routineId,
+      changes: { name: "Renamed brief" },
+    });
+    expect(nameOnly.subtitle).toContain(
+      "Will run about 24 times a day; each run starts a fresh session.",
+    );
+  });
+
   it("never returns an existing routine's credential-shaped text to the proposing bot", async () => {
     const { service, routines, store } = harness();
     const secret = "sk-proj-existingroutineabcdefghijkl";
