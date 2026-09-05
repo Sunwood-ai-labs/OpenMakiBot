@@ -6,7 +6,7 @@
 // used" line on every row (learned skills have no triggers to show), and a
 // read-only click-through view of a skill's full text.
 import { BookOpen, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, useStore, type Bot } from "@/state/store";
 import { skillRecorderEnabled } from "@/lib/feature-flags";
@@ -40,6 +40,43 @@ export function SkillsSection({ bot }: { bot: Bot }) {
   const [source, setSource] = useState("");
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState("");
+  const skillDialogRef = useRef<HTMLDivElement>(null);
+  const skillDialogOpen = Boolean(viewing || reviewing);
+
+  useEffect(() => {
+    if (!skillDialogOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = skillDialogRef.current;
+    const parentDialog = dialog?.parentElement?.closest<HTMLElement>('[role="dialog"]');
+    dialog?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!working) {
+          setViewing(null);
+          setReviewing(null);
+        }
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex="0"]');
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (previousFocus && previousFocus !== document.body && previousFocus.isConnected) previousFocus.focus();
+      else parentDialog?.focus();
+    };
+  }, [skillDialogOpen, working]);
 
   const refresh = async (cancelled?: () => boolean) => {
     try {
@@ -248,6 +285,8 @@ export function SkillsSection({ bot }: { bot: Bot }) {
 
       {reviewing && (
         <div
+          ref={skillDialogRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="skill-review-title"
@@ -297,6 +336,8 @@ export function SkillsSection({ bot }: { bot: Bot }) {
 
       {viewing && (
         <div
+          ref={skillDialogRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="skill-view-title"

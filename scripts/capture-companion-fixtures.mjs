@@ -2,17 +2,18 @@
 // Capture the iOS test fixtures from a real harness.
 //
 //   node scripts/capture-companion-fixtures.mjs
+//   node scripts/capture-companion-fixtures.mjs --overview-only
 //
-// The fixtures in ios/Tests/CompanionCoreTests/Fixtures are bytes the server
-// actually sent. That is the whole point of them: hand-written test JSON
+// The fixtures in ios/Tests/CompanionCoreTests/Fixtures are server payloads,
+// with local fixture paths redacted. Hand-written test JSON
 // tests our idea of the API, and the entire risk in a two-language client is
 // that our idea drifts from the API without anything failing. Re-running this
 // after a server change makes the Swift tests fail if a payload moved, which
 // is the alarm we want.
 //
 // Everything is disposable. A harness is started against a temporary HOME
-// with a fabricated profile, so nothing here reads or writes your real
-// ~/.openmausbot and no real name, key or token can end up in a fixture. The
+// with a fabricated profile and the repository's fake engine, so nothing here
+// reads or writes your real ~/.openmausbot. No real name, key or token can end up in a fixture. The
 // pairing token is redacted on the way out regardless.
 //
 // One fixture is not captured: options-card.json needs a bot to actually ask
@@ -26,6 +27,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "ios", "Tests", "CompanionCoreTests", "Fixtures");
+const overviewOnly = process.argv.includes("--overview-only");
 
 const base = 19100 + Math.floor(Math.random() * 3000);
 const HARNESS_PORT = base;
@@ -35,8 +37,7 @@ const HARNESS = `http://127.0.0.1:${HARNESS_PORT}`;
 const SIDECAR = `http://127.0.0.1:${COMPANION_PORT}`;
 const CONTROL = `http://127.0.0.1:${CONTROL_PORT}`;
 
-// A profile invented here rather than read from disk, so the fixtures name
-// nobody real and stay byte-stable between machines.
+// Fabricated identity, never the capture machine's real profile.
 const PROFILE = { name: "Ada Lovelace", email: "ada@example.com" };
 
 const children = [];
@@ -44,8 +45,20 @@ let home = "";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Keep the fixture engine's absolute checkout path and disposable home out
+// of checked-in payloads, including nested CLI diagnostics and task cwd.
+const fixturePaths = (value) => {
+  if (typeof value === "string") return value.replaceAll(ROOT, "/fixture-repo").replaceAll(home, "/fixture-home");
+  if (Array.isArray(value)) return value.map(fixturePaths);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, fixturePaths(entry)]));
+  }
+  return value;
+};
+
 const write = (name, value) => {
-  writeFileSync(join(OUT, `${name}.json`), `${JSON.stringify(value, null, 2)}\n`);
+  if (overviewOnly && name !== "bot-overview") return;
+  writeFileSync(join(OUT, `${name}.json`), `${JSON.stringify(fixturePaths(value), null, 2)}\n`);
   console.log(`  ${name}.json`);
 };
 
@@ -53,7 +66,7 @@ const write = (name, value) => {
 const start = (label, args, env) => {
   const child = spawn(process.execPath, args, {
     cwd: ROOT,
-    env: { ...(process.env.PATH ? { PATH: process.env.PATH } : {}), ...env },
+    env: { PATH: dirname(process.execPath), TZ: "UTC", ...env },
     stdio: ["ignore", "ignore", "pipe"],
   });
   child.stderr.on("data", (c) => (child.err = (child.err ?? "") + c));
@@ -130,13 +143,23 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   home = mkdtempSync(join(tmpdir(), "companion-fixtures-"));
   mkdirSync(join(home, ".openmausbot"), { recursive: true });
-  writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({ profile: PROFILE }));
+  writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({
+    profile: PROFILE,
+    instances: {
+      claude: {
+        driver: "claudeAgent",
+        displayName: "Fixture engine",
+        config: { cli: join(ROOT, "server", "testing", "fake-claude-cli.ts") },
+      },
+    },
+  }));
 
   console.log(`harness on ${HARNESS_PORT}, companion on ${COMPANION_PORT}`);
   const harness = start("harness", [join(ROOT, "server", "index.ts")], {
     HOME: home,
     USERPROFILE: home,
     OMB_PORT: String(HARNESS_PORT),
+    FAKE_CLAUDE_MODE: "happy",
     // the receiver would otherwise take the port above, which is nothing
     // to do with this but makes the log noisy
     OMB_WEBHOOK_PORT: String(base + 1),
@@ -325,11 +348,8 @@ async function main() {
   // profile-change history a soul edit appends (recent). The soul PATCH goes
   // through the sidecar like every other phone-reachable step here: the
   // paired-safe /profile route accepts soul too. The overview GET is
-  // captured straight from the harness instead — the companion allowlist has
-  // no entry for it yet, so a paired phone cannot reach this route through
-  // the sidecar today. That is a real gap for whoever wires the phone
-  // screens up to it, not something this capture can paper over by calling a
-  // route that presently 404s.
+  // captured through the same paired sidecar as the phone, including its
+  // route allowlist and response scrubbing.
   const kiwiCreated = await json(`${SIDECAR}/api/bots`, asDevice({
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -363,11 +383,11 @@ async function main() {
     }),
   }));
   if (routined.status !== 201) throw new Error(`could not create Kiwi's routine: ${JSON.stringify(routined.body)}`);
-  // bot-overview.json pins the SHAPE, not the exact wording: the `does`
-  // sentence for Kiwi's routine embeds the capture machine's own time zone
-  // and clock, so it will read differently machine to machine. The wording
-  // itself is owned by server/bot-overview.test.ts, not this fixture.
-  write("bot-overview", (await json(`${HARNESS}/api/bots/${kiwi.id}/overview`)).body);
+  // The next-run clock changes per capture. Exact wording belongs to the
+  // server tests; both phone suites pin the overview's wire shape here.
+  const overview = await json(`${SIDECAR}/api/bots/${kiwi.id}/overview`, asDevice());
+  if (overview.status !== 200) throw new Error(`could not read Kiwi's overview: ${JSON.stringify(overview.body)}`);
+  write("bot-overview", overview.body);
 
   console.log("\nnot captured: options-card.json — needs a real approval from a real turn");
 }

@@ -33,12 +33,12 @@ function baseFacts(overrides: Partial<OverviewFacts> = {}): OverviewFacts {
 }
 
 const WONT_ORDER = [
-  "Won't run commands without asking you first.",
-  "Won't contact other bots without asking.",
+  "Command approvals use Ask mode; saved permissions and provider rules still apply.",
+  "Cannot initiate contact with other bots.",
   "Has no connected apps.",
   "Can't use a computer.",
   "Won't act on a schedule.",
-  "Won't change its own instructions without your approval.",
+  "Profile proposal cards require your approval.",
 ];
 
 describe("buildBotOverview", () => {
@@ -51,6 +51,23 @@ describe("buildBotOverview", () => {
   it("drops the first wont line when autoApprove is on", () => {
     const overview = buildBotOverview(baseFacts({ bot: { ...baseFacts().bot, autoApprove: true } }));
     expect(overview.wont).toEqual(WONT_ORDER.slice(1));
+  });
+
+  it("uses the effective approval level rather than the legacy Auto bit", () => {
+    const bot = { ...baseFacts().bot, approvalMode: "full" as const, autoApprove: false };
+    expect(buildBotOverview(baseFacts({ bot })).wont).not.toContain(WONT_ORDER[0]);
+    expect(buildBotOverview(baseFacts({ bot: { ...bot, approvalMode: "custom" } })).wont)
+      .toContain("Command approvals follow the provider's custom configuration.");
+  });
+
+  it("does not advertise a browser disabled globally or unsupported by the engine", () => {
+    const facts = baseFacts({ bot: { ...baseFacts().bot, computer: "browser" }, browserEnabled: true, engine: { browserMcp: false } });
+    expect(buildBotOverview(facts).reaches).not.toContain("Has the built-in browser.");
+    facts.engine = { browserMcp: true };
+    facts.browserEnabled = false;
+    expect(buildBotOverview(facts).reaches).not.toContain("Has the built-in browser.");
+    facts.browserEnabled = true;
+    expect(buildBotOverview(facts).reaches).toContain("Has the built-in browser.");
   });
 
   it("renders an enabled interval routine with its last completed run", () => {
@@ -196,7 +213,7 @@ describe("buildBotOverview", () => {
       bot: { ...baseFacts().bot, computer: undefined, peers: undefined, approvePeerComms: false },
     });
     const overview = buildBotOverview(facts);
-    expect(overview.reaches).toContain("Picks a computer automatically.");
+    expect(overview.reaches).toContain("Computer preference: Auto; availability is checked when a task starts.");
     expect(overview.wont).not.toContain("Can't use a computer.");
     expect(overview.wont).not.toContain("Won't contact other bots without asking.");
   });

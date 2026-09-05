@@ -5,7 +5,8 @@
 // text is kept only for the soul (so rollback is a plain write); other
 // fields keep short one-liners.
 import { appendFile } from "node:fs/promises";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 
 import { PROFILE_REQUEST_FIELDS, type ProfileRequestChanges } from "../shared/profile-request.ts";
@@ -15,6 +16,7 @@ import { redactSecrets } from "./redact.ts";
 export type HistoryActor = "user" | "bot" | "file" | "import" | "system";
 
 export interface HistoryRow {
+  id: string;
   at: number;
   actor: HistoryActor;
   /** "ui", "api", `card:<messageId>`, "migration", "rollback" */
@@ -27,6 +29,7 @@ export interface HistoryRow {
 
 const FILE_NAME = "history.ndjson";
 const ONE_LINER = 200;
+const MAX_HISTORY_READ_BYTES = 8 * 1024 * 1024;
 const writeQueues = new Map<string, Promise<void>>();
 
 export function historyFile(botId: string): string {
@@ -41,11 +44,11 @@ function rowFor(field: string, at: number, actor: HistoryActor, via: string, bef
   if (field === "soul") {
     const b = Buffer.byteLength(before, "utf8");
     const a = Buffer.byteLength(after, "utf8");
-    return { at, actor, via, field, summary: `soul: ${b} → ${a} bytes`, before, after };
+    return { id: randomUUID(), at, actor, via, field, summary: `soul: ${b} → ${a} bytes`, before, after };
   }
   const b = oneLiner(before);
   const a = oneLiner(after);
-  return { at, actor, via, field, summary: `${field}: ${JSON.stringify(b)} → ${JSON.stringify(a)}`, before: b, after: a };
+  return { id: randomUUID(), at, actor, via, field, summary: `${field}: ${JSON.stringify(b)} → ${JSON.stringify(a)}`, before: b, after: a };
 }
 
 async function writeRows(botId: string, rows: HistoryRow[]): Promise<void> {
@@ -107,24 +110,51 @@ const isRow = (value: unknown): value is HistoryRow =>
   typeof (value as HistoryRow).field === "string" &&
   typeof (value as HistoryRow).actor === "string";
 
-/** Newest first. Whole-file read is fine: rows are small and a bot's
- * profile does not change thousands of times. */
+/** Newest first, bounded to 500 rows from the newest 8 MiB. The append-only
+ * log keeps older changes without making every settings read load them. */
 export function readHistory(botId: string, limit = 100): HistoryRow[] {
   let text: string;
+  let offset: number;
+  let end: number;
   try {
-    text = readFileSync(historyFile(botId), "utf8");
+    const fd = openSync(historyFile(botId), "r");
+    try {
+      const size = fstatSync(fd).size;
+      offset = Math.max(0, size - MAX_HISTORY_READ_BYTES);
+      const buffer = Buffer.alloc(size - offset);
+      let length = 0;
+      while (length < buffer.length) {
+        const count = readSync(fd, buffer, length, buffer.length - length, offset + length);
+        if (!count) break;
+        length += count;
+      }
+      end = offset + length;
+      text = buffer.subarray(0, length).toString("utf8");
+    } finally { closeSync(fd); }
   } catch {
     return [];
   }
   const rows: HistoryRow[] = [];
-  for (const line of text.split("\n")) {
+  const lines = text.split("\n");
+  const maxRows = Math.min(500, Math.max(1, limit));
+  for (let index = lines.length - 1; index >= (offset > 0 ? 1 : 0) && rows.length < maxRows; index--) {
+    const line = lines[index];
+    end -= Buffer.byteLength(line, "utf8") + (index < lines.length - 1 ? 1 : 0);
     if (!line) continue;
     try {
       const value: unknown = JSON.parse(line);
-      if (isRow(value)) rows.push(value);
+      if (isRow(value)) {
+        // Old logs had only millisecond timestamps (not unique). Their
+        // append-only byte position gives each legacy entry a stable id,
+        // even as the bounded read window moves after later appends.
+        const id = typeof value.id === "string" && value.id
+          ? value.id
+          : `legacy-${createHash("sha256").update(`${end}:${line}`).digest("hex")}`;
+        rows.push({ ...value, id });
+      }
     } catch {
       /* torn line — skip */
     }
   }
-  return rows.reverse().slice(0, limit);
+  return rows;
 }

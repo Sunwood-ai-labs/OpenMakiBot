@@ -77,7 +77,7 @@ describe("OverviewSection", () => {
 
     // Closed by default, so the failure text isn't shown yet — but the
     // header must not be stuck offering a preview that will never arrive.
-    expect(markup).toContain("What the model sees");
+    expect(markup).toContain("Prompt preview");
   });
 
   it("keeps showing the loaded overview and adds a quiet banner when a background refresh fails", () => {

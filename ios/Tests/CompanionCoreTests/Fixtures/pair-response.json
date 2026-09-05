@@ -1,27 +1,10 @@
 {
-  "device": {
-    "id": "fbe983ac-23ad-449f-8b23-ec4a7332c1f7",
-    "name": "Ada's iPhone",
-    "createdAt": 1788606108630,
-    "lastSeenAt": 1788606108630,
-    "cloudDesktopAccess": false
-  },
   "token": "omb_REDACTED",
-  "serverName": "Ada Lovelace's computer",
-  "hosts": [
-    "192.168.1.2",
-    "openmausbot-cb59e1a3.local"
-  ],
-  "endpoints": [
-    {
-      "url": "http://192.168.1.2:21105",
-      "kind": "lan",
-      "priority": 200
-    },
-    {
-      "url": "http://openmausbot-cb59e1a3.local:21105",
-      "kind": "bonjour",
-      "priority": 300
-    }
-  ]
+  "device": {
+    "id": "0bbd0e55-db33-4900-9ca7-2e5fa19cc0ba",
+    "name": "Ada's iPhone",
+    "createdAt": 1786742441179,
+    "lastSeenAt": 1786742441179
+  },
+  "serverName": "Ada Lovelace's computer"
 }

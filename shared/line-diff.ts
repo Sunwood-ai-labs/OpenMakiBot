@@ -1,12 +1,13 @@
-/** A small line diff for approval cards: LCS over lines, output in unified
- * style without headers. Inputs are bounded by the soul cap, so quadratic
- * time over a few hundred lines is fine. */
+/** Detailed line diff for small approval cards; a complete replacement for
+ * larger documents. A byte limit alone does not bound a quadratic matrix:
+ * 24KB of newlines would otherwise allocate hundreds of millions of cells. */
 export function lineDiff(before: string, after: string): string[] {
   if (before === after) return [];
   const a = before === "" ? [] : before.split("\n");
   const b = after === "" ? [] : after.split("\n");
   const n = a.length;
   const m = b.length;
+  if (n * m > 160_000) return [...a.map((line) => `-${line}`), ...b.map((line) => `+${line}`)];
   const lcs: number[][] = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, () => 0));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {

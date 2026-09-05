@@ -285,7 +285,7 @@ function Shell() {
       {state.settingsOpen && bot && (
         remoteClient
           ? <RemoteAgentSettingsPanel bot={bot} />
-          : <BotSettingsDialog bot={bot} />
+          : <BotSettingsDialog key={bot.id} bot={bot} />
       )}
       {state.computerOpen && bot && (
         remoteClient ? (

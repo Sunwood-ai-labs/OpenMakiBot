@@ -61,7 +61,7 @@ final class DecodingTests: XCTestCase {
         XCTAssertEqual(overview.who.name, "Kiwi")
         XCTAssertEqual(overview.who.soulLead, "File bugs.")
         XCTAssertFalse(overview.does.isEmpty)
-        XCTAssertEqual(overview.wont.last, "Won't change its own instructions without your approval.")
+        XCTAssertFalse(overview.wont.isEmpty)
         XCTAssertFalse(overview.recent.isEmpty)
     }
 

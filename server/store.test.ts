@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { soulFile, soulHash } from "./bot-folder.ts";
+import { flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
 import { DATA_DIR } from "./config.ts";
 import type { ModelSelection } from "./contracts.ts";
 import * as mdb from "./message-db.ts";
@@ -20,7 +21,7 @@ describe("Store", () => {
     rmSync(DATA_DIR, { recursive: true, force: true });
   });
 
-  it("createBot seeds only a greeting that invites setup", () => {
+  it("createBot seeds a greeting without promising engine-specific tools", () => {
     const store = new Store(selection);
     const bot = store.createBot();
 
@@ -29,7 +30,7 @@ describe("Store", () => {
     expect(messages[0]).toMatchObject({
       role: "bot",
       kind: "text",
-      text: `Hey, I'm ${bot.name}. Tell me what you want me to do and I'll set myself up.`,
+      text: `Hi, I'm ${bot.name}. What would you like me to do?`,
     });
     expect(bot.modelSelection).toEqual(selection());
   });
@@ -1237,7 +1238,7 @@ describe("soul", () => {
     expect(store.setSoul("nope", "x")).toBeNull();
   });
 
-  it("backfills soul and soulHash for bots saved before the field existed", () => {
+  it("backfills old bots' mirrors before the first non-soul history change", async () => {
     const store = new Store(selection);
     const bot = store.createBot();
     const raw = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Record<string, unknown>[];
@@ -1246,9 +1247,54 @@ describe("soul", () => {
       delete record.soulHash;
     }
     writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(raw));
+    rmSync(join(DATA_DIR, "bots", bot.id), { recursive: true, force: true });
     const reloaded = new Store(selection);
     expect(reloaded.bot(bot.id)?.soul).toBe("");
     expect(reloaded.bot(bot.id)?.soulHash).toBe(soulHash(""));
+    expect(readFileSync(soulFile(bot.id), "utf8")).toBe("");
+    reloaded.patchBot(bot.id, { title: "Tracker" });
+    recordProfileChange(bot.id, "user", "api", { title: "" }, { title: "Tracker" });
+    await flushProfileHistory(bot.id);
+    expect(readHistory(bot.id)).toMatchObject([{ field: "title", after: "Tracker" }]);
+  });
+
+  it("preserves externally edited mirrors on reload", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    store.setSoul(bot.id, "canonical");
+    writeFileSync(soulFile(bot.id), "user edit");
+    const reloaded = new Store(selection);
+    expect(reloaded.bot(bot.id)?.soul).toBe("canonical");
+    expect(readFileSync(soulFile(bot.id), "utf8")).toBe("user edit");
+  });
+
+  it("keeps all profile fields, the receipt and mirror unchanged when persistence fails", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    const before = JSON.parse(JSON.stringify(bot));
+    const save = vi.spyOn(store as unknown as { saveBots(bots: BotRecord[]): void }, "saveBots")
+      .mockImplementationOnce(() => { throw new Error("disk full"); });
+    expect(() => store.patchBotProfile(bot.id, { name: "Kiwi", soul: "new", lastProfileRequestId: "card" })).toThrow("disk full");
+    expect(bot).toEqual(before);
+    expect(readFileSync(soulFile(bot.id), "utf8")).toBe("");
+    expect(JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"))[0].name).toBe(before.name);
+    save.mockRestore();
+    const emit = vi.fn();
+    store.onChange(emit);
+    store.patchBotProfile(bot.id, { name: "Kiwi", soul: "new", lastProfileRequestId: "card" });
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(new Store(selection).bot(bot.id)).toMatchObject({ name: "Kiwi", soul: "new", lastProfileRequestId: "card" });
+  });
+
+  it("keeps runtime revocations effective in memory even when persistence fails", () => {
+    const store = new Store(selection);
+    const bot = store.createBot();
+    store.patchBot(bot.id, { browser: true });
+    const save = vi.spyOn(store as unknown as { saveBots(bots: BotRecord[]): void }, "saveBots")
+      .mockImplementationOnce(() => { throw new Error("disk full"); });
+    expect(() => store.patchBot(bot.id, { browser: false })).toThrow("disk full");
+    expect(bot.browser).toBe(false);
+    save.mockRestore();
   });
 
   it("deleteBot removes the bot folder with the workspace", () => {

@@ -6,21 +6,20 @@
     "soulLead": "File bugs."
   },
   "does": [
-    "Every 5 minutes, anchored at Sep 5, 2026, 4:31 PM (Asia/Calcutta): Triage Discord. Next run 4:36 PM."
+    "Every 5 minutes: Triage Discord. Next run 9:11 PM."
   ],
   "reaches": [
-    "Picks a computer automatically.",
-    "Works in its private workspace.",
-    "Has the built-in browser."
+    "Computer preference: Auto; availability is checked when a task starts.",
+    "Works in its private workspace."
   ],
   "wont": [
-    "Won't run commands without asking you first.",
+    "Command approvals use Ask mode; saved permissions and provider rules still apply.",
     "Has no connected apps.",
-    "Won't change its own instructions without your approval."
+    "Profile proposal cards require your approval."
   ],
   "recent": [
     {
-      "at": 1788606110198,
+      "at": 1788642361925,
       "summary": "soul: 0 → 29 bytes"
     }
   ]

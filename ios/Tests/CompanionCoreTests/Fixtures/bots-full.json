@@ -1,256 +1,55 @@
 {
   "bots": [
     {
-      "id": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-      "threadId": "23a43ba9-a37d-4584-83bb-c1a310eef49d",
+      "id": "4f254cf4-98c5-45ca-907e-967e2bbcb8ac",
+      "threadId": "1f3a20e3-94f2-432b-8af5-db9664ed74a2",
       "name": "Pesto",
       "title": "",
       "description": "",
-      "soul": "",
-      "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "notifications": true,
-      "color": "blue",
-      "unread": true,
+      "color": "green",
+      "unread": false,
       "modelSelection": {
-        "instanceId": "claude",
-        "model": "claude-sonnet-5"
+        "instanceId": "",
+        "model": ""
       },
-      "createdAt": 1788606108773,
-      "activity": "idle",
-      "busy": false,
-      "avatarUrl": null,
+      "createdAt": 1786742441013,
       "tasks": [
         {
-          "threadId": "23a43ba9-a37d-4584-83bb-c1a310eef49d",
-          "title": "fixture message 0",
-          "createdAt": 1788606108773,
-          "cwd": "/var/folders/7b/15jj691d4tj_7vq99cqvwgbr0000gn/T/companion-fixtures-mAhQdw/.openmausbot/workspaces/7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-          "usage": {
-            "input": 0,
-            "output": 0,
-            "cachedInput": 0,
-            "costUsd": 0,
-            "turns": 1
+          "threadId": "1f3a20e3-94f2-432b-8af5-db9664ed74a2",
+          "title": "New task",
+          "createdAt": 1786742441013
+        }
+      ],
+      "messages": [
+        {
+          "id": "0c537eab-3088-4bd3-ab26-2a25ff83b91d",
+          "at": 1786742441015,
+          "parentId": null,
+          "role": "bot",
+          "kind": "text",
+          "text": "Hey — I'm Pesto. Nice to meet you."
+        },
+        {
+          "id": "a5f66904-863b-4e5f-bb22-0139b49e6103",
+          "at": 1786742441016,
+          "parentId": "0c537eab-3088-4bd3-ab26-2a25ff83b91d",
+          "role": "bot",
+          "kind": "options",
+          "card": {
+            "title": "What do you mostly want help with?",
+            "subtitle": "Pick whatever's closest; we can always expand from there.",
+            "options": [
+              "Work & projects",
+              "Writing & research",
+              "Life admin",
+              "A bit of everything"
+            ]
           }
         }
       ],
-      "messages": [
-        {
-          "id": "b764cbe6-3295-461a-83d5-ce42dc689bec",
-          "at": 1788606108781,
-          "parentId": null,
-          "role": "bot",
-          "kind": "text",
-          "text": "Hey, I'm Orbit. Tell me what you want me to do and I'll set myself up."
-        },
-        {
-          "id": "d3ef9d26-fa02-4c1b-a498-0d294ca36ad1",
-          "at": 1788606108805,
-          "parentId": "b764cbe6-3295-461a-83d5-ce42dc689bec",
-          "role": "user",
-          "kind": "text",
-          "text": "fixture message 0"
-        },
-        {
-          "id": "7c2c2c19-9e2b-4d25-b4ee-010d7abdf82e",
-          "at": 1788606108950,
-          "parentId": "d3ef9d26-fa02-4c1b-a498-0d294ca36ad1",
-          "role": "user",
-          "kind": "text",
-          "text": "fixture message 1",
-          "steered": true
-        },
-        {
-          "id": "e092b399-add4-4d7f-9a70-081d892383e3",
-          "at": 1788606109073,
-          "parentId": "7c2c2c19-9e2b-4d25-b4ee-010d7abdf82e",
-          "role": "user",
-          "kind": "text",
-          "text": "fixture message 2",
-          "steered": true
-        },
-        {
-          "id": "a4a9876d-137f-4cca-9a70-135c119a19da",
-          "at": 1788606109156,
-          "parentId": "e092b399-add4-4d7f-9a70-081d892383e3",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "cd178509-9427-4d1e-8098-18e4af5e7fbc",
-          "turnTerminal": true
-        },
-        {
-          "id": "798d646d-094b-45f6-bed5-0c87254ec061",
-          "at": 1788606109169,
-          "parentId": "a4a9876d-137f-4cca-9a70-135c119a19da",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "cd178509-9427-4d1e-8098-18e4af5e7fbc"
-        }
-      ],
-      "activeLeafId": "798d646d-094b-45f6-bed5-0c87254ec061"
+      "activeLeafId": "a5f66904-863b-4e5f-bb22-0139b49e6103"
     }
   ],
-  "groups": [
-    {
-      "id": "bd0637cd-24ac-4e73-87d2-50883a29529c",
-      "threadId": "f4d3ca1b-b038-4ddd-aaa3-7f9787b6f6cf",
-      "name": "Fixtures",
-      "memberIds": [
-        "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2"
-      ],
-      "defaultResponder": {
-        "kind": "member",
-        "botId": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2"
-      },
-      "bulletin": "",
-      "unread": true,
-      "createdAt": 1788606109197,
-      "busyBotId": null,
-      "section": "Fixtures",
-      "tasks": [
-        {
-          "threadId": "f4d3ca1b-b038-4ddd-aaa3-7f9787b6f6cf",
-          "title": "room fixture message 0",
-          "createdAt": 1788606109197,
-          "pinnedCwd": null
-        }
-      ],
-      "setupCompletedAt": null,
-      "setupSkippedAt": 1788606109202,
-      "pinnedCwd": null,
-      "working": false,
-      "messages": [
-        {
-          "id": "c5082c24-43cb-43e3-82fa-38966b0bd6b3",
-          "at": 1788606109208,
-          "parentId": null,
-          "role": "user",
-          "kind": "text",
-          "text": "room fixture message 0",
-          "channelMode": "chat"
-        },
-        {
-          "id": "e4b15ea8-6fd5-49cd-a34f-86e2b4cba566",
-          "at": 1788606109458,
-          "parentId": "c5082c24-43cb-43e3-82fa-38966b0bd6b3",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "edc8cd8a-bfb0-45dd-8ce3-6edfecdd21be",
-          "from": {
-            "botId": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-            "name": "Pesto",
-            "color": "blue"
-          },
-          "turnTerminal": true
-        },
-        {
-          "id": "e4a891ca-85aa-4090-bec9-9f8924a32075",
-          "at": 1788606109468,
-          "parentId": "e4b15ea8-6fd5-49cd-a34f-86e2b4cba566",
-          "role": "user",
-          "kind": "text",
-          "text": "room fixture message 1",
-          "channelMode": "chat",
-          "queueId": "87300056-9c04-4cec-b0a9-93d5f7b2d6c5"
-        },
-        {
-          "id": "151a463b-94e4-4c3e-9e8e-37ff3142df6c",
-          "at": 1788606109485,
-          "parentId": "e4a891ca-85aa-4090-bec9-9f8924a32075",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "8e108c0c-fbc6-4ae8-b7ca-59584de78206",
-          "from": {
-            "botId": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-            "name": "Pesto",
-            "color": "blue"
-          },
-          "turnTerminal": true
-        },
-        {
-          "id": "a0e95c61-be36-491b-9cad-4e33a23a48fc",
-          "at": 1788606109493,
-          "parentId": "151a463b-94e4-4c3e-9e8e-37ff3142df6c",
-          "role": "user",
-          "kind": "text",
-          "text": "room fixture message 2",
-          "channelMode": "chat",
-          "queueId": "ac0aef3c-bff6-4b3d-9917-78d6025833cc"
-        },
-        {
-          "id": "854ebf3d-a535-415c-b668-5faa64abc372",
-          "at": 1788606109515,
-          "parentId": "a0e95c61-be36-491b-9cad-4e33a23a48fc",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "e99f0ad2-d54d-4995-b0ac-2efc0f2b03bd",
-          "from": {
-            "botId": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-            "name": "Pesto",
-            "color": "blue"
-          },
-          "turnTerminal": true
-        },
-        {
-          "id": "8e1d6e0a-74d6-4036-8922-0b3577089b6a",
-          "at": 1788606109601,
-          "parentId": "854ebf3d-a535-415c-b668-5faa64abc372",
-          "role": "user",
-          "kind": "text",
-          "text": "room fixture message 3",
-          "channelMode": "chat"
-        },
-        {
-          "id": "d4ab51b5-e251-4c3a-9eb1-5163802b6a35",
-          "at": 1788606109626,
-          "parentId": "8e1d6e0a-74d6-4036-8922-0b3577089b6a",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "f985c9d2-0bab-46cc-8308-53b1abe6e27b",
-          "from": {
-            "botId": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-            "name": "Pesto",
-            "color": "blue"
-          },
-          "turnTerminal": true
-        },
-        {
-          "id": "b02b7543-05a9-4c8e-9f10-30974f5e7892",
-          "at": 1788606109738,
-          "parentId": "d4ab51b5-e251-4c3a-9eb1-5163802b6a35",
-          "role": "user",
-          "kind": "text",
-          "text": "room fixture message 4",
-          "channelMode": "chat"
-        },
-        {
-          "id": "ce468e29-ceb8-4874-859b-22461c72cf88",
-          "at": 1788606109762,
-          "parentId": "b02b7543-05a9-4c8e-9f10-30974f5e7892",
-          "role": "bot",
-          "kind": "text",
-          "text": "Not logged in · Please run /login",
-          "turnId": "3da2a677-a722-4bf7-af33-ceee45c54e30",
-          "from": {
-            "botId": "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2",
-            "name": "Pesto",
-            "color": "blue"
-          },
-          "turnTerminal": true
-        }
-      ]
-    }
-  ],
-  "computerControl": {
-    "7d14f44a-ea1a-4fa0-a0c9-55311c44c8f2": {
-      "held": false,
-      "helpReason": null
-    }
-  }
+  "groups": []
 }

@@ -1,5 +1,4 @@
-// "What the model sees" — a collapsed-by-default preview of the exact
-// system prompt this bot's next direct turn would carry, built from
+// A collapsed-by-default preview of the settings-derived prompt, built from
 // GET /api/bots/:id/system-prompt (server/system-prompt.ts's
 // previewSystemPrompt, the same builder a real turn uses). Pure
 // presentational: the dialog owns the fetch and the open/closed state.
@@ -35,8 +34,8 @@ export function PromptPreview({
       >
         <span className="text-[15px] font-medium text-ink">
           {data
-            ? `What the model sees · ${data.totalBytes.toLocaleString()} bytes ≈ ${data.approxTokens.toLocaleString()} tokens`
-            : "What the model sees"}
+            ? `Prompt preview · ${data.totalBytes.toLocaleString()} bytes ≈ ${data.approxTokens.toLocaleString()} tokens`
+            : "Prompt preview"}
         </span>
         <ChevronDown size={16} className={cn("shrink-0 text-ink-secondary transition-transform", open && "rotate-180")} />
       </button>

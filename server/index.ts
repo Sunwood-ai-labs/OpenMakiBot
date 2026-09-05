@@ -240,7 +240,7 @@ import { fetchSkillFromSource } from "./skill-fetch.ts";
 import { expandLearnTurnText, learnSource } from "./skill-learn.ts";
 import { expandSetupTurnText, setupModeActive, setupSystemPrompt } from "./setup-mode.ts";
 import type { SkillRequestCardData } from "../shared/skill-request.ts";
-import { checkSoulDrift, soulFile, writeSoulMirror } from "./bot-folder.ts";
+import { checkSoulDrift, readSoulDrift, soulFile, writeSoulMirror } from "./bot-folder.ts";
 import {
   buildSystemPrompt,
   computerPrompt,
@@ -282,7 +282,7 @@ import { screenFrameHash, screenTouchingTool, settledFrameIsNews } from "./scree
 import { RoutineRequestService } from "./routine-requests.ts";
 import { buildBotOverview, type BotOverview, connectedAppsFacts } from "./bot-overview.ts";
 import { ProfileRequestService } from "./profile-requests.ts";
-import { profileSnapshot } from "./profile-revision.ts";
+import { profileRevision, profileSnapshot } from "./profile-revision.ts";
 import { flushAllProfileHistory, flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
 import { fetchBotDirectory, matchDirectoryBots, type MatchedDirectoryBot } from "./bot-directory.ts";
 import { scoutProject, suggestTeam } from "./project-scout.ts";
@@ -1176,7 +1176,7 @@ if (browserCleanupReferencesReconciled) browserCleanup.startPending();
 const wireTask = ({ resumeCursors: _resumeCursors, lastInstanceId: _lastInstanceId, ...task }: TaskRecord) => task;
 
 const wireBot = (bot: NonNullable<ReturnType<typeof store.bot>>) => {
-  const { resumeCursors: _resumeCursors, tasks, approvalGrant, ...rest } = bot;
+  const { resumeCursors: _resumeCursors, tasks, approvalGrant, lastProfileRequestId: _lastProfileRequestId, ...rest } = bot;
   // An elevated selection is inert until the desktop confirms its exact
   // private reply. Every ordinary client sees the effective Ask state during
   // that two-phase window, never a grant that may still roll back.
@@ -1189,16 +1189,13 @@ const wireBot = (bot: NonNullable<ReturnType<typeof store.bot>>) => {
 /** The correlated private response carries the requested value so Electron
  * can validate it before sending the confirmation that makes it effective. */
 const wireTrustedApprovalBot = (bot: NonNullable<ReturnType<typeof store.bot>>) => {
-  const { resumeCursors: _resumeCursors, tasks, approvalGrant: _approvalGrant, ...rest } = bot;
+  const { resumeCursors: _resumeCursors, tasks, approvalGrant: _approvalGrant, lastProfileRequestId: _lastProfileRequestId, ...rest } = bot;
   return { ...rest, avatarUrl: rest.avatarUrl ?? null, ...(tasks ? { tasks: tasks.map(wireTask) } : {}) };
 };
 
-/** The system prompt a plain direct turn would carry right now, for the
- * "what the model sees" panel. Built by the same builder as a real turn,
- * from the bot's settings alone: no task note, no per-message skills or
- * playbooks, and the engine-dependent parts (computer, browser, connected
- * apps, team tools) are included when the settings ask for them, since
- * which engine will mount them is not known until dispatch. */
+/** A settings-based preview, not a receipt of a dispatched turn. No
+ * provisioning or credentials are needed to inspect it. The selected engine
+ * bounds advertised tools; task-specific context is added only at dispatch. */
 function previewSystemPrompt(bot: BotRecord) {
   // `cfg` is the module-level config (`const cfg = loadConfig()` near the
   // top of index.ts), the same object the turn code reads.
@@ -1209,13 +1206,15 @@ function previewSystemPrompt(bot: BotRecord) {
   ]
     .filter(Boolean)
     .join(" ");
+  const instance = registry.get(bot.modelSelection.instanceId);
+  const caps = instance?.adapter.capabilities;
   const computerPromptKind: ComputerPromptKind | null =
     bot.computer === "vm"
-      ? localVmMode(cfg) === "per-bot" ? "vm-private" : "vm-shared"
+      ? caps?.computerMcp ? localVmMode(cfg) === "per-bot" ? "vm-private" : "vm-shared" : null
       : bot.computer === "cloud"
-        ? bot.cloudBackend === "vps" ? "vps" : "box"
+        ? instance?.driverKind === "boxAgent" ? "box-agent" : caps?.computerMcp ? bot.cloudBackend === "vps" ? "vps" : "box" : null
         : bot.computer === "local"
-          ? "local"
+          ? caps?.localComputerMcp ? "local" : null
           : null;
   const peers = reachablePeers(store.bots, bot);
   const coordination = bot.chiefOfStaff
@@ -1223,11 +1222,11 @@ function previewSystemPrompt(bot: BotRecord) {
     : peers.length > 0
       ? peerRosterSystemPrompt(peers)
       : "";
-  ensureWorkspace(bot.id);
   // Same gate a real turn applies: the block only goes to a bot whose
   // engine actually mounts agent tools, since it names propose_profile,
   // propose_routine and request_credential.
-  const agentsMounted = registry.get(bot.modelSelection.instanceId)?.adapter.capabilities.agentsMcp === true;
+  const agentsMounted = caps?.agentsMcp === true;
+  const privateWorkspace = instance && !["grok", "boxAgent"].includes(instance.driverKind);
   const built = buildSystemPrompt(persona, bot.soul ?? "", [
     {
       id: "setup",
@@ -1238,15 +1237,15 @@ function previewSystemPrompt(bot: BotRecord) {
       }),
     },
     { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
-    { id: "composio", label: "Connected apps", text: bot.composio !== false && composio.configured(cfg) ? COMPOSIO_PROMPT : "" },
-    { id: "browser", label: "Browser", text: bot.browser !== false && bot.computer !== "off" ? BUILT_IN_BROWSER_SYSTEM_PROMPT : "" },
-    { id: "coordination", label: "Team", text: coordination ? ` ${coordination}` : "" },
-    { id: "credential", label: "Credentials", text: CREDENTIAL_PROMPT },
-    { id: "routine", label: "Routines", text: ROUTINE_PROMPT },
-    { id: "profile", label: "Profile changes", text: PROFILE_PROMPT },
+    { id: "composio", label: "Connected apps", text: caps?.composioMcp && bot.composio !== false && composio.configured(cfg) ? COMPOSIO_PROMPT : "" },
+    { id: "browser", label: "Browser", text: caps?.browserMcp && builtInBrowserEnabled(cfg) && bot.browser !== false && bot.computer !== "off" ? BUILT_IN_BROWSER_SYSTEM_PROMPT : "" },
+    { id: "coordination", label: "Team", text: agentsMounted && coordination ? ` ${coordination}` : "" },
+    { id: "credential", label: "Credentials", text: agentsMounted ? CREDENTIAL_PROMPT : "" },
+    { id: "routine", label: "Routines", text: agentsMounted ? ROUTINE_PROMPT : "" },
+    { id: "profile", label: "Profile changes", text: agentsMounted ? PROFILE_PROMPT : "" },
     { id: "section-context", label: "Section context", text: sectionContextSystemPrompt(bot.section) },
-    { id: "memory", label: "Memory", text: memorySystemPrompt(bot.id) },
-    { id: "skills", label: "Skills index", text: skillsSystemPrompt(bot.id) },
+    { id: "memory", label: "Memory", text: privateWorkspace ? memorySystemPrompt(bot.id) : "" },
+    { id: "skills", label: "Skills index", text: privateWorkspace ? skillsSystemPrompt(bot.id) : "" },
   ]);
   const totalBytes = built.sections.reduce((n, s) => n + s.bytes, 0);
   return {
@@ -1254,7 +1253,7 @@ function previewSystemPrompt(bot: BotRecord) {
     totalBytes,
     approxTokens: Math.ceil(totalBytes / 4),
     note:
-      "Built for a plain direct turn from this bot's current settings. A real turn adds the task's own note, any skill or playbook matched by the message, and only the tool sections its engine can mount.",
+      "Preview from current bot settings, not the exact prompt of a running task. Task folders, notes, recall, selected skills and available connections can change the dispatched prompt. Token count is an estimate.",
   };
 }
 
@@ -1287,6 +1286,7 @@ async function botOverview(bot: BotRecord): Promise<BotOverview> {
       cloudBackend: bot.cloudBackend,
       cwd: bot.cwd,
       autoApprove: bot.autoApprove,
+      approvalMode: approvalModeForTurn(bot),
       approvePeerComms: bot.approvePeerComms,
       peers: bot.peers,
       composio: bot.composio,
@@ -1320,6 +1320,7 @@ async function botOverview(bot: BotRecord): Promise<BotOverview> {
       enabled: skill.enabled,
     })),
     engine,
+    browserEnabled: builtInBrowserEnabled(cfg),
     connectedApps,
     sectionPeers,
     timeZone,
@@ -5053,7 +5054,10 @@ function resolveAndSendProfile(
   if (result.state === "applied") {
     const target = store.bot(result.targetBotId);
     if (target) broadcast({ kind: "bot", bot: wireBot(target) });
-    json(res, 200, { ok: true, outcome: "allowed-once", profileFields: result.fields });
+    json(res, 200, {
+      ok: true, outcome: "allowed-once", profileFields: result.fields,
+      ...(result.settlementPending ? { settlementPending: true, message: result.message } : {}),
+    });
     return true;
   }
   if (result.state === "invalid") { json(res, result.status, { error: result.error }); return true; }
@@ -7871,7 +7875,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           forBotId: z.string().max(128).optional(),
           changes: z.unknown(),
           reason: z.unknown(),
-        }).strict().safeParse(await readBody(req));
+        }).strict().safeParse(await readInternalBody());
         if (!parsed.success) return json(res, 400, { error: "invalid profile proposal" });
         const body = parsed.data;
         const from = store.bot(body.fromBotId);
@@ -10160,9 +10164,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       }
       const existingBot = store.bot(m[1]);
       const beforeProfile = existingBot ? profileSnapshot(existingBot) : undefined;
-      const { soul, ...profilePatch } = parsed.patch;
-      let bot = store.patchBot(m[1], profilePatch);
-      if (bot && soul !== undefined) bot = store.setSoul(m[1], soul);
+      const bot = store.patchBotProfile(m[1], parsed.patch);
       if (!bot) return json(res, 404, { error: "no such bot" });
       if (beforeProfile) recordProfileChange(bot.id, "user", "api", beforeProfile, profileSnapshot(bot));
       const visible = wireBot(bot);
@@ -10292,10 +10294,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       }
       const patch: Record<string, unknown> = {};
       Object.assign(patch, profile.patch);
-      // soul has its own write path (hash + mirror); keep it out of the
-      // generic patch so the mirror can never lag the record
-      const soul = profile.patch.soul;
-      delete patch.soul;
       let section: string | undefined | null;
       if (body.section !== undefined) {
         if (body.section === null) section = null;
@@ -10569,9 +10567,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         body.chiefOfStaff !== false &&
         section !== undefined &&
         sectionKey(existingBot?.section) !== sectionKey(section);
-      const bot = store.patchBot(m[1], patch);
+      const bot = profile.patch.soul !== undefined
+        ? store.patchBotProfile(m[1], patch)
+        : store.patchBot(m[1], patch);
       if (!bot) return json(res, 404, { error: "no such bot" });
-      if (soul !== undefined) store.setSoul(bot.id, soul);
       const chiefChanges =
         body.chiefOfStaff === true || chiefMovedSections
           ? store.setChiefOfStaff(bot.id)
@@ -10885,9 +10884,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
       const soul = bot.soul ?? "";
-      const drift = checkSoulDrift(bot.id, soul, bot.soulHash ?? "");
+      const drift = readSoulDrift(bot.id, soul, bot.soulHash ?? "");
       return json(res, 200, {
         soul,
+        revision: profileRevision(bot),
         bytes: Buffer.byteLength(soul, "utf8"),
         limit: BOT_PROFILE_LIMITS.soul,
         file: soulFile(bot.id),
@@ -10897,16 +10897,15 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/soul\/apply-file$/);
     if (m && method === "POST") {
+      const body = await readBody(req);
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
-      const drift = checkSoulDrift(bot.id, bot.soul ?? "", bot.soulHash ?? "");
+      if (body?.expectedRevision !== profileRevision(bot)) {
+        return json(res, 409, { error: "This bot's profile changed; reload and look again" });
+      }
+      const drift = readSoulDrift(bot.id, bot.soul ?? "", bot.soulHash ?? "");
       if (!drift.drift) return json(res, 409, { error: "SOUL.md matches the record; nothing to apply" });
-      // Optional body carries the exact text the client displayed. If the
-      // file has moved on since (another edit landed between the GET and
-      // this click), applying it now would silently apply text the user
-      // never saw. Absent body: backward-compatible for scripts.
-      const body = await readBody(req);
-      if (typeof body?.fileText === "string" && body.fileText !== drift.fileText) {
+      if (typeof body?.fileText !== "string" || body.fileText !== drift.fileText) {
         return json(res, 409, { error: "SOUL.md changed since you read it; reload and look again" });
       }
       // The file is user input like any other: same cap, same error copy.
@@ -10925,13 +10924,17 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/soul\/discard-file$/);
     if (m && method === "POST") {
+      const body = await readBody(req);
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
-      try {
-        writeSoulMirror(bot.id, bot.soul ?? "");
-      } catch (e) {
-        console.warn(`[bot-folder] could not write SOUL.md mirror for ${bot.id}: ${(e as Error).message}`);
+      if (body?.expectedRevision !== profileRevision(bot)) {
+        return json(res, 409, { error: "This bot's profile changed; reload and look again" });
       }
+      const drift = readSoulDrift(bot.id, bot.soul ?? "", bot.soulHash ?? "");
+      if (!drift.drift || typeof body?.fileText !== "string" || body.fileText !== drift.fileText) {
+        return json(res, 409, { error: "SOUL.md changed since you read it; reload and look again" });
+      }
+      writeSoulMirror(bot.id, bot.soul ?? "");
       const updated = store.patchBot(bot.id, { soulDrift: false }) ?? bot;
       const visible = wireBot(updated);
       broadcast({ kind: "bot", bot: visible });
@@ -10970,22 +10973,23 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         delete rest.after;
         return rest;
       });
-      return json(res, 200, { rows });
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      return json(res, 200, { rows, revision: profileRevision(bot) });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/history\/rollback$/);
     if (m && method === "POST") {
-      const bot = store.bot(m[1]);
-      if (!bot) return json(res, 404, { error: "no such bot" });
       const body = await readBody(req);
-      const at = Number(body?.at);
       // Same flush as the GET route: the row this rollback targets may have
       // been recorded moments ago and not yet reached disk.
-      await flushProfileHistory(bot.id);
-      // Rows written by one recordProfileChange call share the same `at`, so
-      // the first row at that timestamp may not be the soul row — find the
-      // soul row explicitly rather than the first match.
-      const row = Number.isFinite(at)
-        ? readHistory(bot.id, Number.MAX_SAFE_INTEGER).find((r) => r.at === at && r.field === "soul")
+      await flushProfileHistory(m[1]);
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      if (body?.expectedRevision !== profileRevision(bot)) {
+        return json(res, 409, { error: "This bot's profile changed; reload history before undoing" });
+      }
+      const row = typeof body?.id === "string"
+        ? readHistory(bot.id, Number.MAX_SAFE_INTEGER).find((r) => r.id === body.id && r.field === "soul")
         : undefined;
       if (!row || row.field !== "soul" || typeof row.before !== "string") {
         return json(res, 400, { error: "rollback is available for SOUL.md entries only" });

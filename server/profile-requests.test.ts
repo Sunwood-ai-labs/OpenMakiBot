@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { botFolder } from "./bot-folder.ts";
 import { profileRevision } from "./profile-revision.ts";
@@ -56,11 +56,15 @@ class MemoryStore implements ProfileRequestStore {
     return message;
   }
 
-  patchBot(id: string, patch: Partial<Pick<BotRecord, "name" | "title" | "description" | "cwd">>): BotRecord | null {
+  patchBot(id: string, patch: Parameters<ProfileRequestStore["patchBotProfile"]>[1]): BotRecord | null {
     const bot = this.bots.get(id);
     if (!bot) return null;
     Object.assign(bot, patch);
     return bot;
+  }
+
+  patchBotProfile(id: string, patch: Parameters<ProfileRequestStore["patchBotProfile"]>[1]): BotRecord | null {
+    return this.patchBot(id, patch);
   }
 
   setSoul(id: string, soul: string): BotRecord | null {
@@ -168,7 +172,7 @@ describe("ProfileRequestService", () => {
     const applied = service.resolve({ botId: bot.id, threadId: bot.threadId, requestId, behavior: "allow" });
     expect(applied).toEqual({ claimed: true, state: "applied", targetBotId: bot.id, fields: ["name", "soul"] });
     expect(store.bot(bot.id)).toMatchObject({ name: "Kiwi", soul: "Be brief." });
-    expect(store.setSoulCalls).toEqual([[bot.id, "Be brief."]]);
+    expect(store.setSoulCalls).toEqual([]);
     const card = store.messagesFor(bot.threadId).at(-1)!.card!;
     expect(card.answered).toBe("allow");
     expect(card.profileRequest!.appliedAt).toBeGreaterThan(0);
@@ -194,6 +198,40 @@ describe("ProfileRequestService", () => {
     expect((stale as { error: string }).error).toBe("This bot's profile changed after this card was prepared. Ask the bot to review it and propose again.");
     expect(store.messagesFor(bot.threadId).at(-1)!.card!.held).toContain("changed after this card");
     expect(store.bot(bot.id)!.title).toBe("");
+  });
+
+  it("scrubs existing profile secrets in the returned tool result as well as the card", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const secret = "sk-ant-api03-SECRETSECRETSECRETSECRETSECRET";
+    store.setSoul(bot.id, `Keep ${secret} private.`);
+    const result = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { soul: "Be brief." }, reason: "r" });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(JSON.stringify(store.messagesFor(bot.threadId))).not.toContain(secret);
+  });
+
+  it("still cancels a proposal after its target bot was deleted", () => {
+    const { service, store, bot, addBot } = harness({ name: "Chief" });
+    const peer = addBot({ name: "Peer" });
+    const proposed = service.propose({ botId: bot.id, threadId: bot.threadId, targetBotId: peer.id, changes: { title: "Tracker" }, reason: "r" });
+    store.bots.delete(peer.id);
+    expect(service.resolve({ botId: bot.id, threadId: bot.threadId, requestId: proposed.requestId, behavior: "deny" }))
+      .toEqual({ claimed: true, state: "denied" });
+  });
+
+  it("commits profile fields once and can retry a failed card settlement without reapplying", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const proposed = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { name: "Kiwi", soul: "Be brief." }, reason: "r" });
+    const patch = vi.spyOn(store, "patchBotProfile");
+    const settle = vi.spyOn(store, "patchMessage").mockImplementationOnce(() => { throw new Error("card write failed"); });
+    const args = { botId: bot.id, threadId: bot.threadId, requestId: proposed.requestId, behavior: "allow" };
+    expect(service.resolve(args)).toMatchObject({ state: "applied", settlementPending: true, message: expect.stringContaining("Profile saved") });
+    expect(bot).toMatchObject({ name: "Kiwi", soul: "Be brief.", lastProfileRequestId: proposed.requestId });
+    expect(patch).toHaveBeenCalledTimes(1);
+    expect(store.messagesFor(bot.threadId).at(-1)?.card?.held).toContain("Confirm again");
+    expect(service.resolve(args)).toMatchObject({ state: "already_settled", behavior: "allow" });
+    expect(patch).toHaveBeenCalledTimes(1);
+    expect(store.messagesFor(bot.threadId).at(-1)?.card?.answered).toBe("allow");
+    settle.mockRestore();
   });
 
   it("pins ownership to the proposing conversation and rejects other behaviors", () => {

@@ -9,6 +9,7 @@ import { Search, X } from "lucide-react";
 import { api, useStore, type Bot } from "@/state/store";
 import type { BotOverview } from "@/lib/bot-overview-types";
 import { cn } from "@/lib/cn";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { BOT_SECTIONS } from "./bot-settings/sections";
 import { useBotSettingsDerived } from "./bot-settings/useBotSettingsDerived";
 import { OverviewSection } from "./bot-settings/OverviewSection";
@@ -31,7 +32,7 @@ function sectionMatches(entry: (typeof BOT_SECTIONS)[number], query: string): bo
 }
 
 export function BotSettingsDialog({ bot }: { bot: Bot }) {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, flushBotPatches } = useStore();
   const section = state.botSettingsSection;
   const derived = useBotSettingsDerived(bot);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -45,28 +46,14 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   const [promptError, setPromptError] = useState(false);
   const [historyRows, setHistoryRows] = useState<HistoryRow[] | null>(null);
   const [historyError, setHistoryError] = useState(false);
-
-  // A new bot starts from a clean slate rather than showing the previous
-  // bot's overview for a moment. Also marks the next overview/system-prompt
-  // fetch below as a first load for this bot.id, so it fires immediately
-  // rather than waiting out the debounce.
-  const firstLoadRef = useRef(true);
-  useEffect(() => {
-    setOverview(null);
-    setOverviewError(false);
-    setPrompt(null);
-    setPromptError(false);
-    setHistoryRows(null);
-    setHistoryError(false);
-    firstLoadRef.current = true;
-  }, [bot.id]);
+  const [historyRevision, setHistoryRevision] = useState<string | null>(null);
+  const [rollingBack, setRollingBack] = useState(false);
+  const [rollbackTarget, setRollbackTarget] = useState<{ id: string; expectedRevision: string } | null>(null);
 
   // The bot-record fields the server-built overview and system-prompt
   // preview actually read (OverviewFacts.bot plus the prompt's persona
-  // inputs). Keyed as one string so a streamed message, an unread flag, or
-  // a typing indicator — which all replace the bot object — never restarts
-  // the debounce below; while a bot is answering, the whole object changes
-  // many times a second and an effect keyed on it would never fire.
+  // inputs). A streamed message or unread flag replaces the bot object but
+  // must not refetch an unchanged overview.
   const factsSignature = useMemo(
     () =>
       JSON.stringify([
@@ -105,26 +92,15 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     ],
   );
 
-  // Loads on open, and again whenever bot.id, state.routines, state.webhooks,
-  // or one of the bot fields above changes — those are exactly the facts the
-  // server-built overview and system-prompt preview depend on. The very first load for a
-  // given bot.id (dialog just opened, or switched bots) fires immediately —
-  // there is nothing on screen yet to coalesce with, so waiting out a 500ms
-  // debounce would only add a visible delay. Every later run — a dependency
-  // changed while the dialog is already showing data — is still debounced to
-  // one request per 500ms, so a burst of edits (typing in a field, several
-  // routine changes) coalesces into a single refetch instead of one per
-  // keystroke. Each fetch is wrapped so one failing leaves only its own
-  // block reading "couldn't load" rather than throwing and breaking the
-  // rest of the dialog.
+  // Fetch on entry: skills and memory are files, not bot-record fields, so
+  // returning from either editor must reload their overview/prompt too.
+  // Await the existing write queue instead of racing a second debounce.
   useEffect(() => {
-    // Guards every setState below the same way AccessSection's connected-apps
-    // preload does: a quick open/close (or a fast bot switch) can unmount
-    // this dialog before either fetch settles, and without this flag the
-    // resolved promise would still call setOverview/setPrompt/setError on a
-    // component that's already gone.
+    if (section !== "overview") return;
     let cancelled = false;
-    const fetchOverviewAndPrompt = () => {
+    const fetchOverviewAndPrompt = async () => {
+      await flushBotPatches(bot.id);
+      if (cancelled) return;
       void api(`/api/bots/${bot.id}/overview`)
         .then((data: BotOverview) => {
           if (cancelled) return;
@@ -145,31 +121,23 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
         });
     };
 
-    if (firstLoadRef.current) {
-      firstLoadRef.current = false;
-      fetchOverviewAndPrompt();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const timer = window.setTimeout(fetchOverviewAndPrompt, 500);
+    void fetchOverviewAndPrompt();
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
-  }, [bot.id, factsSignature, state.routines, state.webhooks]);
+  }, [bot.id, section, factsSignature, state.routines, state.webhooks, flushBotPatches]);
 
-  // History is fetched only once the section is actually opened — every
-  // other section's data loads eagerly, but reading a bot's full change log
-  // is the one facts a visit to Settings almost never needs, and the fetch
-  // reads a per-bot NDJSON file (readHistory) rather than in-memory state.
+  // Read the file-backed history only when its section is opened.
   const loadHistory = useCallback(() => {
     setHistoryError(false);
-    return api(`/api/bots/${bot.id}/history?limit=100`)
-      .then((data: { rows: HistoryRow[] }) => setHistoryRows(data.rows))
+    return flushBotPatches(bot.id)
+      .then(() => api(`/api/bots/${bot.id}/history?limit=100`))
+      .then((data: { rows: HistoryRow[]; revision: string }) => {
+        setHistoryRows(data.rows);
+        setHistoryRevision(data.revision);
+      })
       .catch(() => setHistoryError(true));
-  }, [bot.id]);
+  }, [bot.id, flushBotPatches]);
 
   useEffect(() => {
     if (section !== "history") return;
@@ -180,14 +148,22 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   // server's validation, say) still reloads history so the list matches
   // the server's actual state, but also surfaces the server's message
   // through the app's error toast — mirrors SoulField's Apply/Discard.
-  const rollbackHistory = (at: number) => {
-    void api(`/api/bots/${bot.id}/history/rollback`, { method: "POST", body: JSON.stringify({ at }) }).then(
-      () => loadHistory(),
-      (e: unknown) => {
+  const rollbackHistory = async (target: { id: string; expectedRevision: string }) => {
+    if (rollingBack) return;
+    setRollbackTarget(null);
+    setRollingBack(true);
+    try {
+      await flushBotPatches(bot.id);
+      await api(`/api/bots/${bot.id}/history/rollback`, {
+        method: "POST",
+        body: JSON.stringify(target),
+      });
+    } catch (e: unknown) {
         dispatch({ type: "error", message: e instanceof Error ? e.message : "Couldn't undo that change." });
-        return loadHistory();
-      },
-    );
+    } finally {
+      await loadHistory();
+      setRollingBack(false);
+    }
   };
 
   useEffect(() => {
@@ -207,7 +183,7 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
       // review, the model picker's popover, a computer warning) owns Escape
       // and Tab while it is up: Escape closes only that layer, and the focus
       // trap below must not pull focus back out of it.
-      if (dialog?.querySelector('[role="dialog"]')) return;
+      if (dialog?.querySelector('[role="dialog"], [role="alertdialog"]')) return;
       // BotInstructionsDialog portals to document.body, so it is not in this
       // subtree: a key pressed with focus outside this dialog belongs to
       // whatever holds focus, never to us.
@@ -221,9 +197,9 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
 
       const focusable = Array.from(
         dialog.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
         ),
-      );
+      ).filter((element) => element.getClientRects().length > 0);
       if (focusable.length === 0) {
         event.preventDefault();
         dialog.focus();
@@ -233,7 +209,7 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+      if (event.shiftKey && (active === dialog || active === first || !dialog.contains(active))) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {
@@ -356,7 +332,9 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
 
             {section === "skills" && <SkillsSection bot={bot} />}
 
-            {section === "memory" && <MemorySection bot={bot} />}
+            {/* Memory has an explicit Save button; preserve its unsaved draft
+                while the user consults another section. It fetches on expand. */}
+            <div hidden={section !== "memory"}><MemorySection bot={bot} /></div>
 
             {section === "routines" && (
               <RoutinesSection bot={bot} routines={derived.botRoutines} runs={state.routineRuns} />
@@ -381,7 +359,10 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
                   bot={bot}
                   rows={historyRows}
                   refreshError={historyRows !== null && historyError}
-                  onRollback={rollbackHistory}
+                  onRollback={(id) => {
+                    if (historyRevision) setRollbackTarget({ id, expectedRevision: historyRevision });
+                  }}
+                  rollingBack={rollingBack || !historyRevision}
                 />
               ))}
 
@@ -389,6 +370,16 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={rollbackTarget !== null}
+        title="Restore previous instructions?"
+        body="Replaces current SOUL with the version before this change. Current version stays in History."
+        confirmLabel="Restore instructions"
+        tone="neutral"
+        returnFocusRef={dialogRef}
+        onCancel={() => setRollbackTarget(null)}
+        onConfirm={() => { if (rollbackTarget) void rollbackHistory(rollbackTarget); }}
+      />
     </div>
   );
 }

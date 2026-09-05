@@ -1878,11 +1878,14 @@ class Session(
 
     suspend fun loadOverview(botId: String): BotOverview? {
         val activeClient = client ?: return null
+        val connectionId = _connection.value?.id
         return try {
-            activeClient.overview(botId)
+            val overview = activeClient.overview(botId)
+            currentCoroutineContext().ensureActive()
+            overview.takeIf { _connection.value?.id == connectionId }
         } catch (error: Throwable) {
-            if (error is kotlinx.coroutines.CancellationException) throw error
-            _actionError.value = error.message
+            if (error is CancellationException) throw error
+            if (_connection.value?.id == connectionId) _actionError.value = error.message
             null
         }
     }

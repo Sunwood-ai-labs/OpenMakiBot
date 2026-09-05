@@ -20,6 +20,7 @@ const bot: Bot = {
 };
 
 const soulRow: HistoryRow = {
+  id: "soul-row",
   at: 1700000000000,
   actor: "user",
   via: "ui",
@@ -28,6 +29,7 @@ const soulRow: HistoryRow = {
 };
 
 const titleRow: HistoryRow = {
+  id: "title-row",
   at: 1700000100000,
   actor: "bot",
   via: "api",
@@ -75,5 +77,12 @@ describe("HistorySection", () => {
   it("orders rows newest first regardless of input order", () => {
     const markup = render([soulRow, titleRow]);
     expect(markup.indexOf("Title changed")).toBeLessThan(markup.indexOf("soul: 120"));
+  });
+
+  it("disables undo while a rollback is in progress", () => {
+    const markup = renderToStaticMarkup(createElement(HistorySection, {
+      bot, rows: [soulRow], onRollback: vi.fn(), rollingBack: true,
+    }));
+    expect(markup).toContain('disabled=""');
   });
 });

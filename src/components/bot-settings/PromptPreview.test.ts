@@ -20,7 +20,7 @@ describe("PromptPreview", () => {
       createElement(PromptPreview, { data, open: false, onToggle: vi.fn() }),
     );
 
-    expect(markup).toContain("What the model sees · 460 bytes ≈ 115 tokens");
+    expect(markup).toContain("Prompt preview · 460 bytes ≈ 115 tokens");
     expect(markup).not.toContain("Identity");
     expect(markup).not.toContain("Standing instructions (SOUL.md)");
   });
@@ -30,7 +30,7 @@ describe("PromptPreview", () => {
       createElement(PromptPreview, { data, open: true, onToggle: vi.fn() }),
     );
 
-    expect(markup).toContain("What the model sees · 460 bytes ≈ 115 tokens");
+    expect(markup).toContain("Prompt preview · 460 bytes ≈ 115 tokens");
     expect(markup).toContain("Identity");
     expect(markup).toContain("120 bytes");
     expect(markup).toContain("Standing instructions (SOUL.md)");

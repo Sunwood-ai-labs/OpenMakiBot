@@ -6,6 +6,7 @@
 import type { BotRecord } from "./store.ts";
 import type { Routine } from "./routines.ts";
 import type { RoutineRequestSchedule } from "../shared/routine-request.ts";
+import { approvalModeFor } from "../shared/approval-mode.ts";
 
 export interface BotOverview {
   who: { name: string; title: string; blurb: string; soulLead: string };
@@ -26,6 +27,7 @@ export interface OverviewFacts {
     | "cloudBackend"
     | "cwd"
     | "autoApprove"
+    | "approvalMode"
     | "approvePeerComms"
     | "peers"
     | "composio"
@@ -43,6 +45,7 @@ export interface OverviewFacts {
   webhooks: Array<{ name: string; enabled: boolean }>;
   skills: Array<{ name: string; description: string; enabled: boolean }>;
   engine: { agentsMcp?: boolean; composioMcp?: boolean; browserMcp?: boolean; computerMcp?: boolean } | null;
+  browserEnabled?: boolean;
   connectedApps: { configured: boolean; authoritative: boolean; services: string[] };
   sectionPeers: number;
   timeZone: string;
@@ -179,17 +182,17 @@ function couldUseApps(facts: OverviewFacts): boolean {
 function computerReach(computer: BotRecord["computer"]): string | null {
   switch (computer) {
     case "cloud":
-      return "Works on a cloud computer.";
+      return "Computer preference: cloud computer.";
     case "vm":
-      return "Works in the Local VM.";
+      return "Computer preference: Local VM.";
     case "local":
-      return "Can act on this computer.";
+      return "Computer preference: this computer.";
     case "browser":
-      return "Uses only the built-in browser.";
+      return "Computer preference: browser only.";
     case "off":
       return null;
     default:
-      return "Picks a computer automatically.";
+      return "Computer preference: Auto; availability is checked when a task starts.";
   }
 }
 
@@ -208,7 +211,7 @@ function reachesLines(facts: OverviewFacts): string[] {
   } else if (couldUseApps(facts) && !apps.authoritative) {
     lines.push("Connected apps could not be checked.");
   }
-  if (facts.bot.browser !== false && facts.bot.computer !== "off") lines.push("Has the built-in browser.");
+  if (facts.browserEnabled && facts.engine?.browserMcp && facts.bot.browser !== false && facts.bot.computer !== "off") lines.push("Has the built-in browser.");
   if (facts.engine?.agentsMcp && facts.sectionPeers > 0 && facts.bot.peers?.length !== 0) {
     lines.push(`Can talk to ${facts.sectionPeers} other bot${facts.sectionPeers === 1 ? "" : "s"} in its section.`);
   }
@@ -218,10 +221,11 @@ function reachesLines(facts: OverviewFacts): string[] {
 
 function wontLines(facts: OverviewFacts): string[] {
   const lines: string[] = [];
-  if (!facts.bot.autoApprove) lines.push("Won't run commands without asking you first.");
-  if (facts.bot.approvePeerComms || facts.bot.peers?.length === 0) {
-    lines.push("Won't contact other bots without asking.");
-  }
+  const mode = approvalModeFor(facts.bot);
+  if (mode === "ask") lines.push("Command approvals use Ask mode; saved permissions and provider rules still apply.");
+  if (mode === "custom") lines.push("Command approvals follow the provider's custom configuration.");
+  if (facts.bot.peers?.length === 0) lines.push("Cannot initiate contact with other bots.");
+  else if (facts.bot.approvePeerComms) lines.push("Asks before contacting other bots.");
   // "Has no connected apps." is definite when apps are off for this bot,
   // not configured, or unsupported by its engine — no inventory needed. Only
   // the "configured but nothing connected" case rests on the inventory, so
@@ -231,7 +235,7 @@ function wontLines(facts: OverviewFacts): string[] {
   }
   if (facts.bot.computer === "off") lines.push("Can't use a computer.");
   if (!facts.routines.some((routine) => routine.enabled)) lines.push("Won't act on a schedule.");
-  lines.push("Won't change its own instructions without your approval.");
+  lines.push("Profile proposal cards require your approval.");
   return lines;
 }
 

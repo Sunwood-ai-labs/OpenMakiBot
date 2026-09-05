@@ -2025,7 +2025,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   showError(error);
                 }
               }
-              await respond();
+              const response = await respond();
+              if (response?.settlementPending && typeof response.message === "string") {
+                showError(new Error(response.message));
+              }
             })
             .catch((error) => {
               // A settings flush failure deliberately stops the response;
@@ -2090,6 +2093,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             name: `${source.name} copy`,
             title: source.title,
             description: source.description,
+            soul: source.soul,
             notifications: source.notifications,
             modelSelection: source.modelSelection,
             computer: source.computer,

@@ -77,14 +77,23 @@ struct BotOverviewView: View {
         }
         .navigationTitle("What \(bot.name) does")
         .overlay { if loading && overview == nil { ProgressView() } }
-        .task { await load() }
+        .task(id: session.connection?.id) {
+            overview = nil
+            failed = false
+            await load()
+        }
         .refreshable { await load() }
     }
 
     private func load() async {
+        let connectionID = session.connection?.id
         loading = true
-        defer { loading = false }
-        if let loaded = await session.botOverview(for: bot) {
+        defer {
+            if !Task.isCancelled, session.connection?.id == connectionID { loading = false }
+        }
+        let loaded = await session.botOverview(for: bot)
+        guard !Task.isCancelled, session.connection?.id == connectionID else { return }
+        if let loaded {
             overview = loaded
             failed = false
         } else {

@@ -1,7 +1,7 @@
 // History: every change recorded against this bot's profile (name, title,
 // instructions, soul, and the rest of PROFILE_REQUEST_FIELDS), newest
 // first. Server-built list — GET /api/bots/:id/history — and a soul row
-// carries a rollback: POST /api/bots/:id/history/rollback { at } restores
+// carries a rollback: POST /api/bots/:id/history/rollback { id, expectedRevision } restores
 // that row's previous SOUL.md text (labeled "Undo", not "Restore" — it
 // applies the previous text, it doesn't reopen an old version to edit).
 // Pure presentational: the dialog owns the fetch, the reload after rollback,
@@ -12,6 +12,7 @@
 import { whenLabel } from "@/lib/schedule-label";
 
 export interface HistoryRow {
+  id: string;
   at: number;
   actor: string;
   via: string;
@@ -26,11 +27,13 @@ export function HistorySection({
   rows,
   refreshError,
   onRollback,
+  rollingBack,
 }: {
   bot: { id: string };
   rows: HistoryRow[] | null;
   refreshError?: boolean;
-  onRollback: (at: number) => void;
+  onRollback: (id: string) => void;
+  rollingBack?: boolean;
 }) {
   if (!rows) {
     return <div className="text-[13px] text-ink-secondary">Loading…</div>;
@@ -46,11 +49,8 @@ export function HistorySection({
       {refreshError && (
         <div className="rounded-lg bg-inset px-3 py-2 text-[12.5px] text-ink-secondary">Couldn’t refresh history.</div>
       )}
-      {/* Index keys: one recordProfileChange call can write several rows
-          with the same `at` and even the same field, so no row field set
-          is unique; the list is replaced wholesale on every load anyway. */}
-      {sorted.map((row, i) => (
-        <div key={`${bot.id}-${i}`} className="rounded-xl bg-card p-4">
+      {sorted.map((row) => (
+        <div key={`${bot.id}-${row.id}`} className="rounded-xl bg-card p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-ink">
               <span className="text-ink-secondary">{whenLabel(row.at)}</span>
@@ -64,8 +64,9 @@ export function HistorySection({
             {row.field === "soul" && (
               <button
                 type="button"
-                onClick={() => onRollback(row.at)}
-                className="shrink-0 rounded-md px-2 py-1 text-[12px] font-medium text-accent-text hover:bg-accent/10"
+                disabled={rollingBack}
+                onClick={() => onRollback(row.id)}
+                className="shrink-0 rounded-md px-2 py-1 text-[12px] font-medium text-accent-text hover:bg-accent/10 disabled:opacity-50"
               >
                 Undo this change
               </button>

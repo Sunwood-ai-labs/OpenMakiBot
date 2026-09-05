@@ -47,12 +47,14 @@ fun BotOverviewScreen(botId: String, onBack: () -> Unit) {
     val environment = LocalCompanion.current
     val session = environment.session
     val state by session.state.collectAsState()
+    val connection by session.connection.collectAsState()
+    val connectionId = connection?.id
     val scope = rememberCoroutineScope()
 
-    var overview by remember { mutableStateOf<BotOverview?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var refreshing by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf(false) }
+    var overview by remember(botId, connectionId) { mutableStateOf<BotOverview?>(null) }
+    var loading by remember(botId, connectionId) { mutableStateOf(true) }
+    var refreshing by remember(botId, connectionId) { mutableStateOf(false) }
+    var failed by remember(botId, connectionId) { mutableStateOf(false) }
 
     suspend fun refresh(showProgress: Boolean = false) {
         if (showProgress) refreshing = true
@@ -65,7 +67,7 @@ fun BotOverviewScreen(botId: String, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(botId) {
+    LaunchedEffect(botId, connectionId) {
         loading = true
         try {
             refresh()

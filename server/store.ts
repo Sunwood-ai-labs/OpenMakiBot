@@ -7,7 +7,7 @@ import { existsSync, readFileSync, mkdirSync, rmSync, unlinkSync } from "node:fs
 import { join } from "node:path";
 
 import { writeFileAtomic } from "./atomic.ts";
-import { removeBotFolder, soulHash, writeSoulMirror } from "./bot-folder.ts";
+import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
 import { DATA_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
@@ -473,6 +473,8 @@ export interface BotRecord {
   /** The mirror differed from `soul` at the last turn dispatch. The Soul
    * editor shows the diff; a user action (apply or discard) clears it. */
   soulDrift?: boolean;
+  /** Receipt committed with a confirmed profile, for retrying card settlement. */
+  lastProfileRequestId?: string;
   notifications: boolean;
   color: MausColor;
   mascotExpression?: MausExpression | null;
@@ -734,6 +736,13 @@ export class Store {
       if (b.soulHash !== soulHash(b.soul)) {
         b.soulHash = soulHash(b.soul);
         botsMigrated = true;
+      }
+      // Existing bots predate their folders. Create missing mirrors before
+      // their first history write, but preserve any edits already on disk.
+      if (!existsSync(soulFile(b.id))) {
+        try { writeSoulMirror(b.id, b.soul); } catch (e) {
+          console.warn(`[bot-folder] could not create SOUL.md for ${b.id}: ${(e as Error).message}`);
+        }
       }
       if (b.browserProfile) {
         const browserProfile = browserProfileAliases.get(b.browserProfile);
@@ -1343,7 +1352,7 @@ export class Store {
     profile: Partial<
       Pick<
         BotRecord,
-        "name" | "title" | "description" | "color" | "mascotExpression" | "mascotBody" | "modelSelection" | "section"
+        "name" | "title" | "description" | "soul" | "color" | "mascotExpression" | "mascotBody" | "modelSelection" | "section"
       >
     > = {},
     opts: {
@@ -1360,8 +1369,8 @@ export class Store {
       name,
       title: profile.title ?? "",
       description: profile.description ?? "",
-      soul: "",
-      soulHash: soulHash(""),
+      soul: profile.soul ?? "",
+      soulHash: soulHash(profile.soul ?? ""),
       notifications: true,
       color: profile.color ?? COLORS[this.bots.length % COLORS.length],
       ...(profile.mascotExpression ? { mascotExpression: profile.mascotExpression } : {}),
@@ -1379,20 +1388,19 @@ export class Store {
     // SOUL.md before the bot has said a word. The record is canonical: a
     // mirror-write failure must never fail bot creation.
     try {
-      writeSoulMirror(bot.id, "");
+      writeSoulMirror(bot.id, bot.soul ?? "");
     } catch (e) {
       console.warn(`[bot-folder] could not write SOUL.md mirror for ${bot.id}: ${(e as Error).message}`);
     }
     // Announce the owner before its onboarding transcript. SSE clients need
     // the bot/thread mapping before they can place either message.
     this.emit({ type: "bot", botId: bot.id });
-    // One line, and it points at setup mode: the bot's first turn carries the
-    // setup coach, so the invitation is real, not decorative.
+    // Keep the greeting valid for configured bots and every engine.
     if (opts.seedMessages !== false) {
       this.appendMessage(bot.threadId, {
         role: "bot",
         kind: "text",
-        text: `Hey, I'm ${name}. Tell me what you want me to do and I'll set myself up.`,
+        text: `Hi, I'm ${name}. What would you like me to do?`,
       });
     }
     return bot;
@@ -1427,25 +1435,41 @@ export class Store {
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
     const bot = this.bot(id);
     if (!bot) return null;
+    // Runtime revocations must become effective in memory even when disk is
+    // unavailable. Profile edits use the separate atomic path below.
     Object.assign(bot, patch);
     this.saveBots();
     this.emit({ type: "bot", botId: id });
     return bot;
   }
 
-  /** The one write path for standing instructions: record, hash, mirror,
-   * and any drift flag cleared, in that order. Every route that accepts a
-   * soul goes through here, so the mirror can never lag the record. */
-  setSoul(id: string, soul: string): BotRecord | null {
-    const bot = this.patchBot(id, { soul, soulHash: soulHash(soul), soulDrift: false });
-    if (bot) {
-      try {
-        writeSoulMirror(id, soul);
-      } catch (e) {
+  /** Commit a validated profile change before publishing its fields. Unlike
+   * runtime revocation, a failed user edit must leave the old profile intact. */
+  patchBotProfile(id: string, patch: Partial<BotRecord>): BotRecord | null {
+    const bot = this.bot(id);
+    if (!bot) return null;
+    const next = { ...bot, ...patch };
+    if (patch.soul !== undefined) {
+      next.soulHash = soulHash(patch.soul);
+      next.soulDrift = false;
+    }
+    // Persist all fields together before publishing anything to the live
+    // record. A failed write leaves both memory and disk at the old profile.
+    this.saveBots(this.bots.map((candidate) => candidate.id === id ? next : candidate));
+    Object.assign(bot, next);
+    if (patch.soul !== undefined) {
+      try { writeSoulMirror(id, patch.soul); } catch (e) {
         console.warn(`[bot-folder] could not write SOUL.md mirror for ${id}: ${(e as Error).message}`);
       }
     }
+    this.emit({ type: "bot", botId: id });
     return bot;
+  }
+
+  /** Convenience for a soul-only change. The record is canonical; a failed
+   * mirror write is reported in logs and can be retried by discarding drift. */
+  setSoul(id: string, soul: string): BotRecord | null {
+    return this.patchBotProfile(id, { soul });
   }
 
   /** File visible bots into one sidebar section as a single durable write.

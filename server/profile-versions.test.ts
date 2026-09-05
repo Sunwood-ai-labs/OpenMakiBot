@@ -1,8 +1,8 @@
 // Per-bot profile history: one NDJSON row per changed field, full text only
 // for the soul, secrets scrubbed, and a revision token that moves when any
 // of the four profile fields move.
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { describe, expect, it, vi } from "vitest";
 
 import { botFolder } from "./bot-folder.ts";
 import { profileRevision, profileSnapshot } from "./profile-revision.ts";
@@ -38,6 +38,32 @@ describe("profileRevision", () => {
 });
 
 describe("profile history", () => {
+  it("reads a bounded tail and keeps legacy ids stable as the window moves", () => {
+    const id = "hist-bounded";
+    withBotFolder(id);
+    const old = { at: 1, actor: "user", field: "soul", before: "old", after: "new" };
+    writeFileSync(historyFile(id), JSON.stringify(old) + "\n" + "x".repeat(9 * 1024 * 1024) + "\n" + JSON.stringify({ ...old, at: 2 }) + "\n");
+    const first = readHistory(id);
+    expect(first.map((row) => row.at)).toEqual([2]);
+    appendFileSync(historyFile(id), JSON.stringify({ ...old, at: 3 }) + "\n");
+    expect(readHistory(id).find((row) => row.at === 2)?.id).toBe(first[0].id);
+    expect(readHistory(id, 1).map((row) => row.at)).toEqual([3]);
+  });
+  it("identifies same-millisecond changes and legacy rows independently", async () => {
+    const id = "hist-collision";
+    withBotFolder(id);
+    const clock = vi.spyOn(Date, "now").mockReturnValue(123);
+    try {
+      recordProfileChange(id, "user", "ui", base, { ...base, soul: "first" });
+      recordProfileChange(id, "user", "ui", { ...base, soul: "first" }, { ...base, soul: "second" });
+      await flushProfileHistory(id);
+    } finally { clock.mockRestore(); }
+    appendFileSync(historyFile(id), JSON.stringify({ at: 123, actor: "user", field: "soul", before: "legacy", after: "old", summary: "old" }) + "\n");
+    const rows = readHistory(id);
+    expect(rows.map((row) => row.at)).toEqual([123, 123, 123]);
+    expect(new Set(rows.map((row) => row.id)).size).toBe(3);
+    expect(readHistory(id).map((row) => row.id)).toEqual(rows.map((row) => row.id));
+  });
   it("writes one redacted row per changed field with private mode, newest first on read", async () => {
     const id = "hist-1";
     withBotFolder(id);
@@ -46,7 +72,7 @@ describe("profile history", () => {
       ...base, name: "Kiwi", title: "Tracker", soul: "token sk-ant-api03-SECRETSECRETSECRETSECRET\nBe brief.",
     });
     await flushProfileHistory(id);
-    expect(statSync(historyFile(id)).mode & 0o777).toBe(0o600);
+    if (process.platform !== "win32") expect(statSync(historyFile(id)).mode & 0o777).toBe(0o600);
     const rows = readHistory(id);
     expect(rows.map((r) => r.field)).toEqual(["soul", "title", "name"]);
     expect(rows[2]).toMatchObject({ actor: "user", via: "ui", field: "name", before: "Scout", after: "Kiwi" });
