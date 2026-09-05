@@ -1,21 +1,678 @@
 {
   "instances": [
     {
-      "instanceId": "ghost",
-      "driverKind": "not-a-real-driver",
-      "displayName": "Ghost",
+      "instanceId": "grok",
+      "driverKind": "grokAgent",
+      "displayName": "Grok",
       "snapshot": {
         "state": "unavailable",
-        "reason": "unknown driver \"not-a-real-driver\" — kept as configured, unavailable here"
+        "reason": "`grok` CLI not found"
+      },
+      "models": {
+        "default": "grok-4.6",
+        "options": [
+          {
+            "id": "grok-4.6",
+            "label": "Grok 4.6"
+          },
+          {
+            "id": "grok-4.5",
+            "label": "Grok 4.5"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": false,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "curl -fsSL https://x.ai/cli/install.sh | bash",
+          "linux": "curl -fsSL https://x.ai/cli/install.sh | bash"
+        },
+        "docsUrl": "https://x.ai/cli",
+        "signInCommand": "grok login"
+      },
+      "cliDefault": "grok",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "kimi",
+      "driverKind": "kimiAgent",
+      "displayName": "Kimi",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "`kimi` CLI not found"
+      },
+      "models": {
+        "default": "kimi-code/k3",
+        "options": [
+          {
+            "id": "kimi-code/k3",
+            "label": "Kimi K3"
+          },
+          {
+            "id": "kimi-code/k3-256k",
+            "label": "Kimi K3 256K"
+          },
+          {
+            "id": "kimi-code/kimi-for-coding",
+            "label": "Kimi for Coding"
+          },
+          {
+            "id": "kimi-code/kimi-for-coding-highspeed",
+            "label": "Kimi for Coding Highspeed"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash",
+          "linux": "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash",
+          "win32": "irm https://code.kimi.com/kimi-code/install.ps1 | iex"
+        },
+        "docsUrl": "https://moonshotai.github.io/kimi-code/en/guides/getting-started.html",
+        "signInCommand": "kimi login"
+      },
+      "cliDefault": "kimi",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "droid",
+      "driverKind": "droidAgent",
+      "displayName": "Droid",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "`droid` CLI not found"
+      },
+      "models": {
+        "default": "claude-opus-5",
+        "options": [
+          {
+            "id": "auto",
+            "label": "Auto (Factory picks)"
+          },
+          {
+            "id": "claude-opus-5",
+            "label": "Claude Opus 5"
+          },
+          {
+            "id": "claude-sonnet-5",
+            "label": "Claude Sonnet 5"
+          },
+          {
+            "id": "claude-haiku-4-5-20251001",
+            "label": "Claude Haiku 4.5"
+          },
+          {
+            "id": "gpt-5.6-sol",
+            "label": "GPT-5.6 Sol"
+          },
+          {
+            "id": "gpt-5.6-terra",
+            "label": "GPT-5.6 Terra"
+          },
+          {
+            "id": "gemini-3.1-pro-preview",
+            "label": "Gemini 3.1 Pro"
+          },
+          {
+            "id": "glm-5.2",
+            "label": "GLM 5.2"
+          },
+          {
+            "id": "kimi-k3",
+            "label": "Kimi K3"
+          },
+          {
+            "id": "grok-4.6",
+            "label": "Grok 4.6"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "curl -fsSL https://app.factory.ai/cli | sh",
+          "linux": "curl -fsSL https://app.factory.ai/cli | sh",
+          "win32": "irm https://app.factory.ai/cli/windows | iex"
+        },
+        "docsUrl": "https://docs.factory.ai/droid-cli/quickstart",
+        "signInCommand": "droid"
+      },
+      "cliDefault": "droid",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "cursor",
+      "driverKind": "cursorAgent",
+      "displayName": "Cursor",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "`cursor-agent` CLI not found"
+      },
+      "models": {
+        "default": "auto",
+        "options": [
+          {
+            "id": "auto",
+            "label": "Auto"
+          },
+          {
+            "id": "composer-2.5",
+            "label": "Composer 2.5"
+          },
+          {
+            "id": "composer-2.5-fast",
+            "label": "Composer 2.5 Fast"
+          },
+          {
+            "id": "gpt-5.3-codex",
+            "label": "Codex 5.3"
+          },
+          {
+            "id": "claude-sonnet-5-thinking-high",
+            "label": "Claude Sonnet 5 1M Thinking"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "curl https://cursor.com/install -fsS | bash",
+          "linux": "curl https://cursor.com/install -fsS | bash",
+          "win32": "irm 'https://cursor.com/install?win32=true' | iex"
+        },
+        "docsUrl": "https://cursor.com/docs/cli/installation",
+        "signInCommand": "cursor-agent login"
+      },
+      "cliDefault": "cursor-agent",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "claude",
+      "driverKind": "claudeAgent",
+      "displayName": "Claude",
+      "snapshot": {
+        "state": "available",
+        "version": "2.1.260 (Claude Code)",
+        "authenticated": false,
+        "billing": "subscription"
+      },
+      "models": {
+        "default": "claude-sonnet-5",
+        "options": [
+          {
+            "id": "claude-fable-5-1",
+            "label": "Claude Fable 5.1"
+          },
+          {
+            "id": "claude-fable-5",
+            "label": "Claude Fable 5"
+          },
+          {
+            "id": "claude-opus-5",
+            "label": "Claude Opus 5"
+          },
+          {
+            "id": "claude-sonnet-5",
+            "label": "Claude Sonnet 5"
+          },
+          {
+            "id": "claude-haiku-4-5",
+            "label": "Claude Haiku 4.5"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": true,
+        "browserMcp": true,
+        "images": true,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "queueing": true,
+        "localComputerMcp": true,
+        "approvalReview": true
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "npm install -g @anthropic-ai/claude-code",
+          "linux": "npm install -g @anthropic-ai/claude-code",
+          "win32": "npm install -g @anthropic-ai/claude-code"
+        },
+        "needsNode": true,
+        "docsUrl": "https://claude.com/claude-code",
+        "signInCommand": "claude"
+      },
+      "cliDefault": "claude",
+      "cliCandidates": [
+        "/Users/omkar/.local/bin/claude"
+      ]
+    },
+    {
+      "instanceId": "codex",
+      "driverKind": "codex",
+      "displayName": "Codex",
+      "snapshot": {
+        "state": "available",
+        "version": "codex-cli 0.152.1",
+        "authenticated": false,
+        "update": {
+          "title": "Update Codex for GPT-6 Astra",
+          "message": "This Codex version predates Astra support. Update it, then refresh models. Astra must also be available to your signed-in ChatGPT account.",
+          "command": "codex update"
+        },
+        "billing": "subscription"
+      },
+      "models": {
+        "default": "gpt-5.6-sol",
+        "options": [
+          {
+            "id": "gpt-5.6-sol",
+            "label": "GPT-5.6-Sol"
+          },
+          {
+            "id": "gpt-5.6-terra",
+            "label": "GPT-5.6-Terra"
+          },
+          {
+            "id": "gpt-5.6-luna",
+            "label": "GPT-5.6-Luna"
+          },
+          {
+            "id": "gpt-5.5",
+            "label": "GPT-5.5"
+          },
+          {
+            "id": "gpt-5.2",
+            "label": "GPT-5.2"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": true,
+        "browserMcp": true,
+        "images": true,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "npm install -g @openai/codex",
+          "linux": "npm install -g @openai/codex",
+          "win32": "npm install -g @openai/codex"
+        },
+        "needsNode": true,
+        "docsUrl": "https://github.com/openai/codex",
+        "signInCommand": "codex login"
+      },
+      "cliDefault": "codex",
+      "cliCandidates": [
+        "/Users/omkar/.local/bin/codex"
+      ]
+    },
+    {
+      "instanceId": "antigravity",
+      "driverKind": "antigravityAgent",
+      "displayName": "Antigravity",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "Antigravity is not installed. Install the official Google runtime to continue."
+      },
+      "models": {
+        "default": "gemini-3.8-flash-high",
+        "options": [
+          {
+            "id": "gemini-3.8-flash-high",
+            "label": "Gemini 3.8 Flash (High)"
+          },
+          {
+            "id": "gemini-3.8-flash-medium",
+            "label": "Gemini 3.8 Flash (Medium)"
+          },
+          {
+            "id": "gemini-3.8-flash-low",
+            "label": "Gemini 3.8 Flash (Low)"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "docsUrl": "https://github.com/agentclientprotocol/registry/tree/main/antigravity-acp",
+        "managed": {
+          "label": "Install official Antigravity",
+          "downloadBytes": 316014828
+        }
+      },
+      "cliDefault": "agy",
+      "cliCandidates": [
+        "/Users/omkar/.local/bin/agy"
+      ]
+    },
+    {
+      "instanceId": "opencodeGo",
+      "driverKind": "opencodeGo",
+      "displayName": "OpenCode",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "`opencode` CLI not found"
+      },
+      "models": {
+        "default": "opencode/x-preview-f-free",
+        "options": [
+          {
+            "id": "opencode/x-preview-f-free",
+            "label": "Zen · Ox Alpha Free",
+            "contextWindow": 1000000
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "install": {
+        "command": {
+          "darwin": "npm install -g opencode-ai",
+          "linux": "npm install -g opencode-ai",
+          "win32": "npm install -g opencode-ai"
+        },
+        "docsUrl": "https://opencode.ai/docs/",
+        "signInCommand": "opencode auth login",
+        "needsNode": true
+      },
+      "cliDefault": "opencode",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "computer",
+      "driverKind": "boxAgent",
+      "displayName": "Computer",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "no Box token — add {\"box\":{\"token\":\"…\"}} to ~/.openmausbot/config.json"
+      },
+      "models": {
+        "default": "claude-fable-5",
+        "options": [
+          {
+            "id": "claude-fable-5",
+            "label": "Claude Fable 5 · on the box"
+          },
+          {
+            "id": "sonnet",
+            "label": "Claude Sonnet · on the box"
+          },
+          {
+            "id": "gpt-5.4",
+            "label": "GPT-5.4 (Codex) · on the box"
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": false,
+        "agentsMcp": false,
+        "composioMcp": false,
+        "phoneMcp": false,
+        "browserMcp": false,
+        "images": false,
+        "queueing": false,
+        "localComputerMcp": false,
+        "approvalReview": false
+      },
+      "access": "subscription",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "openaiCompat",
+      "driverKind": "openai-compat",
+      "displayName": "OpenAI-compatible (OpenRouter / Groq)",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "no API key — set OPENAI_COMPAT_API_KEY or add it to the instance config"
+      },
+      "models": {
+        "default": "meta-llama/llama-3.3-70b-instruct",
+        "options": [
+          {
+            "id": "meta-llama/llama-3.3-70b-instruct",
+            "label": "Llama 3.3 70B (OpenRouter)",
+            "custom": true
+          },
+          {
+            "id": "llama-3.3-70b-versatile",
+            "label": "Llama 3.3 70B (Groq)",
+            "custom": true
+          }
+        ]
+      },
+      "capabilities": {
+        "computerMcp": false,
+        "agentsMcp": false,
+        "composioMcp": false,
+        "phoneMcp": false,
+        "browserMcp": false,
+        "images": false,
+        "queueing": false,
+        "localComputerMcp": false,
+        "approvalReview": false
+      },
+      "access": "custom",
+      "install": {
+        "docsUrl": "https://openrouter.ai/keys",
+        "signInCommand": "add {\"openaiCompat\":{\"key\":\"sk-or-v1-…\"}} to ~/.openmausbot/config.json (or set OPENAI_COMPAT_API_KEY)",
+        "command": {
+          "darwin": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+          "linux": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+          "win32": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to %USERPROFILE%\\.openmausbot\\config.json under openaiCompat.key"
+        }
+      },
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "qwen",
+      "driverKind": "qwenAgent",
+      "displayName": "Qwen",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "`qwen` CLI not found"
       },
       "models": {
         "default": "",
         "options": []
       },
       "capabilities": {
-        "computerMcp": false,
-        "agentsMcp": false
-      }
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "custom",
+      "install": {
+        "command": {
+          "darwin": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+          "linux": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+          "win32": "irm https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1 | iex"
+        },
+        "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/overview/"
+      },
+      "cliDefault": "qwen",
+      "cliCandidates": []
+    },
+    {
+      "instanceId": "hermes",
+      "driverKind": "hermesAgent",
+      "displayName": "Hermes",
+      "snapshot": {
+        "state": "available",
+        "version": "Hermes Agent v0.15.1 (2026.5.29)\nProject: /Users/omkar/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 21520 commits behind — run 'hermes update'",
+        "authenticated": true
+      },
+      "models": {
+        "default": "",
+        "options": []
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": false,
+        "browserMcp": true,
+        "images": true,
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "custom",
+      "install": {
+        "command": {
+          "darwin": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+          "linux": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+          "win32": "iex (irm https://hermes-agent.nousresearch.com/install.ps1)"
+        },
+        "docsUrl": "https://hermes-agent.nousresearch.com/docs/getting-started/quickstart",
+        "signInCommand": "hermes setup"
+      },
+      "cliDefault": "hermes",
+      "cliCandidates": [
+        "/Users/omkar/.local/bin/hermes"
+      ]
+    },
+    {
+      "instanceId": "pi",
+      "driverKind": "piAgent",
+      "displayName": "pi",
+      "snapshot": {
+        "state": "unavailable",
+        "reason": "`pi` CLI not found"
+      },
+      "models": {
+        "default": "",
+        "options": []
+      },
+      "capabilities": {
+        "computerMcp": true,
+        "agentsMcp": true,
+        "composioMcp": true,
+        "phoneMcp": true,
+        "browserMcp": false,
+        "images": true,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "queueing": false,
+        "localComputerMcp": true,
+        "approvalReview": false
+      },
+      "access": "custom",
+      "install": {
+        "command": {
+          "darwin": "npm install -g @earendil-works/pi-coding-agent",
+          "linux": "npm install -g @earendil-works/pi-coding-agent",
+          "win32": "npm install -g @earendil-works/pi-coding-agent"
+        },
+        "needsNode": true,
+        "docsUrl": "https://pi.dev"
+      },
+      "cliDefault": "pi",
+      "cliCandidates": []
     }
   ]
 }

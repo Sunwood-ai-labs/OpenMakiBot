@@ -1,111 +1,72 @@
 [
   {
     "kind": "hello",
-    "cursor": "f5696cc9:3",
+    "cursor": "ecb7e29a:3",
     "resumed": false
   },
   {
-    "kind": "message",
-    "threadId": "58c85a55-425d-4180-944f-d03f38f9bbbf",
-    "message": {
-      "id": "9f1acf7e-b628-43dc-a53a-b1fe8761f9c6",
-      "at": 1786742441212,
-      "parentId": null,
-      "role": "user",
-      "kind": "text",
-      "text": "fixture message 0"
+    "kind": "bot",
+    "bot": {
+      "id": "9534b3f1-29dc-46eb-b898-d756f9222e58",
+      "threadId": "cb45e054-9d38-4767-9faf-264f533cab1c",
+      "name": "Olive",
+      "title": "",
+      "description": "",
+      "soul": "",
+      "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "notifications": true,
+      "color": "blue",
+      "unread": false,
+      "modelSelection": {
+        "instanceId": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "createdAt": 1788603054196,
+      "avatarUrl": null,
+      "tasks": [
+        {
+          "threadId": "cb45e054-9d38-4767-9faf-264f533cab1c",
+          "title": "fixture message 0",
+          "createdAt": 1788603054196
+        }
+      ]
     },
     "seq": 4
   },
   {
     "kind": "message",
-    "threadId": "58c85a55-425d-4180-944f-d03f38f9bbbf",
+    "threadId": "cb45e054-9d38-4767-9faf-264f533cab1c",
     "message": {
-      "id": "27403904-171d-4ea2-80a5-2a571a3586bd",
-      "at": 1786742441215,
-      "parentId": "9f1acf7e-b628-43dc-a53a-b1fe8761f9c6",
+      "id": "7b8d9132-acae-431a-9632-a05b564f09bd",
+      "at": 1788603054214,
+      "parentId": "f302a9e2-1b90-4586-8932-6ae26e5b6987",
       "role": "user",
       "kind": "text",
-      "text": "fixture message 1"
+      "text": "fixture message 0"
     },
     "seq": 5
   },
   {
-    "kind": "message",
-    "threadId": "58c85a55-425d-4180-944f-d03f38f9bbbf",
+    "kind": "message.patch",
+    "threadId": "cb45e054-9d38-4767-9faf-264f533cab1c",
     "message": {
-      "id": "459edaa5-f290-4770-aeb1-e0908b2b8b4a",
-      "at": 1786742441219,
-      "parentId": "27403904-171d-4ea2-80a5-2a571a3586bd",
-      "role": "user",
-      "kind": "text",
-      "text": "fixture message 2"
+      "id": "f302a9e2-1b90-4586-8932-6ae26e5b6987",
+      "at": 1788603054205,
+      "parentId": "43697a3b-2b4b-4353-8b1f-4e81b9bd5343",
+      "role": "bot",
+      "kind": "options",
+      "card": {
+        "title": "What do you mostly want help with?",
+        "subtitle": "Pick whatever's closest; we can always expand from there.",
+        "options": [
+          "Work & projects",
+          "Writing & research",
+          "Life admin",
+          "A bit of everything"
+        ],
+        "dismissed": true
+      }
     },
     "seq": 6
-  },
-  {
-    "kind": "message",
-    "threadId": "58c85a55-425d-4180-944f-d03f38f9bbbf",
-    "message": {
-      "id": "5d92912c-d2f7-40cf-878b-341464cce922",
-      "at": 1786742441221,
-      "parentId": "459edaa5-f290-4770-aeb1-e0908b2b8b4a",
-      "role": "user",
-      "kind": "text",
-      "text": "fixture message 3"
-    },
-    "seq": 7
-  },
-  {
-    "kind": "message",
-    "threadId": "58c85a55-425d-4180-944f-d03f38f9bbbf",
-    "message": {
-      "id": "10726f98-3a08-44da-8240-e8d84b1f0459",
-      "at": 1786742441223,
-      "parentId": "5d92912c-d2f7-40cf-878b-341464cce922",
-      "role": "user",
-      "kind": "text",
-      "text": "fixture message 4"
-    },
-    "seq": 8
-  },
-  {
-    "kind": "message",
-    "threadId": "58c85a55-425d-4180-944f-d03f38f9bbbf",
-    "message": {
-      "id": "f2525bc3-4594-4394-8b2b-8df19d6cb72d",
-      "at": 1786742441225,
-      "parentId": "10726f98-3a08-44da-8240-e8d84b1f0459",
-      "role": "user",
-      "kind": "text",
-      "text": "fixture message 5"
-    },
-    "seq": 9
-  },
-  {
-    "kind": "bot",
-    "bot": {
-      "id": "4f254cf4-98c5-45ca-907e-967e2bbcb8ac",
-      "threadId": "1f3a20e3-94f2-432b-8af5-db9664ed74a2",
-      "name": "Pesto",
-      "title": "",
-      "description": "",
-      "notifications": true,
-      "color": "green",
-      "unread": true,
-      "modelSelection": {
-        "instanceId": "",
-        "model": ""
-      },
-      "createdAt": 1786742441013,
-      "tasks": [
-        {
-          "threadId": "1f3a20e3-94f2-432b-8af5-db9664ed74a2",
-          "title": "New task",
-          "createdAt": 1786742441013
-        }
-      ]
-    },
-    "seq": 10
   }
 ]

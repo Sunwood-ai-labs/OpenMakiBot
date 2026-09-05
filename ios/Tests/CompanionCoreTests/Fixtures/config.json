@@ -28,6 +28,7 @@
     "name": "Ada Lovelace",
     "email": "ada@example.com"
   },
+  "language": "",
   "rooms": {
     "turnTimeoutMinutes": 5
   },
@@ -36,6 +37,9 @@
     "maxInstances": 2
   },
   "features": {
-    "skillRecorder": false
-  }
+    "skillRecorder": false,
+    "showToolCalls": false,
+    "browser": false
+  },
+  "browserProfiles": []
 }

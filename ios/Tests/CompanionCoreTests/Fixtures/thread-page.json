@@ -1,20 +1,23 @@
 {
   "messages": [
     {
-      "id": "10726f98-3a08-44da-8240-e8d84b1f0459",
-      "at": 1786742441223,
-      "parentId": "5d92912c-d2f7-40cf-878b-341464cce922",
-      "role": "user",
+      "id": "edb049f0-a234-439f-b968-003ef75e83fc",
+      "at": 1788603054552,
+      "parentId": "7966c58e-1c2c-44dc-9cf7-d69782e0511d",
+      "role": "bot",
       "kind": "text",
-      "text": "fixture message 4"
+      "text": "Not logged in · Please run /login",
+      "turnId": "e1f43038-cb14-40a7-b5e1-ea9ce1450f2d",
+      "turnTerminal": true
     },
     {
-      "id": "f2525bc3-4594-4394-8b2b-8df19d6cb72d",
-      "at": 1786742441225,
-      "parentId": "10726f98-3a08-44da-8240-e8d84b1f0459",
-      "role": "user",
+      "id": "4e3b55ac-7595-432b-bc25-2895b4cd446e",
+      "at": 1788603054570,
+      "parentId": "edb049f0-a234-439f-b968-003ef75e83fc",
+      "role": "bot",
       "kind": "text",
-      "text": "fixture message 5"
+      "text": "Not logged in · Please run /login",
+      "turnId": "e1f43038-cb14-40a7-b5e1-ea9ce1450f2d"
     }
   ],
   "hasMore": true

@@ -187,15 +187,14 @@ async function main() {
   write("pair-response", { ...paired.body, token: "omb_REDACTED" });
 
   // ── a bot, and a few messages for it to have said ──────────────────────
+  //
+  // Deliberately left unfiled: DecodingTests pins bots-full's first bot as
+  // section-less, to prove an older payload without that field still
+  // decodes. /api/sidebar-sections is exercised below instead, against Kiwi
+  // — created later, after this bot's fixtures are already written.
   const created = await json(`${SIDECAR}/api/bots`, asDevice({ method: "POST" }));
   const bot = created.body.bot;
   if (!bot) throw new Error(`could not create a bot: ${JSON.stringify(created.body)}`);
-  const filed = await json(`${SIDECAR}/api/sidebar-sections`, asDevice({
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "Fixtures", botIds: [bot.id] }),
-  }));
-  if (filed.status !== 200) throw new Error(`could not file fixture bot: ${JSON.stringify(filed.body)}`);
 
   console.log("capturing frames");
   const frames = await captureFrames(4, async () => {
@@ -230,12 +229,23 @@ async function main() {
   });
   const room = madeRoom.body.group;
   if (!room) throw new Error(`could not create a room: ${JSON.stringify(madeRoom.body)}`);
+  // A fresh room refuses its first message until setup finishes — skipped
+  // here, directly on the harness, since a paired phone has no route to it
+  // either (companion's allowlist has no /setup entry) and this is exactly
+  // the setup a phone cannot do for itself.
+  const skipped = await json(`${HARNESS}/api/groups/${room.id}/setup`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "skip" }),
+  });
+  if (skipped.status !== 200) throw new Error(`could not skip room setup: ${JSON.stringify(skipped.body)}`);
   for (let i = 0; i < 5; i++) {
-    await fetch(`${SIDECAR}/api/groups/${room.id}/messages`, asDevice({
+    const posted = await fetch(`${SIDECAR}/api/groups/${room.id}/messages`, asDevice({
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text: `room fixture message ${i}` }),
     }));
+    if (!posted.ok) throw new Error(`could not post room message ${i}: ${posted.status}`);
     await sleep(120);
   }
 
@@ -256,6 +266,55 @@ async function main() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ xai: { apiKey: "not-a-real-key" } }),
   }))).body);
+
+  // ── a bot with a soul and a routine, for the phone's overview screen ──
+  //
+  // Kiwi exercises every section of GET .../overview at once: a named
+  // interval routine (does), a persona (who.soulLead), and the
+  // profile-change history a soul edit appends (recent). The soul PATCH goes
+  // straight to the harness rather than through asDevice(): the paired-safe
+  // /profile route deliberately excludes soul, and the endpoint that accepts
+  // it (plain PATCH /api/bots/:id) is the desktop-only one, absent from the
+  // companion's route allowlist. The overview GET is captured the same way,
+  // straight from the harness — the allowlist has no entry for it yet
+  // either, so a paired phone cannot reach this route through the sidecar
+  // today. That is a real gap for whoever wires the phone screens up to it,
+  // not something this capture can paper over by calling a route that
+  // presently 404s.
+  const kiwiCreated = await json(`${SIDECAR}/api/bots`, asDevice({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Kiwi", title: "Tracker", description: "Files bugs." }),
+  }));
+  const kiwi = kiwiCreated.body.bot;
+  if (!kiwi) throw new Error(`could not create Kiwi: ${JSON.stringify(kiwiCreated.body)}`);
+  const filed = await json(`${SIDECAR}/api/sidebar-sections`, asDevice({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Fixtures", botIds: [kiwi.id] }),
+  }));
+  if (filed.status !== 200) throw new Error(`could not file Kiwi: ${JSON.stringify(filed.body)}`);
+  const souled = await json(`${HARNESS}/api/bots/${kiwi.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ soul: "File bugs.\n\nNever file noise." }),
+  });
+  if (souled.status !== 200) throw new Error(`could not set Kiwi's soul: ${JSON.stringify(souled.body)}`);
+  const routined = await json(`${SIDECAR}/api/routines`, asDevice({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Triage Discord",
+      prompt: "Check Discord for new bug reports and file them.",
+      target: "bot",
+      botId: kiwi.id,
+      runOn: "maus",
+      enabled: true,
+      schedule: { type: "interval", everyMinutes: 5, anchorAt: Date.now() },
+    }),
+  }));
+  if (routined.status !== 201) throw new Error(`could not create Kiwi's routine: ${JSON.stringify(routined.body)}`);
+  write("bot-overview", (await json(`${HARNESS}/api/bots/${kiwi.id}/overview`)).body);
 
   console.log("\nnot captured: options-card.json — needs a real approval from a real turn");
 }
