@@ -393,7 +393,7 @@ const TOOLS = [
   {
     name: "propose_profile",
     description:
-      "Propose changes to your own name, title, description, or standing instructions (SOUL.md). This only creates a confirmation card; nothing changes until the user approves it. After calling it, end the turn and do not claim the change is applied. Keep SOUL.md short — who you are and the rules you never break; put step-by-step procedure into a skill instead. A Chief of Staff may pass for_bot_id (from list_bots) to propose a change for another bot in its section.",
+      "Propose changes to your own name, title, description, standing instructions (SOUL.md), or working folder (cwd). This only creates a confirmation card; nothing changes until the user approves it. After calling it, end the turn and do not claim the change is applied. Keep SOUL.md short — who you are and the rules you never break; put step-by-step procedure into a skill instead. A Chief of Staff may pass for_bot_id (from list_bots) to propose a change for another bot in its section.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -402,6 +402,11 @@ const TOOLS = [
         title: { type: "string", maxLength: 200, description: "New role or title." },
         description: { type: "string", maxLength: 4000, description: "New one-line blurb shown in rosters." },
         soul: { type: "string", description: "Full replacement text for SOUL.md, at most 24000 bytes." },
+        cwd: {
+          type: "string",
+          maxLength: 1024,
+          description: "Absolute path of the folder your tools read and write in (for example /Users/me/Projects/site). It must already exist. An empty string means your private workspace.",
+        },
         reason: { type: "string", minLength: 1, maxLength: 500, description: "One sentence the user will see explaining why." },
         for_bot_id: {
           type: "string",
@@ -773,8 +778,9 @@ async function callTool(name: string, args: Json): Promise<{ text: string; isErr
     if (typeof args.title === "string") changes.title = args.title.trim();
     if (typeof args.description === "string") changes.description = args.description.trim();
     if (typeof args.soul === "string") changes.soul = args.soul;
+    if (typeof args.cwd === "string") changes.cwd = args.cwd.trim();
     if (!Object.keys(changes).length) {
-      return { text: "propose_profile needs at least one of name, title, description, or soul.", isError: true };
+      return { text: "propose_profile needs at least one of name, title, description, soul, or cwd.", isError: true };
     }
     const forBotId = String(args.for_bot_id ?? "").trim();
     const r = await api("/api/internal/profile-requests", {

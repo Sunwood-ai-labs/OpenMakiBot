@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -54,7 +56,7 @@ class MemoryStore implements ProfileRequestStore {
     return message;
   }
 
-  patchBot(id: string, patch: Partial<Pick<BotRecord, "name" | "title" | "description">>): BotRecord | null {
+  patchBot(id: string, patch: Partial<Pick<BotRecord, "name" | "title" | "description" | "cwd">>): BotRecord | null {
     const bot = this.bots.get(id);
     if (!bot) return null;
     Object.assign(bot, patch);
@@ -136,7 +138,7 @@ describe("ProfileRequestService", () => {
     expect(attempt({ notifications: false })).toThrow("unsupported profile field: notifications");
     expect(attempt({ soul: "x".repeat(24_001) })).toThrow("standing instructions must be at most 24000 bytes");
     expect(attempt({ name: "Kiwi" }, "")).toThrow("reason is required");
-    expect(attempt({})).toThrow("Choose at least one of name, title, description, soul");
+    expect(attempt({})).toThrow("Choose at least one of name, title, description, soul, cwd");
     expect(attempt({ name: "Scout" })).toThrow("Nothing would change");
   });
 
@@ -270,5 +272,57 @@ describe("ProfileRequestService", () => {
     const moreLine = detail.split("\n").find((line) => /^… \(\+\d+ more lines\)$/.test(line));
     expect(moreLine).toBeDefined();
     expect(moreLine).toBe(`… (+${1000 - 400} more lines)`);
+  });
+});
+
+describe("propose_profile working folder (cwd)", () => {
+  it("proposes an existing folder, says where the tools will work, and applies it on confirm", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const dir = mkdtempSync(join(tmpdir(), "omb-cwd-"));
+    try {
+      const result = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { cwd: dir }, reason: "You said the site lives there." });
+      expect(result.detail).toContain(`Working folder: its private workspace → ${dir}`);
+      expect(result.detail).toContain("Scout's tools will read and write files in that folder.");
+      // A folder-only card does not change what the bot is told.
+      expect(result.detail).not.toContain("told on every turn");
+      expect(result.detail).toContain("Nothing runs.");
+      expect(store.bot(bot.id)!.cwd).toBeUndefined();
+      const applied = service.resolve({ botId: bot.id, threadId: bot.threadId, requestId: result.requestId, behavior: "allow" });
+      expect(applied).toEqual({ claimed: true, state: "applied", targetBotId: bot.id, fields: ["cwd"] });
+      expect(store.bot(bot.id)!.cwd).toBe(dir);
+
+      // Back to the private workspace: "" clears it, and the card names both ends.
+      const clear = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { cwd: "" }, reason: "r" });
+      expect(clear.detail).toContain(`Working folder: ${dir} → its private workspace`);
+      service.resolve({ botId: bot.id, threadId: bot.threadId, requestId: clear.requestId, behavior: "allow" });
+      expect(store.bot(bot.id)!.cwd).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a missing or relative folder at proposal, and a folder that vanished before confirm", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const attempt = (cwd: string) => () => service.propose({ botId: bot.id, threadId: bot.threadId, changes: { cwd }, reason: "r" });
+    expect(attempt("relative/path")).toThrow("working folder must be an absolute path");
+    expect(attempt(join(tmpdir(), "omb-definitely-missing-" + Date.now()))).toThrow(/that folder doesn't exist/);
+    // No folder today and "" proposed: nothing to change.
+    expect(attempt("")).toThrow("Nothing would change");
+
+    const dir = mkdtempSync(join(tmpdir(), "omb-cwd-"));
+    const { requestId } = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { cwd: dir }, reason: "r" });
+    rmSync(dir, { recursive: true, force: true });
+    const result = service.resolve({ botId: bot.id, threadId: bot.threadId, requestId, behavior: "allow" });
+    expect(result).toMatchObject({ claimed: true, state: "invalid", status: 409 });
+    expect(store.bot(bot.id)!.cwd).toBeUndefined();
+    expect(store.messagesFor(bot.threadId).at(-1)!.card!.held).toMatch(/that folder doesn't exist/);
+  });
+
+  it("a folder change elsewhere makes an open card stale, since cwd is part of the revision", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const { requestId } = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { title: "T" }, reason: "r" });
+    store.patchBot(bot.id, { cwd: tmpdir() });
+    const result = service.resolve({ botId: bot.id, threadId: bot.threadId, requestId, behavior: "allow" });
+    expect(result).toMatchObject({ claimed: true, state: "invalid", status: 409 });
   });
 });

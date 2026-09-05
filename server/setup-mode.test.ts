@@ -64,7 +64,7 @@ describe("setupSystemPrompt", () => {
     for (const tool of ["propose_profile", "propose_routine", "skill_manage", "request_credential"]) {
       expect(SETUP_PROMPT).toContain(tool);
     }
-    expect(SETUP_PROMPT).toContain("at most three questions");
+    expect(SETUP_PROMPT).toContain("at most four questions");
     expect(SETUP_PROMPT).toContain("Wait for a yes");
   });
 
@@ -76,5 +76,27 @@ describe("setupSystemPrompt", () => {
       expect(prompt).toContain("request_credential");
       expect(prompt).toContain("describe procedures plainly in your standing instructions");
     }
+  });
+});
+
+describe("setupSystemPrompt working-folder clause and card ordering", () => {
+  it("names the current folder and tells the bot to offer to keep it", () => {
+    const text = setupSystemPrompt(true, { skills: true, cwd: "/Users/me/Projects/site" });
+    expect(text).toContain("today that is /Users/me/Projects/site; offer to keep it");
+    expect(text).toContain("propose_profile for your identity, standing rules");
+    expect(text).toContain("and the working folder (cwd)");
+  });
+
+  it("says there is no folder yet when the bot works in its private workspace", () => {
+    const text = setupSystemPrompt(true, { skills: false });
+    expect(text).toContain("today it has none and works in a private workspace");
+    expect(text).not.toContain("skill_manage");
+  });
+
+  it("requires the summary message before the cards, and only a short line after", () => {
+    const text = setupSystemPrompt(true, {});
+    expect(text).toContain("first send one message that lists the cards you are about to raise, then make the tool calls");
+    expect(text).toContain("the cards must appear after that message, never before it");
+    expect(text).toContain("After the tool calls add at most one short line");
   });
 });

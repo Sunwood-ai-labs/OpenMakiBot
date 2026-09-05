@@ -1,5 +1,5 @@
 // propose_profile: a bot proposes changes to its own name, title, description,
-// or SOUL.md; the change lands only when the user confirms the card. Same
+// SOUL.md, or working folder; the change lands only when the user confirms the card. Same
 // shape as routine-requests.ts, much smaller: the apply step is two existing
 // store calls, and staleness is a hash of the four fields instead of a
 // scheduler revision. Everything here is re-validated at confirm time —
@@ -8,6 +8,7 @@ import { lineDiff } from "../shared/line-diff.ts";
 import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { PROFILE_REQUEST_FIELDS, type ProfileRequestCardData, type ProfileRequestChanges } from "../shared/profile-request.ts";
 import { parseBotProfilePatch, type BotProfilePatchInput } from "./bot-profile.ts";
+import { validateBotCwd } from "./bot-cwd.ts";
 import { newId } from "./contracts.ts";
 import { profileRevision, profileSnapshot } from "./profile-revision.ts";
 import { recordProfileChange } from "./profile-versions.ts";
@@ -18,11 +19,13 @@ const MAX_REASON = 500;
 const MAX_DIFF_LINES = 400;
 const STALE = "This bot's profile changed after this card was prepared. Ask the bot to review it and propose again.";
 const NO_SUCH_BOT = "That bot no longer exists";
-const LABELS: Record<Exclude<(typeof PROFILE_REQUEST_FIELDS)[number], "soul">, string> = {
+const LABELS: Record<Exclude<(typeof PROFILE_REQUEST_FIELDS)[number], "soul" | "cwd">, string> = {
   name: "Name",
   title: "Title",
   description: "Description",
 };
+const PRIVATE_WORKSPACE = "its private workspace";
+const CHOOSE_ONE = "Choose at least one of name, title, description, soul, cwd";
 
 export interface OptionCardLike {
   title: string;
@@ -50,7 +53,7 @@ export interface ProfileRequestStore {
     },
   ): { id: string };
   patchMessage(threadId: string, messageId: string, patch: { card: OptionCardLike }): { id: string } | null;
-  patchBot(id: string, patch: Partial<Pick<BotRecord, "name" | "title" | "description">>): BotRecord | null;
+  patchBot(id: string, patch: Partial<Pick<BotRecord, "name" | "title" | "description" | "cwd">>): BotRecord | null;
   setSoul(id: string, soul: string): BotRecord | null;
 }
 
@@ -100,7 +103,7 @@ function reasonText(value: unknown): string {
  * outside the four proposable fields ourselves first, for exact copy. */
 function parseChanges(input: unknown): ProfileRequestChanges {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    throw new ProfileRequestError("Choose at least one of name, title, description, soul");
+    throw new ProfileRequestError(CHOOSE_ONE);
   }
   const keys = Object.keys(input);
   for (const key of keys) {
@@ -109,12 +112,27 @@ function parseChanges(input: unknown): ProfileRequestChanges {
     }
   }
   if (keys.length === 0) {
-    throw new ProfileRequestError("Choose at least one of name, title, description, soul");
+    throw new ProfileRequestError(CHOOSE_ONE);
   }
-  const parsed = parseBotProfilePatch(input as BotProfilePatchInput, true);
+  // The working folder is not a profile-patch field (PATCH /api/bots checks
+  // it with validateBotCwd, not parseBotProfilePatch), so it is split off and
+  // checked the same way that route does: absolute, exists, is a folder.
+  // "" (or null) means the private workspace.
+  const { cwd: rawCwd, ...profileInput } = input as Record<string, unknown>;
+  let cwdChange: string | undefined;
+  if (rawCwd !== undefined) {
+    const checked = validateBotCwd(rawCwd);
+    if (!checked.ok) throw new ProfileRequestError(checked.error, 400);
+    cwdChange = checked.cwd ?? "";
+  }
+  const parsed = Object.keys(profileInput).length
+    ? parseBotProfilePatch(profileInput as BotProfilePatchInput, true)
+    : { ok: true as const, patch: {} as Partial<Record<string, unknown>> };
   if (!parsed.ok) throw new ProfileRequestError(parsed.error, 400);
   const changes: ProfileRequestChanges = {};
+  if (cwdChange !== undefined) changes.cwd = cwdChange;
   for (const field of PROFILE_REQUEST_FIELDS) {
+    if (field === "cwd") continue;
     const value = parsed.patch[field];
     // This payload is hidden under the card's visible fields, so the store's
     // shallow card redaction cannot reach it. Scrub before it is persisted.
@@ -159,9 +177,12 @@ export function profileCardCopy(
 
   const lines: string[] = target.crossBot ? [`Whose profile: @${target.name}`, `Why: ${reason}`] : [`Why: ${reason}`];
   for (const field of PROFILE_REQUEST_FIELDS) {
-    if (field === "soul") continue;
+    if (field === "soul" || field === "cwd") continue;
     if (changes[field] === undefined) continue;
     lines.push(`${LABELS[field]}: "${before[field] ?? ""}" → "${changes[field]}"`);
+  }
+  if (changes.cwd !== undefined) {
+    lines.push(`Working folder: ${before.cwd || PRIVATE_WORKSPACE} → ${changes.cwd || PRIVATE_WORKSPACE}`);
   }
   if (changes.soul !== undefined) {
     const beforeSoul = before.soul ?? "";
@@ -177,7 +198,12 @@ export function profileCardCopy(
       lines.push(...diff);
     }
   }
-  lines.push(`Changes what ${target.name} is told on every turn. Nothing runs.`);
+  // The closing line says the consequence of exactly what is on the card:
+  // a folder change moves where the bot's tools read and write; the other
+  // fields change what it is told. Either way nothing runs on confirm.
+  const onlyFolder = Object.keys(changes).every((field) => field === "cwd");
+  if (changes.cwd !== undefined) lines.push(`${target.name}'s tools will read and write files in that folder.`);
+  lines.push(onlyFolder ? "Nothing runs." : `Changes what ${target.name} is told on every turn. Nothing runs.`);
   const detail = lines.join("\n");
 
   const fields = PROFILE_REQUEST_FIELDS.filter((field) => changes[field] !== undefined);
@@ -315,8 +341,17 @@ export class ProfileRequestService {
         throw new ProfileRequestError(STALE, 409);
       }
 
-      const { soul, ...rest } = payload.changes;
-      if (Object.keys(rest).length) this.store.patchBot(target.id, rest);
+      const { soul, cwd, ...rest } = payload.changes;
+      const patch: Partial<Pick<BotRecord, "name" | "title" | "description" | "cwd">> = { ...rest };
+      if (cwd !== undefined) {
+        // Re-checked at confirm: a card can sit open for days and the folder
+        // may be gone by then. 409 like the stale case — the card is no longer
+        // applicable as prepared.
+        const checked = validateBotCwd(cwd || null);
+        if (!checked.ok) throw new ProfileRequestError(checked.error, 409);
+        patch.cwd = checked.cwd ?? undefined;
+      }
+      if (Object.keys(patch).length) this.store.patchBot(target.id, patch);
       if (soul !== undefined) this.store.setSoul(target.id, soul);
       recordProfileChange(target.id, "bot", `card:${message.id}`, payload.before, payload.changes);
 

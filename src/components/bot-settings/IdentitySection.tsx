@@ -64,18 +64,22 @@ export function IdentitySection({
         </div>
         <textarea
           id={`bot-instructions-${bot.id}`}
-          className={cn(inputCls, "min-h-[176px] resize-y leading-relaxed")}
+          className={cn(inputCls, "min-h-[72px] resize-y leading-relaxed")}
           maxLength={BOT_PROFILE_LIMITS.description}
-          placeholder="Describe this bot’s role, priorities, working style, and boundaries"
-          aria-label="Bot instructions"
+          placeholder="One line on what this bot is for"
+          aria-label="Blurb"
           value={bot.description}
           onChange={(e) => patch({ description: e.target.value })}
         />
         <div className="mt-1.5 flex items-start justify-between gap-3 text-[11px] text-ink-secondary">
-          <span>One line shown in rosters and on the phone. Long instructions belong in Soul.</span>
-          <span className="shrink-0 tabular-nums">
-            {bot.description.length.toLocaleString()} / {BOT_PROFILE_LIMITS.description.toLocaleString()}
-          </span>
+          <span>Shown in rosters, on the phone, and to other bots. Standing instructions belong in Soul, which has room for a full document.</span>
+          {/* The cap only matters when someone is near it; a counter under a
+              one-line field otherwise reads as an invitation to fill it. */}
+          {bot.description.length > 3_000 && (
+            <span className="shrink-0 tabular-nums">
+              {bot.description.length.toLocaleString()} / {BOT_PROFILE_LIMITS.description.toLocaleString()}
+            </span>
+          )}
         </div>
       </div>
 

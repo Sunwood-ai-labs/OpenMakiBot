@@ -1,11 +1,12 @@
 /**
  * Durable payload carried by a profile confirmation card (propose_profile).
  *
- * The four fields a bot may propose for itself. `before` is the snapshot the
+ * The fields a bot may propose for itself (`cwd` is the working folder its
+ * tools run in; "" means its private workspace). `before` is the snapshot the
  * user was shown; `expectedRevision` is a hash of the target's whole profile
  * at proposal time so a confirmation fails closed if anything moved.
  */
-export const PROFILE_REQUEST_FIELDS = ["name", "title", "description", "soul"] as const;
+export const PROFILE_REQUEST_FIELDS = ["name", "title", "description", "soul", "cwd"] as const;
 export type ProfileRequestField = (typeof PROFILE_REQUEST_FIELDS)[number];
 export type ProfileRequestChanges = Partial<Record<ProfileRequestField, string>>;
 

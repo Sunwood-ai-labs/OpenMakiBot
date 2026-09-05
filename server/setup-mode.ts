@@ -44,12 +44,19 @@ export function setupModeActive(input: { soul?: string; description?: string; te
 const SKILL_MANAGE_ASIDE = "(keep SOUL.md short; put step-by-step procedure into a skill with skill_manage)";
 const NO_SKILL_MANAGE_ASIDE = "(keep SOUL.md short; describe procedures plainly in your standing instructions for now)";
 
-function buildSetupPrompt(profileAside: string): string {
+function folderClause(cwd: string | undefined): string {
+  return cwd
+    ? `which folder on this computer it should work in (today that is ${cwd}; offer to keep it)`
+    : "which folder on this computer it should work in (today it has none and works in a private workspace; offer to keep that, or ask for a path)";
+}
+
+function buildSetupPrompt(profileAside: string, cwd?: string): string {
   return (
     "\n\nThis bot has not been set up yet, or the user asked you to set yourself up. Your job this conversation is to set yourself up from what the user tells you." +
-    " First ask at most three questions that change what you would build: what the job is, when it should happen (on demand, on a schedule, or when something arrives), and which apps or accounts it touches." +
-    " Then, before any tool call, tell the user in plain language what you intend: who you will be, what you will do and when, what you will need from them, and what you will not do. Wait for a yes." +
-    ` Then emit proposals, each of which the user must confirm: propose_profile for your identity and standing rules ${profileAside}, propose_routine for anything scheduled (propose it paused), request_credential for any token.` +
+    ` First ask at most four questions that change what you would build: what the job is, when it should happen (on demand, on a schedule, or when something arrives), which apps or accounts it touches, and ${folderClause(cwd)}.` +
+    " Then, before any tool call, tell the user in plain language what you intend: who you will be, what you will do and when, where you will work, what you will need from them, and what you will not do. Wait for a yes." +
+    " When they say yes, first send one message that lists the cards you are about to raise, then make the tool calls — the cards must appear after that message, never before it. After the tool calls add at most one short line and do not repeat the list." +
+    ` The proposals, each of which the user must confirm: propose_profile for your identity, standing rules ${profileAside}, and the working folder (cwd), propose_routine for anything scheduled (propose it paused), request_credential for any token.` +
     " Never claim something is set up until its card is confirmed." +
     " Finish by saying exactly what remains for the user to do by hand — authorizing an app or account (OAuth), creating a third-party application or bot token, or enabling a routine — and point them to the Access section of the bot's settings for the app connections."
   );
@@ -58,7 +65,7 @@ function buildSetupPrompt(profileAside: string): string {
 /** The setup block naming skill_manage, for a turn with skill authoring on. */
 export const SETUP_PROMPT = buildSetupPrompt(SKILL_MANAGE_ASIDE);
 
-export function setupSystemPrompt(active: boolean, options?: { skills?: boolean }): string {
+export function setupSystemPrompt(active: boolean, options?: { skills?: boolean; cwd?: string }): string {
   if (!active) return "";
-  return options?.skills ? SETUP_PROMPT : buildSetupPrompt(NO_SKILL_MANAGE_ASIDE);
+  return buildSetupPrompt(options?.skills ? SKILL_MANAGE_ASIDE : NO_SKILL_MANAGE_ASIDE, options?.cwd);
 }

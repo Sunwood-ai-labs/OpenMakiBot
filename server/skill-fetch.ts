@@ -85,6 +85,10 @@ async function listDir(target: Target, path: string, fetcher: typeof fetch): Pro
   return fetchListing(url, fetcher);
 }
 
+export const MAX_SKILLS_PER_IMPORT = 30;
+const MAX_FOLDERS_WALKED = 24;
+const MAX_CHILDREN_PER_FOLDER = 60;
+
 /** Where SKILL.md folders live in real repos, per the registry's own
  * discovery order: the pasted path itself, then skills/, then .claude/skills/
  * and .agents/skills/, then one level of direct children. */
@@ -99,8 +103,12 @@ export async function discoverSkillDirs(target: Target, fetcher: typeof fetch): 
   const ordered = [...dirs].sort(
     (a, b) => (preferred.includes(a.name) ? 0 : 1) - (preferred.includes(b.name) ? 0 : 1),
   );
-  for (const dir of ordered.slice(0, 12)) {
-    if (found.length >= 10) break;
+  // Caps bound the unauthenticated GitHub API budget (60 requests an hour):
+  // discovery costs one listing per folder walked, and each skill found
+  // costs one more listing plus its files. 30 skills is a full marketing or
+  // engineering pack; a bigger repo imports in two pastes of sub-folders.
+  for (const dir of ordered.slice(0, MAX_FOLDERS_WALKED)) {
+    if (found.length >= MAX_SKILLS_PER_IMPORT) break;
     const base = dir.name === ".claude" || dir.name === ".agents" ? `${dir.path}/skills` : dir.path;
     let children: ContentEntry[];
     try {
@@ -112,8 +120,8 @@ export async function discoverSkillDirs(target: Target, fetcher: typeof fetch): 
       found.push(base);
       continue;
     }
-    for (const child of children.filter((entry) => entry.type === "dir").slice(0, 20)) {
-      if (found.length >= 10) break;
+    for (const child of children.filter((entry) => entry.type === "dir").slice(0, MAX_CHILDREN_PER_FOLDER)) {
+      if (found.length >= MAX_SKILLS_PER_IMPORT) break;
       try {
         const inner = await listDir(target, child.path, fetcher);
         if (inner.some((entry) => entry.type === "file" && entry.name === "SKILL.md")) found.push(child.path);

@@ -197,6 +197,7 @@ Added to the agents MCP server in `server/drivers/agents-proxy.ts`, beside
       title: { type: "string" },
       description: { type: "string", description: "One-line blurb shown in rosters." },
       soul: { type: "string", description: "Full replacement text for SOUL.md." },
+      cwd: { type: "string", description: "Absolute path of the working folder its tools run in; \"\" means the private workspace. Validated like PATCH /api/bots (exists, is a folder) at proposal and again at confirm." },
       reason: { type: "string", description: "One sentence the user will see explaining why." },
     },
     required: ["reason"],
@@ -232,19 +233,28 @@ A prompt block, `setupPrompt`, is appended after `soul` in the builder when
 The block, in full:
 
 > This bot has not been set up yet. Your job this conversation is to set
-> yourself up from what the user tells you. First ask at most three questions
+> yourself up from what the user tells you. First ask at most four questions
 > that change what you would build: what the job is, when it should happen
-> (on demand, on a schedule, or when something arrives), and which apps or
-> accounts it touches. Then, before any tool call, tell the user in plain
-> language what you intend: who you will be, what you will do and when, what
-> you will need from them, and what you will not do. Wait for a yes. Then
-> emit proposals, each of which the user must confirm: `propose_profile` for
-> your identity and standing rules (keep SOUL.md short; put step-by-step
-> procedure into a skill with `skill_manage`), `propose_routine` for anything
-> scheduled (propose it paused), `request_credential` for any token. Never
-> claim something is set up until its card is confirmed. Finish by saying
-> what remains for the user to do by hand, such as authorizing an app or
-> enabling a routine.
+> (on demand, on a schedule, or when something arrives), which apps or
+> accounts it touches, and which folder on this computer it should work in
+> (the block names the current folder, or says it has none, and tells the bot
+> to offer to keep it). Then, before any tool call, tell the user in plain
+> language what you intend: who you will be, what you will do and when, where
+> you will work, what you will need from them, and what you will not do. Wait
+> for a yes. When they say yes, first send one message that lists the cards
+> you are about to raise, then make the tool calls — the cards must appear
+> after that message, never before it; after the tool calls add at most one
+> short line. The proposals, each of which the user must confirm:
+> `propose_profile` for your identity, standing rules (keep SOUL.md short; put
+> step-by-step procedure into a skill with `skill_manage`), and the working
+> folder, `propose_routine` for anything scheduled (propose it paused),
+> `request_credential` for any token. Never claim something is set up until
+> its card is confirmed. Finish by saying what remains for the user to do by
+> hand, such as authorizing an app or enabling a routine.
+
+Amended 2026-09-05 after Omkar's first manual test: the folder question and
+the message-before-cards rule were missing, and `cwd` joined the proposable
+fields so the bot can set its own working folder through the same card.
 
 Setup mode replaces the 4-option onboarding quiz. `server/store.ts:607-611`
 stops seeding the card; the seeded greeting becomes "Hey, I'm Scout. Tell me

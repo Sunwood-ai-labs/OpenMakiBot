@@ -1025,6 +1025,7 @@ function previewSystemPrompt(bot: BotRecord) {
       label: "Setup",
       text: setupSystemPrompt(agentsMounted && setupModeActive({ soul: bot.soul, description: bot.description, text: "" }), {
         skills: skillRecorderEnabled(cfg),
+        cwd: bot.cwd,
       }),
     },
     { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
@@ -3896,7 +3897,7 @@ async function startTurn(
         // first after the soul: the block names agent tools, so it only goes
         // to a turn whose engine actually mounted them (setupMode is already
         // false when they are not — see agentsMounted above)
-        { id: "setup", label: "Setup", text: setupSystemPrompt(setupMode, { skills: skillAuthoring }) },
+        { id: "setup", label: "Setup", text: setupSystemPrompt(setupMode, { skills: skillAuthoring, cwd: liveBot?.cwd ?? bot.cwd }) },
         { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
         { id: "plan", label: "Surface", text: plan.note },
         // gated on the integration, not the key: the hint only goes to a
