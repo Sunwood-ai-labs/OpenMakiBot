@@ -47,7 +47,10 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   const [historyError, setHistoryError] = useState(false);
 
   // A new bot starts from a clean slate rather than showing the previous
-  // bot's overview for a moment.
+  // bot's overview for a moment. Also marks the next overview/system-prompt
+  // fetch below as a first load for this bot.id, so it fires immediately
+  // rather than waiting out the debounce.
+  const firstLoadRef = useRef(true);
   useEffect(() => {
     setOverview(null);
     setOverviewError(false);
@@ -55,17 +58,23 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     setPromptError(false);
     setHistoryRows(null);
     setHistoryError(false);
+    firstLoadRef.current = true;
   }, [bot.id]);
 
   // Loads on open, and again whenever bot.id, state.routines, state.webhooks,
   // or the bot record change — those are exactly the facts the server-built
-  // overview and system-prompt preview depend on. Debounced to one request
-  // per 500ms so a burst of edits (typing in a field, several routine
-  // changes) coalesces into a single refetch instead of one per keystroke.
-  // Each fetch is wrapped so one failing leaves only its own block reading
-  // "couldn't load" rather than throwing and breaking the rest of the dialog.
+  // overview and system-prompt preview depend on. The very first load for a
+  // given bot.id (dialog just opened, or switched bots) fires immediately —
+  // there is nothing on screen yet to coalesce with, so waiting out a 500ms
+  // debounce would only add a visible delay. Every later run — a dependency
+  // changed while the dialog is already showing data — is still debounced to
+  // one request per 500ms, so a burst of edits (typing in a field, several
+  // routine changes) coalesces into a single refetch instead of one per
+  // keystroke. Each fetch is wrapped so one failing leaves only its own
+  // block reading "couldn't load" rather than throwing and breaking the
+  // rest of the dialog.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const fetchOverviewAndPrompt = () => {
       void api(`/api/bots/${bot.id}/overview`)
         .then((data: BotOverview) => {
           setOverview(data);
@@ -78,7 +87,15 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
           setPromptError(false);
         })
         .catch(() => setPromptError(true));
-    }, 500);
+    };
+
+    if (firstLoadRef.current) {
+      firstLoadRef.current = false;
+      fetchOverviewAndPrompt();
+      return;
+    }
+
+    const timer = window.setTimeout(fetchOverviewAndPrompt, 500);
     return () => window.clearTimeout(timer);
   }, [bot.id, bot, state.routines, state.webhooks]);
 
@@ -99,13 +116,16 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   }, [section, loadHistory]);
 
   // A rollback failure (the row's soul text no longer round-trips the
-  // server's validation, say) leaves the list exactly as it was rather than
-  // replacing valid rows with an error banner — the row's still-visible Undo
-  // button is the retry.
+  // server's validation, say) still reloads history so the list matches
+  // the server's actual state, but also surfaces the server's message
+  // through the app's error toast — mirrors SoulField's Apply/Discard.
   const rollbackHistory = (at: number) => {
     void api(`/api/bots/${bot.id}/history/rollback`, { method: "POST", body: JSON.stringify({ at }) }).then(
       () => loadHistory(),
-      () => {},
+      (e: unknown) => {
+        dispatch({ type: "error", message: e instanceof Error ? e.message : "Couldn't undo that change." });
+        return loadHistory();
+      },
     );
   };
 
@@ -235,7 +255,8 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
               ) : (
                 <OverviewSection
                   overview={overview}
-                  prompt={promptError ? null : prompt}
+                  prompt={prompt}
+                  promptError={promptError}
                   onOpen={(target) => dispatch({ type: "toggleSettings", open: true, section: target })}
                 />
               ))}

@@ -6,24 +6,25 @@
 import { useState } from "react";
 
 import type { BotOverview } from "@/lib/bot-overview-types";
+import { niceDate, niceTime } from "@/lib/schedule-label";
 import type { BotSettingsSection } from "@/state/store";
 import { PromptPreview, type PromptPreviewData } from "./PromptPreview";
 
 function formatWhen(at: number): string {
   const date = new Date(at);
   const sameDay = new Date().toDateString() === date.toDateString();
-  return sameDay
-    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return sameDay ? niceTime(at) : niceDate(at);
 }
 
 export function OverviewSection({
   overview,
   prompt,
+  promptError,
   onOpen,
 }: {
   overview: BotOverview | null;
   prompt: PromptPreviewData | null;
+  promptError?: boolean;
   onOpen: (section: BotSettingsSection) => void;
 }) {
   const [promptOpen, setPromptOpen] = useState(false);
@@ -87,7 +88,12 @@ export function OverviewSection({
         </ul>
       </div>
 
-      <PromptPreview data={prompt} open={promptOpen} onToggle={() => setPromptOpen((current) => !current)} />
+      <PromptPreview
+        data={prompt}
+        error={promptError}
+        open={promptOpen}
+        onToggle={() => setPromptOpen((current) => !current)}
+      />
 
       <div className="rounded-xl bg-card p-4">
         <div className="flex items-baseline justify-between gap-3">

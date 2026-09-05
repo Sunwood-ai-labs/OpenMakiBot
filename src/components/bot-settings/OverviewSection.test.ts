@@ -69,4 +69,14 @@ describe("OverviewSection", () => {
 
     expect(markup).toContain("Nothing scheduled or learned yet.");
   });
+
+  it("passes promptError through to PromptPreview instead of just nulling the data", () => {
+    const markup = render(
+      createElement(OverviewSection, { overview: sentences, prompt: null, promptError: true, onOpen: vi.fn() }),
+    );
+
+    // Closed by default, so the failure text isn't shown yet — but the
+    // header must not be stuck offering a preview that will never arrive.
+    expect(markup).toContain("What the model sees");
+  });
 });

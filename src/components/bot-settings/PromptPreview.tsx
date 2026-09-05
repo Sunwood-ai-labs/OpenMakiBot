@@ -16,10 +16,12 @@ export interface PromptPreviewData {
 
 export function PromptPreview({
   data,
+  error,
   open,
   onToggle,
 }: {
   data: PromptPreviewData | null;
+  error?: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -39,7 +41,11 @@ export function PromptPreview({
         <ChevronDown size={16} className={cn("shrink-0 text-ink-secondary transition-transform", open && "rotate-180")} />
       </button>
 
-      {open && !data && <div className="mt-3 text-[13px] text-ink-secondary">Loading…</div>}
+      {open && !data && error && (
+        <div className="mt-3 text-[13px] text-ink-secondary">Couldn’t load the prompt preview.</div>
+      )}
+
+      {open && !data && !error && <div className="mt-3 text-[13px] text-ink-secondary">Loading…</div>}
 
       {open && data && (
         <div className="mt-3 flex flex-col gap-2">

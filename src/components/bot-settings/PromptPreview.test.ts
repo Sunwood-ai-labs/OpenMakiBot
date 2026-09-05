@@ -37,4 +37,22 @@ describe("PromptPreview", () => {
     expect(markup).toContain("340 bytes");
     expect(markup).toContain(data.note);
   });
+
+  it("shows a failure message instead of Loading… forever when the fetch failed", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PromptPreview, { data: null, error: true, open: true, onToggle: vi.fn() }),
+    );
+
+    expect(markup).toContain("Couldn’t load the prompt preview.");
+    expect(markup).not.toContain("Loading…");
+  });
+
+  it("still shows Loading… (not the failure message) while a fetch is in flight", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PromptPreview, { data: null, error: false, open: true, onToggle: vi.fn() }),
+    );
+
+    expect(markup).toContain("Loading…");
+    expect(markup).not.toContain("Couldn’t load the prompt preview.");
+  });
 });
