@@ -135,6 +135,26 @@ describe("buildBotOverview", () => {
     expect(overview.wont).not.toContain("Has no connected apps.");
     expect(overview.reaches.some((line) => line.startsWith("Can use"))).toBe(false);
   });
+
+  it("never claims no connected apps when composio is off AND the inventory is unverifiable", () => {
+    const facts = baseFacts({
+      bot: { ...baseFacts().bot, composio: false, computer: "local" },
+      connectedApps: { configured: false, authoritative: false, services: [] },
+    });
+    const overview = buildBotOverview(facts);
+    expect(overview.reaches).toContain("Connected apps could not be checked.");
+    expect(overview.wont).not.toContain("Has no connected apps.");
+  });
+
+  it("picks a computer automatically and stays reachable by default when computer/peers are unset", () => {
+    const facts = baseFacts({
+      bot: { ...baseFacts().bot, computer: undefined, peers: undefined, approvePeerComms: false },
+    });
+    const overview = buildBotOverview(facts);
+    expect(overview.reaches).toContain("Picks a computer automatically.");
+    expect(overview.wont).not.toContain("Can't use a computer.");
+    expect(overview.wont).not.toContain("Won't contact other bots without asking.");
+  });
 });
 
 describe("soulLead", () => {

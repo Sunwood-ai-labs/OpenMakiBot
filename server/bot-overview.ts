@@ -163,10 +163,8 @@ function wontLines(facts: OverviewFacts): string[] {
   }
   const apps = facts.connectedApps;
   if (
-    facts.bot.composio === false ||
-    !apps.configured ||
-    !facts.engine?.composioMcp ||
-    (apps.authoritative && apps.services.length === 0)
+    apps.authoritative &&
+    (facts.bot.composio === false || !apps.configured || !facts.engine?.composioMcp || apps.services.length === 0)
   ) {
     lines.push("Has no connected apps.");
   }
