@@ -73,6 +73,17 @@ export function ApprovalCard({
     : isProfileRequest
       ? "update_profile"
     : card.tool;
+  // A cross-bot profile card is shown in the PROPOSER's thread, so
+  // "wants to update its profile" (fine for a bot editing itself) would
+  // silently claim the proposer's own profile is changing. Name the actual
+  // target whenever it differs from the proposer.
+  const profileHeader = isProfileRequest && card.profileRequest
+    ? `${bot ? bot.name : "Someone"} wants to update ${
+        card.profileRequest.targetBotId === card.profileRequest.botId
+          ? "its"
+          : `@${card.profileRequest.targetName}'s`
+      } profile`
+    : undefined;
 
   return (
     <div
@@ -83,8 +94,12 @@ export function ApprovalCard({
     >
       <div className="flex items-baseline justify-between gap-3">
         <div className="text-[15px] font-semibold text-ink">
-          {bot ? `${bot.name} wants to ` : "Wants to "}
-          {toolLabel(displayTool)}
+          {profileHeader ?? (
+            <>
+              {bot ? `${bot.name} wants to ` : "Wants to "}
+              {toolLabel(displayTool)}
+            </>
+          )}
         </div>
         {displayTool && <span className="shrink-0 font-mono text-[11px] text-ink-secondary">{displayTool}</span>}
       </div>

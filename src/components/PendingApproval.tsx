@@ -68,7 +68,11 @@ export function spokenApprovalPrompt(pending: Pending, requester: string): strin
     return `${requester} asks: ${title}${/[.!?]$/.test(title) ? "" : "."} Review the skill on screen. Should I ${updating ? "update" : "enable"} it?`;
   }
   if (isProfileRequest) {
-    return `${requester} wants to update its profile. ${pending.detail}. Should I confirm it?`;
+    // pending.detail is the full subtitle — the whole diff for a soul
+    // change. Speak the card's concise title instead, the same way the
+    // routine/skill branches do, and let the user read the diff on screen.
+    const title = pending.message.card?.title.trim() || "Update this profile?";
+    return `${requester} wants to update its profile: ${title}. Review the change on screen. Should I confirm it?`;
   }
   if (!isRoutineRequest) {
     return `${requester} wants to ${pending.tool}. ${pending.detail}. Should I allow it?`;
@@ -84,7 +88,7 @@ function label(pending: Pending): string {
       : "Enable this learned skill";
   }
   if (isProfileApproval(pending)) {
-    return "wants to update its profile";
+    return "Confirm this profile change";
   }
   if (isRoutineApproval(pending)) {
     return pending.message.card?.routineRequest?.operation.action === "create"

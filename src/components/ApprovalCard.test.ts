@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ApprovalCard } from "./ApprovalCard";
-import { spokenApprovalPrompt, type Pending } from "./PendingApproval";
+import { PendingApprovalPanel, spokenApprovalPrompt, type Pending } from "./PendingApproval";
 import type { Bot, Message } from "@/state/store";
 import { skillRequestBehavior } from "../../shared/skill-request";
 
@@ -171,6 +171,51 @@ describe("ApprovalCard profile proposals", () => {
     };
 
     expect(renderToStaticMarkup(createElement(ApprovalCard, { bot, message }))).toContain("Profile updated");
+  });
+
+  it("names the actual target in the header when a Chief proposes for a peer", () => {
+    const crossCard = card();
+    crossCard.profileRequest = {
+      ...crossCard.profileRequest,
+      targetBotId: "bot-2",
+      targetName: "Peer",
+    };
+    const message: Message = {
+      id: "profile-card-cross",
+      role: "bot",
+      kind: "options",
+      at: 1,
+      card: crossCard,
+    };
+
+    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message }));
+    expect(html).toContain("Scout wants to update @Peer");
+    expect(html).toContain("profile</div>");
+    expect(html).not.toContain("wants to update its profile");
+  });
+
+  it("speaks the card's concise title, not the full diff, and shows an imperative strip label", () => {
+    const message: Message = {
+      id: "profile-voice-card",
+      role: "bot",
+      kind: "options",
+      at: 1,
+      card: card(),
+    };
+    const pending: Pending = {
+      message,
+      requestId: "req-p1",
+      tool: "update_profile",
+      detail: message.card!.subtitle,
+    };
+
+    const spoken = spokenApprovalPrompt(pending, "Mochi");
+    expect(spoken).toBe('Mochi wants to update its profile: Set up Scout?. Review the change on screen. Should I confirm it?');
+    expect(spoken).not.toContain("SOUL.md");
+    expect(spoken).not.toContain("+Be brief.");
+
+    const strip = renderToStaticMarkup(createElement(PendingApprovalPanel, { pending, count: 1, index: 0 }));
+    expect(strip).toContain("Confirm this profile change");
   });
 });
 
