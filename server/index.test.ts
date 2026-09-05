@@ -4684,6 +4684,63 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("coaches a blank bot to set itself up, and stops once it has a description", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Blank" })).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
+      await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
+      let system: string = JSON.parse(readFileSync(fakeClaudeDump, "utf8")).systemPrompt ?? "";
+      expect(system.startsWith("You are Blank, a personal bot in OpenMausBot.")).toBe(true);
+      expect(system).toContain("This bot has not been set up yet");
+      expect(system).toContain("propose_profile");
+
+      const preview = await api("GET", `/api/bots/${bot.id}/system-prompt`);
+      expect(preview.body.sections.map((s: { id: string }) => s.id)).toContain("setup");
+
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { description: "Files bugs." })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello again" })).status).toBe(202);
+      await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
+      system = JSON.parse(readFileSync(fakeClaudeDump, "utf8")).systemPrompt ?? "";
+      expect(system).not.toContain("This bot has not been set up yet");
+      expect((await api("GET", `/api/bots/${bot.id}/system-prompt`)).body.sections.map((s: { id: string }) => s.id)).not.toContain("setup");
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("re-enters setup mode for a configured bot when the user sends /setup, and rewrites the turn text", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Kiwi", description: "Files bugs." })).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+        soul: "Never file noise.",
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "/setup watch Discord too" })).status).toBe(202);
+      await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
+      const seen = JSON.parse(readFileSync(fakeClaudeDump, "utf8"));
+      const system: string = seen.systemPrompt ?? "";
+      // soul first, setup block right after it
+      const soulEnd = system.indexOf("--- END STANDING INSTRUCTIONS ---") + "--- END STANDING INSTRUCTIONS ---".length;
+      expect(soulEnd).toBeGreaterThan(0);
+      expect(system.slice(soulEnd).startsWith("\n\nThis bot has not been set up yet")).toBe(true);
+      // the literal /setup never reaches the model
+      const prompt = JSON.stringify(seen.prompt);
+      expect(prompt).toContain("Set yourself up for this job: watch Discord too");
+      expect(prompt).not.toMatch(/^\/setup/m);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
   it("never lets an out-of-band SOUL.md edit reach the prompt, and surfaces it as drift instead", async () => {
     const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker" })).body.bot;
     try {

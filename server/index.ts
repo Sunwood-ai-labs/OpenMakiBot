@@ -224,6 +224,7 @@ import {
 } from "./skills.ts";
 import { fetchSkillFromSource } from "./skill-fetch.ts";
 import { expandLearnTurnText, learnSource } from "./skill-learn.ts";
+import { expandSetupTurnText, setupModeActive, setupSystemPrompt } from "./setup-mode.ts";
 import type { SkillRequestCardData } from "../shared/skill-request.ts";
 import { checkSoulDrift, soulFile, writeSoulMirror } from "./bot-folder.ts";
 import {
@@ -1015,6 +1016,7 @@ function previewSystemPrompt(bot: BotRecord) {
       : "";
   ensureWorkspace(bot.id);
   const built = buildSystemPrompt(persona, bot.soul ?? "", [
+    { id: "setup", label: "Setup", text: setupSystemPrompt(setupModeActive({ soul: bot.soul, description: bot.description, text: "" })) },
     { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
     { id: "composio", label: "Connected apps", text: bot.composio !== false && composio.configured(cfg) ? COMPOSIO_PROMPT : "" },
     { id: "browser", label: "Browser", text: bot.browser !== false && bot.computer !== "off" ? BUILT_IN_BROWSER_SYSTEM_PROMPT : "" },
@@ -3477,9 +3479,13 @@ async function startTurn(
     skillRecorderEnabled(cfg) &&
     commsDepth < MAX_COMMS_DEPTH &&
     instance.adapter.capabilities.agentsMcp === true;
+  // Setup mode: a bot with neither standing instructions nor a description
+  // has not been set up; /setup re-enters the mode on purpose. Direct turns
+  // only — a room message must not put every member into setup.
+  const setupMode = setupModeActive({ soul: bot.soul, description: bot.description, text: providerText });
   const { turnText, resume } = buildTurnContext({
     text: promptWithReply(
-      skillAuthoring ? expandLearnTurnText(providerText) : providerText,
+      skillAuthoring ? expandLearnTurnText(expandSetupTurnText(providerText)) : expandSetupTurnText(providerText),
       opts?.replyTo,
       cfg.profile?.name?.trim() || "User",
     ),
@@ -3867,6 +3873,9 @@ async function startTurn(
                 ? "local"
                 : null;
       const prompt = buildSystemPrompt(persona, store.bot(bot.id)?.soul ?? bot.soul ?? "", [
+        // first after the soul: the block names agent tools, so it only goes
+        // to a turn whose engine actually mounted them
+        { id: "setup", label: "Setup", text: integrations.agents ? setupSystemPrompt(setupMode) : "" },
         { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
         { id: "plan", label: "Surface", text: plan.note },
         // gated on the integration, not the key: the hint only goes to a
