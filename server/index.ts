@@ -233,6 +233,7 @@ import {
   COMPOSIO_PROMPT,
   CREDENTIAL_PROMPT,
   LEARN_PROMPT,
+  PROFILE_PROMPT,
   ROUTINE_PROMPT,
   WEBHOOK_PROMPT,
   type ComputerPromptKind,
@@ -264,6 +265,9 @@ import {
 import { captureOutsideHumanControl } from "./private-screen-capture.ts";
 import { screenFrameHash, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { RoutineRequestService } from "./routine-requests.ts";
+import { ProfileRequestService } from "./profile-requests.ts";
+import { profileSnapshot } from "./profile-revision.ts";
+import { readHistory, recordProfileChange } from "./profile-versions.ts";
 import { fetchBotDirectory, matchDirectoryBots, type MatchedDirectoryBot } from "./bot-directory.ts";
 import { scoutProject, suggestTeam } from "./project-scout.ts";
 import { fetchGithubTeam, fetchLibraryTeam, fetchTeamCatalog } from "./team-library.ts";
@@ -1016,6 +1020,7 @@ function previewSystemPrompt(bot: BotRecord) {
     { id: "coordination", label: "Team", text: coordination ? ` ${coordination}` : "" },
     { id: "credential", label: "Credentials", text: CREDENTIAL_PROMPT },
     { id: "routine", label: "Routines", text: ROUTINE_PROMPT },
+    { id: "profile", label: "Profile changes", text: PROFILE_PROMPT },
     { id: "section-context", label: "Section context", text: sectionContextSystemPrompt(bot.section) },
     { id: "memory", label: "Memory", text: memorySystemPrompt(bot.id) },
     { id: "skills", label: "Skills index", text: skillsSystemPrompt(bot.id) },
@@ -3734,6 +3739,7 @@ async function startTurn(
           : "";
       const credentialPrompt = integrations.agents ? CREDENTIAL_PROMPT : "";
       const routinePrompt = integrations.agents ? ROUTINE_PROMPT : "";
+      const profilePrompt = integrations.agents ? PROFILE_PROMPT : "";
       const learnPrompt = skillAuthoring ? LEARN_PROMPT : "";
 
       // (activeVpsThreads was already claimed above, before the provision or
@@ -3798,6 +3804,7 @@ async function startTurn(
         { id: "coordination", label: "Team", text: coordinationPrompt ? ` ${coordinationPrompt}` : "" },
         { id: "credential", label: "Credentials", text: credentialPrompt },
         { id: "routine", label: "Routines", text: routinePrompt },
+        { id: "profile", label: "Profile changes", text: profilePrompt },
         { id: "learn", label: "Skill authoring", text: learnPrompt },
         { id: "section-context", label: "Section context", text: sectionContextSystemPrompt(bot.section) },
         { id: "memory", label: "Memory", text: privateWorkspace ? memorySystemPrompt(bot.id) : "" },
@@ -4168,7 +4175,7 @@ const routineRequests = new RoutineRequestService({
   store,
   routines,
   cloudReady: cloudRoutineReadiness,
-  canPersist: routineProposalPersistence,
+  canPersist: proposalPersistence,
   // Cross-bot routines: the confirmation card can sit open indefinitely, so
   // the target is re-authorized when the user confirms, not just at proposal.
   validateTarget: (proposerBotId, target) => {
@@ -4178,6 +4185,19 @@ const routineRequests = new RoutineRequestService({
     if (!proposer || sectionKey(targetBot.section) !== sectionKey(proposer.section)) {
       return `@${target.name} is no longer in this section, so this routine cannot be scheduled for it`;
     }
+    return null;
+  },
+});
+const profileRequests = new ProfileRequestService({
+  store,
+  canPersist: proposalPersistence,
+  // A Chief may change a section peer; anyone else only itself. Re-checked at confirm.
+  validateTarget: (proposerBotId, targetBotId) => {
+    const proposer = store.bot(proposerBotId);
+    const target = store.bot(targetBotId);
+    if (!target) return "that bot no longer exists";
+    if (!proposer?.chiefOfStaff) return "only a section's Chief of Staff can change another bot's profile";
+    if (sectionKey(target.section) !== sectionKey(proposer.section)) return "that bot belongs to a different section";
     return null;
   },
 });
@@ -4286,6 +4306,37 @@ function resolveAndSendRoutine(
     });
   }
   return sendRoutineResolution(res, result);
+}
+function resolveAndSendProfile(
+  res: ServerResponse,
+  args: { botId: string; botName?: string; threadId: string; requestId: string; behavior: string },
+): boolean {
+  const card = store.messagesFor(args.threadId).find(
+    (message) => message.card?.requestId === args.requestId && message.card.profileRequest,
+  )?.card;
+  if (!card) return false;
+  const result = profileRequests.resolve(args);
+  if (!result.claimed) return false;
+  if (result.state === "applied" || result.state === "denied") {
+    appendDecision(DATA_DIR, {
+      threadId: args.threadId, requestId: args.requestId, botId: args.botId, botName: args.botName,
+      tool: "update_profile", summary: card.subtitle,
+      decision: result.state === "applied" ? "user-approved" : "user-denied", source: "user",
+    });
+  }
+  if (result.state === "applied") {
+    const target = store.bot(result.targetBotId);
+    if (target) broadcast({ kind: "bot", bot: wireBot(target) });
+    json(res, 200, { ok: true, outcome: "allowed-once", profileFields: result.fields });
+    return true;
+  }
+  if (result.state === "invalid") { json(res, result.status, { error: result.error }); return true; }
+  if (result.state === "already_settled") {
+    json(res, 200, { ok: true, outcome: result.behavior === "allow" ? "allowed-once" : "rejected", alreadySettled: true });
+    return true;
+  }
+  json(res, 200, { ok: true, outcome: "rejected" });
+  return true;
 }
 
 // Webhook definitions are independent from calendar schedules, but every
@@ -4655,6 +4706,7 @@ async function runGroupMemberTurn(
     `Reply as yourself, briefly and conversationally. To bring a teammate in, mention them like @Name — they'll see the conversation and respond.`,
     integrations.agents && CREDENTIAL_PROMPT.trim(),
     integrations.agents && ROUTINE_PROMPT.trim(),
+    integrations.agents && PROFILE_PROMPT.trim(),
     skillAuthoring && LEARN_PROMPT.trim(),
     orchestration?.systemInstructions,
   ]
@@ -5628,7 +5680,7 @@ function roomPostEligibility(
   return { ok: true };
 }
 
-function routineProposalPersistence(botId: string, threadId: string) {
+function proposalPersistence(botId: string, threadId: string) {
   if (!store.bot(botId)) {
     return { ok: false as const, status: 403, error: "unknown sender" };
   }
@@ -5637,14 +5689,16 @@ function routineProposalPersistence(botId: string, threadId: string) {
   }
   // Only cards on the visible branch can be acted on from the composer.
   // Abandoned branches must not permanently consume the proposal quota.
+  // Routine and profile proposals share one budget per bot per thread, so
+  // one thread cannot pile up 8 of each.
   const openRequests = store.activePath(threadId).filter(
     (message) =>
-      message.card?.routineRequest?.botId === botId &&
+      (message.card?.routineRequest?.botId === botId || message.card?.profileRequest?.botId === botId) &&
       !message.card.answered &&
       !message.card.dismissed,
   ).length;
   return openRequests >= 8
-    ? { ok: false as const, status: 429, error: "confirm or cancel an existing routine proposal first" }
+    ? { ok: false as const, status: 429, error: "confirm or cancel an existing proposal first" }
     : { ok: true as const };
 }
 
@@ -6770,7 +6824,7 @@ const server = createServer(async (req, res) => {
             forBot = { botId: target.id, name: target.name };
           }
         }
-        const persistence = routineProposalPersistence(from.id, fromThreadId);
+        const persistence = proposalPersistence(from.id, fromThreadId);
         if (!persistence.ok) {
           return json(res, persistence.status, { error: persistence.error });
         }
@@ -6797,6 +6851,35 @@ const server = createServer(async (req, res) => {
           summary: proposedCard?.subtitle ?? proposed.summary,
           decision: "card-shown",
           source: "routine",
+        });
+        return json(res, 201, proposed);
+      }
+      if (method === "POST" && path === "/api/internal/profile-requests") {
+        const parsed = z.object({
+          fromBotId: z.string().min(1).max(128),
+          fromThreadId: z.string().min(1).max(128),
+          forBotId: z.string().max(128).optional(),
+          changes: z.unknown(),
+          reason: z.unknown(),
+        }).strict().safeParse(await readBody(req));
+        if (!parsed.success) return json(res, 400, { error: "invalid profile proposal" });
+        const body = parsed.data;
+        const from = store.bot(body.fromBotId);
+        if (!from) return json(res, 403, { error: "unknown sender" });
+        const owner = connectorThread(from.id, body.fromThreadId);
+        if (!owner) return json(res, 403, { error: "source conversation does not belong to sender" });
+        const targetBotId = body.forBotId?.trim() || from.id;
+        const proposed = profileRequests.propose({
+          botId: from.id,
+          threadId: body.fromThreadId,
+          targetBotId,
+          changes: body.changes,
+          reason: body.reason,
+          from: owner.group ? { botId: from.id, name: from.name, color: from.color } : undefined,
+        });
+        appendDecision(DATA_DIR, {
+          threadId: body.fromThreadId, requestId: proposed.requestId, botId: from.id, botName: from.name,
+          tool: "update_profile", summary: proposed.detail, decision: "card-shown", source: "profile",
         });
         return json(res, 201, proposed);
       }
@@ -8935,10 +9018,13 @@ const server = createServer(async (req, res) => {
       if (parsed.patch.avatarUrl && !storedAvatarExists(parsed.patch.avatarUrl)) {
         return json(res, 400, { error: "avatarUrl must reference an existing stored image" });
       }
+      const existingBot = store.bot(m[1]);
+      const beforeProfile = existingBot ? profileSnapshot(existingBot) : undefined;
       const { soul, ...profilePatch } = parsed.patch;
       let bot = store.patchBot(m[1], profilePatch);
       if (bot && soul !== undefined) bot = store.setSoul(m[1], soul);
       if (!bot) return json(res, 404, { error: "no such bot" });
+      if (beforeProfile) recordProfileChange(bot.id, "user", "api", beforeProfile, profileSnapshot(bot));
       const visible = wireBot(bot);
       broadcast({ kind: "bot", bot: visible });
       return json(res, 200, { bot: visible });
@@ -9004,6 +9090,7 @@ const server = createServer(async (req, res) => {
         return json(res, 400, { error: "body must be a JSON object" });
       }
       const existingBot = store.bot(m[1]);
+      const beforeProfile = existingBot ? profileSnapshot(existingBot) : undefined;
       if (body.requireAvailableModel !== undefined && typeof body.requireAvailableModel !== "boolean") {
         return json(res, 400, { error: "requireAvailableModel must be true or false" });
       }
@@ -9237,6 +9324,10 @@ const server = createServer(async (req, res) => {
           ? store.setChiefOfStaff(bot.id)
           : [];
       if (chiefChanges === null) return json(res, 404, { error: "no such bot" });
+      if (beforeProfile) {
+        const now = store.bot(bot.id)!;
+        recordProfileChange(bot.id, "user", "api", beforeProfile, profileSnapshot(now));
+      }
       return json(res, 200, { bot: wireBot(store.bot(bot.id)!) });
     }
 
@@ -9561,6 +9652,7 @@ const server = createServer(async (req, res) => {
       if (!parsed.ok) return json(res, 400, { error: parsed.error });
       const updated = store.setSoul(bot.id, parsed.patch.soul ?? "");
       if (!updated) return json(res, 404, { error: "no such bot" });
+      recordProfileChange(bot.id, "file", "ui", profileSnapshot(bot), profileSnapshot(updated));
       const visible = wireBot(updated);
       broadcast({ kind: "bot", bot: visible });
       return json(res, 200, { bot: visible });
@@ -9584,6 +9676,38 @@ const server = createServer(async (req, res) => {
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
       return json(res, 200, previewSystemPrompt(bot));
+    }
+
+    m = path.match(/^\/api\/bots\/([\w-]+)\/history$/);
+    if (m && method === "GET") {
+      if (!store.bot(m[1])) return json(res, 404, { error: "no such bot" });
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 100));
+      return json(res, 200, { rows: readHistory(m[1], limit) });
+    }
+    m = path.match(/^\/api\/bots\/([\w-]+)\/history\/rollback$/);
+    if (m && method === "POST") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      const body = await readBody(req);
+      const at = Number(body?.at);
+      // Rows written by one recordProfileChange call share the same `at`, so
+      // the first row at that timestamp may not be the soul row — find the
+      // soul row explicitly rather than the first match.
+      const row = Number.isFinite(at)
+        ? readHistory(bot.id, Number.MAX_SAFE_INTEGER).find((r) => r.at === at && r.field === "soul")
+        : undefined;
+      if (!row || row.field !== "soul" || typeof row.before !== "string") {
+        return json(res, 400, { error: "rollback is available for SOUL.md entries only" });
+      }
+      const parsed = parseBotProfilePatch({ soul: row.before });
+      if (!parsed.ok) return json(res, 400, { error: parsed.error });
+      const before = profileSnapshot(bot);
+      const updated = store.setSoul(bot.id, parsed.patch.soul ?? "");
+      if (!updated) return json(res, 404, { error: "no such bot" });
+      recordProfileChange(bot.id, "user", "rollback", before, profileSnapshot(updated));
+      const visible = wireBot(updated);
+      broadcast({ kind: "bot", bot: visible });
+      return json(res, 200, { bot: visible });
     }
 
     // ── bot memory: MEMORY.md + memory/ topic files ─────────────────────
@@ -9898,6 +10022,13 @@ const server = createServer(async (req, res) => {
         requestId: String(body.requestId),
         behavior,
       })) return;
+      if (resolveAndSendProfile(res, {
+        botId: bot.id,
+        botName: bot.name,
+        threadId: bot.threadId,
+        requestId: String(body.requestId),
+        behavior,
+      })) return;
       if (sendSkillResolution(res, resolveSkillRequest({
         botId: bot.id,
         botName: bot.name,
@@ -9955,6 +10086,21 @@ const server = createServer(async (req, res) => {
         if (resolveAndSendRoutine(res, {
           botId: routineBotId,
           botName: routineOwner?.name,
+          threadId,
+          requestId,
+          behavior,
+        })) return;
+      }
+      const profileCard = store.messagesFor(threadId).find(
+        (message) => message.card?.requestId === requestId && message.card.profileRequest,
+      );
+      if (profileCard?.card?.profileRequest) {
+        const profileBotId = profileCard.from?.botId ?? store.botByThread(threadId)?.id;
+        if (!profileBotId) return json(res, 400, { error: "this profile request has no valid owner" });
+        const profileOwner = store.bot(profileBotId);
+        if (resolveAndSendProfile(res, {
+          botId: profileBotId,
+          botName: profileOwner?.name,
           threadId,
           requestId,
           behavior,

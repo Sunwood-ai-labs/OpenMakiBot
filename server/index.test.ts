@@ -6510,6 +6510,86 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("keeps a proposed profile change inert until its card is confirmed, then records history", async () => {
+    const soulFileOf = (botId: string) => join(home, ".openmausbot", "bots", botId, "SOUL.md");
+    const bot = (await api("POST", "/api/bots", { name: "Scout" })).body.bot;
+    try {
+      await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
+
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "prepare a routine" })).status).toBe(202);
+      const dump = await readJsonFileWhenReady<{
+        mcpConfig: { mcpServers: { agents: { env: { OMB_COMMS_TOKEN: string } } } };
+      }>(fakeClaudeDump);
+      const token = dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
+      expect(token).toMatch(/^[a-f0-9]{48}$/);
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBe(false);
+      const internalHeaders = {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      };
+
+      const proposal = await fetch(`${BASE}/api/internal/profile-requests`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, changes: { name: "Kiwi", soul: "Be brief." }, reason: "you asked" }),
+      });
+      expect(proposal.status).toBe(201);
+      const proposed = z.object({ requestId: z.string() }).passthrough().parse(await proposal.json());
+      const state = (await api("GET", "/api/bots")).body;
+      const card = state.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id)
+        ?.messages.find((message: { card?: { requestId?: string } }) => message.card?.requestId === proposed.requestId);
+      expect(card?.card).toMatchObject({ tool: "update_profile", profileRequest: { botId: bot.id, targetBotId: bot.id } });
+      expect((await api("GET", `/api/bots/${bot.id}/soul`)).body.soul).toBe("");
+
+      // a stale confirm fails closed
+      await api("PATCH", `/api/bots/${bot.id}`, { title: "moved" });
+      const stale = await api("POST", `/api/threads/${bot.threadId}/respond`, { requestId: proposed.requestId, behavior: "allow" });
+      expect(stale.status).toBe(409);
+
+      // propose again and confirm
+      const againResponse = await fetch(`${BASE}/api/internal/profile-requests`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, changes: { name: "Kiwi", soul: "Be brief." }, reason: "you asked" }),
+      });
+      const again = z.object({ requestId: z.string() }).passthrough().parse(await againResponse.json());
+      const ok = await api("POST", `/api/threads/${bot.threadId}/respond`, { requestId: again.requestId, behavior: "allow" });
+      expect(ok.body).toMatchObject({ ok: true, outcome: "allowed-once", profileFields: ["name", "soul"] });
+      const after = (await api("GET", `/api/bots/${bot.id}/soul`)).body;
+      expect(after.soul).toBe("Be brief.");
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe("Be brief.");
+
+      const history = await api("GET", `/api/bots/${bot.id}/history`);
+      expect(history.status).toBe(200);
+      const fields = history.body.rows.map((r: any) => `${r.field}:${r.actor}:${r.via.split(":")[0]}`);
+      expect(fields.slice(0, 2).sort()).toEqual(["name:bot:card", "soul:bot:card"]);
+      expect(fields).toContain("title:user:api");
+
+      // rollback the soul
+      const soulRow = history.body.rows.find((r: any) => r.field === "soul");
+      const rolled = await api("POST", `/api/bots/${bot.id}/history/rollback`, { at: soulRow.at });
+      expect(rolled.status).toBe(200);
+      expect(rolled.body.bot.soul).toBe("");
+      expect((await api("GET", `/api/bots/${bot.id}/history`)).body.rows[0]).toMatchObject({ field: "soul", via: "rollback", actor: "user" });
+      expect((await api("POST", `/api/bots/${bot.id}/history/rollback`, { at: 1 })).status).toBe(400);
+
+      // decisions audit
+      await expect.poll(async () => {
+        const decisions = (await api("GET", "/api/decisions")).body.decisions;
+        return decisions.filter((d: any) => d.requestId === again.requestId).map((d: any) => `${d.decision}:${d.source}`).sort();
+      }).toEqual(["card-shown:profile", "user-approved:user"]);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
   it("only enables the exact learned-skill proposal a current client reviewed", async () => {
     const bot = (await api("POST", "/api/bots", {})).body.bot;
     try {
