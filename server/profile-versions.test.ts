@@ -8,7 +8,6 @@ import { profileRevision, profileSnapshot } from "./profile-revision.ts";
 import {
   flushProfileHistory,
   historyFile,
-  historyRowAt,
   readHistory,
   recordProfileChange,
 } from "./profile-versions.ts";
@@ -45,8 +44,6 @@ describe("profile history", () => {
     expect(rows[0]!.after).toContain("Be brief.");
     expect(rows[0]!.after).not.toContain("SECRETSECRET");
     expect(rows[0]!.summary).toMatch(/^soul: 0 → \d+ bytes$/);
-    expect(historyRowAt(id, rows[0]!.at)).toEqual(rows[0]);
-    expect(historyRowAt(id, 1)).toBeUndefined();
   });
 
   it("writes nothing when nothing changed, and trims long non-soul values", async () => {

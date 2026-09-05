@@ -267,7 +267,7 @@ import { screenFrameHash, screenTouchingTool, settledFrameIsNews } from "./scree
 import { RoutineRequestService } from "./routine-requests.ts";
 import { ProfileRequestService } from "./profile-requests.ts";
 import { profileSnapshot } from "./profile-revision.ts";
-import { readHistory, recordProfileChange } from "./profile-versions.ts";
+import { flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
 import { fetchBotDirectory, matchDirectoryBots, type MatchedDirectoryBot } from "./bot-directory.ts";
 import { scoutProject, suggestTeam } from "./project-scout.ts";
 import { fetchGithubTeam, fetchLibraryTeam, fetchTeamCatalog } from "./team-library.ts";
@@ -9650,9 +9650,13 @@ const server = createServer(async (req, res) => {
       // The file is user input like any other: same cap, same error copy.
       const parsed = parseBotProfilePatch({ soul: drift.fileText });
       if (!parsed.ok) return json(res, 400, { error: parsed.error });
+      // store.bot() returns the live record and setSoul mutates it in place,
+      // so the snapshot must be taken before the call — after, `bot` and
+      // `updated` are the same object and the diff would always be empty.
+      const beforeProfile = profileSnapshot(bot);
       const updated = store.setSoul(bot.id, parsed.patch.soul ?? "");
       if (!updated) return json(res, 404, { error: "no such bot" });
-      recordProfileChange(bot.id, "file", "ui", profileSnapshot(bot), profileSnapshot(updated));
+      recordProfileChange(bot.id, "file", "ui", beforeProfile, profileSnapshot(updated));
       const visible = wireBot(updated);
       broadcast({ kind: "bot", bot: visible });
       return json(res, 200, { bot: visible });
@@ -9681,6 +9685,9 @@ const server = createServer(async (req, res) => {
     m = path.match(/^\/api\/bots\/([\w-]+)\/history$/);
     if (m && method === "GET") {
       if (!store.bot(m[1])) return json(res, 404, { error: "no such bot" });
+      // Writes queue in profile-versions.ts and land asynchronously; a client
+      // reading history right after causing a change must see its own row.
+      await flushProfileHistory(m[1]);
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 100));
       return json(res, 200, { rows: readHistory(m[1], limit) });
     }
@@ -9690,6 +9697,9 @@ const server = createServer(async (req, res) => {
       if (!bot) return json(res, 404, { error: "no such bot" });
       const body = await readBody(req);
       const at = Number(body?.at);
+      // Same flush as the GET route: the row this rollback targets may have
+      // been recorded moments ago and not yet reached disk.
+      await flushProfileHistory(bot.id);
       // Rows written by one recordProfileChange call share the same `at`, so
       // the first row at that timestamp may not be the soul row — find the
       // soul row explicitly rather than the first match.

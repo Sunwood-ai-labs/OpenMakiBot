@@ -6590,6 +6590,82 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("only lets a section's Chief of Staff propose (and hold) a change to another bot's profile", async () => {
+    const a = (await api("POST", "/api/bots", { name: "Ari" })).body.bot;
+    const b = (await api("POST", "/api/bots", { name: "Bo" })).body.bot;
+    try {
+      await api("PATCH", `/api/bots/${a.id}`, { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
+
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${a.id}/messages`, { text: "prepare a routine" })).status).toBe(202);
+      const dump = await readJsonFileWhenReady<{
+        mcpConfig: { mcpServers: { agents: { env: { OMB_COMMS_TOKEN: string } } } };
+      }>(fakeClaudeDump);
+      const token = dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
+      expect(token).toMatch(/^[a-f0-9]{48}$/);
+      expect((await api("POST", `/api/bots/${a.id}/interrupt`)).status).toBe(200);
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === a.id)?.busy;
+      }, { timeout: 5_000 }).toBe(false);
+      const internalHeaders = {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      };
+      // There is no GET /api/bots/:id route (only PATCH/DELETE at that path);
+      // read a single bot's current fields off the list endpoint.
+      const botTitle = async (id: string) =>
+        (await api("GET", "/api/bots")).body.bots.find((candidate: { id: string }) => candidate.id === id)?.title;
+
+      // (a) A is an ordinary bot, not the section's Chief of Staff: proposing
+      // a change for its section peer B is refused, and B is untouched.
+      const refused = await fetch(`${BASE}/api/internal/profile-requests`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({
+          fromBotId: a.id, fromThreadId: a.threadId, forBotId: b.id,
+          changes: { title: "Should never land" }, reason: "testing the Chief rule",
+        }),
+      });
+      expect(refused.status).toBe(403);
+      expect(await botTitle(b.id)).toBe("");
+
+      // (b) Promote A to Chief of Staff: the same proposal now stages a card.
+      expect((await api("PATCH", `/api/bots/${a.id}`, { chiefOfStaff: true })).status).toBe(200);
+      const proposedResponse = await fetch(`${BASE}/api/internal/profile-requests`, {
+        method: "POST",
+        headers: internalHeaders,
+        body: JSON.stringify({
+          fromBotId: a.id, fromThreadId: a.threadId, forBotId: b.id,
+          changes: { title: "Lead scout" }, reason: "testing the Chief rule",
+        }),
+      });
+      expect(proposedResponse.status).toBe(201);
+      const proposed = z.object({ requestId: z.string() }).passthrough().parse(await proposedResponse.json());
+
+      // Demote A before the card is confirmed — confirmation re-checks the
+      // rule, not just the state at proposal time.
+      expect((await api("PATCH", `/api/bots/${a.id}`, { chiefOfStaff: false })).status).toBe(200);
+      const refusedConfirm = await api("POST", `/api/threads/${a.threadId}/respond`, {
+        requestId: proposed.requestId, behavior: "allow",
+      });
+      expect(refusedConfirm.status).toBeGreaterThanOrEqual(400);
+      expect(await botTitle(b.id)).toBe("");
+
+      // Re-promote A: the still-open card now confirms and applies.
+      expect((await api("PATCH", `/api/bots/${a.id}`, { chiefOfStaff: true })).status).toBe(200);
+      const okConfirm = await api("POST", `/api/threads/${a.threadId}/respond`, {
+        requestId: proposed.requestId, behavior: "allow",
+      });
+      expect(okConfirm.status).toBe(200);
+      expect(await botTitle(b.id)).toBe("Lead scout");
+    } finally {
+      await api("POST", `/api/bots/${a.id}/interrupt`);
+      await api("DELETE", `/api/bots/${a.id}`);
+      await api("DELETE", `/api/bots/${b.id}`);
+    }
+  });
+
   it("only enables the exact learned-skill proposal a current client reviewed", async () => {
     const bot = (await api("POST", "/api/bots", {})).body.bot;
     try {
@@ -7280,6 +7356,10 @@ describe("bot memory API", () => {
       expect(applied.body.bot.soul).toBe("Be thorough.");
       expect(applied.body.bot.soulDrift).toBe(false);
       expect((await api("GET", `/api/bots/${bot.id}/soul`)).body.drift).toBe(false);
+      const historyAfterApply = await api("GET", `/api/bots/${bot.id}/history`);
+      expect(historyAfterApply.body.rows).toContainEqual(
+        expect.objectContaining({ field: "soul", actor: "file", via: "ui" }),
+      );
 
       writeFileSync(soulFileOf(bot.id), "x".repeat(24_001));
       expect((await api("POST", `/api/bots/${bot.id}/soul/apply-file`)).status).toBe(400);

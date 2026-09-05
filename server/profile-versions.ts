@@ -114,7 +114,3 @@ export function readHistory(botId: string, limit = 100): HistoryRow[] {
   }
   return rows.reverse().slice(0, limit);
 }
-
-export function historyRowAt(botId: string, at: number): HistoryRow | undefined {
-  return readHistory(botId, Number.MAX_SAFE_INTEGER).find((row) => row.at === at);
-}
