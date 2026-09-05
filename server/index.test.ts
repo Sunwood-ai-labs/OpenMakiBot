@@ -4731,10 +4731,20 @@ describe("harness HTTP API", () => {
       const soulEnd = system.indexOf("--- END STANDING INSTRUCTIONS ---") + "--- END STANDING INSTRUCTIONS ---".length;
       expect(soulEnd).toBeGreaterThan(0);
       expect(system.slice(soulEnd).startsWith("\n\nThis bot has not been set up yet")).toBe(true);
-      // the literal /setup never reaches the model
-      const prompt = JSON.stringify(seen.prompt);
-      expect(prompt).toContain("Set yourself up for this job: watch Discord too");
-      expect(prompt).not.toMatch(/^\/setup/m);
+      // the literal /setup never reaches the model — extract the user text the
+      // way promptText() in fake-claude-cli.ts does, joining text parts if the
+      // content is an array of blocks rather than a plain string
+      const content: unknown = seen.prompt?.message?.content;
+      const userText: string = typeof content === "string"
+        ? content
+        : Array.isArray(content)
+          ? content
+              .filter((block: { type?: string }) => block?.type === "text")
+              .map((block: { text?: string }) => block.text ?? "")
+              .join("")
+          : "";
+      expect(userText).toContain("Set yourself up for this job: watch Discord too");
+      expect(userText).not.toContain("/setup");
     } finally {
       await api("POST", `/api/bots/${bot.id}/interrupt`);
       await api("DELETE", `/api/bots/${bot.id}`);
