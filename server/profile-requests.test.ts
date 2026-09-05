@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { botFolder } from "./bot-folder.ts";
 import { profileRevision } from "./profile-revision.ts";
 import { flushProfileHistory, readHistory } from "./profile-versions.ts";
 import {
@@ -87,6 +89,10 @@ function harness(options: { name: string; chiefOfStaff?: boolean }) {
       resumeCursors: {},
     } as unknown as BotRecord;
     store.bots.set(record.id, record);
+    // recordProfileChange (via resolve -> profile-versions.ts) skips its
+    // write when the bot's folder is gone, so a synthetic bot here needs
+    // one too — a real bot gets its folder at creation (writeSoulMirror).
+    mkdirSync(botFolder(record.id), { recursive: true, mode: 0o700 });
     return record;
   }
 
@@ -132,6 +138,23 @@ describe("ProfileRequestService", () => {
     expect(attempt({ name: "Kiwi" }, "")).toThrow("reason is required");
     expect(attempt({})).toThrow("Choose at least one of name, title, description, soul");
     expect(attempt({ name: "Scout" })).toThrow("Nothing would change");
+  });
+
+  it("re-checks the cap after redaction, since a mask can be longer than the secret it replaces", () => {
+    const { service, bot } = harness({ name: "Scout" });
+    // "token: sk-ant-AAAAAAAA" (22 bytes) matches the key=value secret
+    // pattern (its value is only 8 chars — too short for the standalone
+    // sk-ant-… shape, which needs 16+) and is masked to
+    // "token: «redacted 15 chars»" (28 bytes): +6 bytes of growth. Padding
+    // the rest of the soul with plain filler (separated by a newline so the
+    // pattern's word boundary still lands on "token") puts the RAW value
+    // exactly at the cap, so only the redaction growth can push it over.
+    const secretish = "token: sk-ant-AAAAAAAA";
+    const filler = "x".repeat(24_000 - secretish.length - 1);
+    const soul = `${filler}\n${secretish}`;
+    expect(Buffer.byteLength(soul, "utf8")).toBe(24_000);
+    expect(() => service.propose({ botId: bot.id, threadId: bot.threadId, changes: { soul }, reason: "r" }))
+      .toThrow("standing instructions must be at most 24000 bytes");
   });
 
   it("applies only on confirm, through patchBot and setSoul, records history, and settles the card", async () => {
@@ -187,6 +210,11 @@ describe("ProfileRequestService", () => {
     service.validateTarget = () => refuse;
     const { requestId, title } = service.propose({ botId: bot.id, threadId: bot.threadId, targetBotId: peer.id, changes: { title: "Analyst" }, reason: "r" });
     expect(title).toBe("Update @Peer's profile?");
+    // A cross-bot card is shown in the PROPOSER's thread — it must name the
+    // target as its very first line, or the web card never says whose
+    // profile is on the line.
+    const card = store.messagesFor(bot.threadId).at(-1)!.card!;
+    expect(card.subtitle.split("\n")[0]).toBe("Whose profile: @Peer");
     refuse = "@Peer is no longer in this section";
     expect(service.resolve({ botId: bot.id, threadId: bot.threadId, requestId, behavior: "allow" }))
       .toMatchObject({ claimed: true, state: "invalid", status: 404 });
@@ -195,5 +223,52 @@ describe("ProfileRequestService", () => {
       .toMatchObject({ state: "applied", targetBotId: peer.id });
     expect(store.bot(peer.id)!.title).toBe("Analyst");
     expect(store.bot(bot.id)!.title).toBe("");
+  });
+
+  it("bases isSetup on the target's whole profile, not just the fields this proposal touches", () => {
+    // An established bot (title already set) renamed by itself: only `name`
+    // is in `before`, so the old check ("every OTHER changed field is
+    // blank" over an empty list) vacuously said "setup".
+    const established = harness({ name: "Kiwi" });
+    established.store.patchBot(established.bot.id, { title: "Tracker" });
+    const rename = established.service.propose({ botId: established.bot.id, threadId: established.bot.threadId, changes: { name: "Kiwi2" }, reason: "r" });
+    expect(rename.title).toBe("Update Kiwi's profile?");
+
+    // A genuinely blank bot still reads as first-time setup.
+    const blank = harness({ name: "Scout" });
+    const first = blank.service.propose({ botId: blank.bot.id, threadId: blank.bot.threadId, changes: { title: "Tracker" }, reason: "r" });
+    expect(first.title).toBe("Set up Scout?");
+
+    // Cross-bot phrasing never depends on isSetup at all.
+    const chief = harness({ name: "Chief", chiefOfStaff: true });
+    const peer = chief.addBot({ name: "Peer" });
+    const cross = chief.service.propose({ botId: chief.bot.id, threadId: chief.bot.threadId, targetBotId: peer.id, changes: { name: "Peer2" }, reason: "r" });
+    expect(cross.title).toBe("Update @Peer's profile?");
+  });
+
+  it("rejects a payload whose requestId no longer matches its card", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const { requestId, messageId } = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { title: "T" }, reason: "r" });
+    const message = store.messagesFor(bot.threadId).find((candidate) => candidate.id === messageId)!;
+    const card = message.card!;
+    store.patchMessage(bot.threadId, messageId, {
+      card: { ...card, profileRequest: { ...card.profileRequest!, requestId: "mismatched" } },
+    });
+    expect(service.resolve({ botId: bot.id, threadId: bot.threadId, requestId, behavior: "allow" }))
+      .toEqual({ claimed: true, state: "invalid", error: "This profile request does not match its card", status: 409 });
+  });
+
+  it("truncates a long soul diff at 400 lines with a count of what was cut", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const before = Array.from({ length: 500 }, (_, i) => `line ${i}`).join("\n");
+    const after = Array.from({ length: 500 }, (_, i) => `changed ${i}`).join("\n");
+    store.patchBot(bot.id, { title: "already set" });
+    store.setSoul(bot.id, before);
+    const { detail } = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { soul: after }, reason: "r" });
+    const diffLines = detail.split("\n").filter((line) => /^[+\- ]/.test(line));
+    expect(diffLines).toHaveLength(400);
+    const moreLine = detail.split("\n").find((line) => /^… \(\+\d+ more lines\)$/.test(line));
+    expect(moreLine).toBeDefined();
+    expect(moreLine).toBe(`… (+${1000 - 400} more lines)`);
   });
 });

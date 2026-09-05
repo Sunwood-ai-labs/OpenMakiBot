@@ -5,6 +5,7 @@
 // scheduler revision. Everything here is re-validated at confirm time —
 // a card can sit open for days.
 import { lineDiff } from "../shared/line-diff.ts";
+import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { PROFILE_REQUEST_FIELDS, type ProfileRequestCardData, type ProfileRequestChanges } from "../shared/profile-request.ts";
 import { parseBotProfilePatch, type BotProfilePatchInput } from "./bot-profile.ts";
 import { newId } from "./contracts.ts";
@@ -117,27 +118,46 @@ function parseChanges(input: unknown): ProfileRequestChanges {
     const value = parsed.patch[field];
     // This payload is hidden under the card's visible fields, so the store's
     // shallow card redaction cannot reach it. Scrub before it is persisted.
-    if (typeof value === "string") changes[field] = redactSecretsInText(value);
+    if (typeof value !== "string") continue;
+    const redacted = redactSecretsInText(value);
+    // A mask can be LONGER than the secret it replaces (e.g. an 8-char
+    // value becomes "«redacted 8 chars»"), so a value that passed the raw
+    // cap can come out the other side over it. Re-check with the exact
+    // copy the parser itself would have used.
+    if (field === "soul") {
+      if (Buffer.byteLength(redacted, "utf8") > BOT_PROFILE_LIMITS.soul) {
+        throw new ProfileRequestError("standing instructions must be at most 24000 bytes");
+      }
+    } else {
+      const limit = BOT_PROFILE_LIMITS[field];
+      if (redacted.length > limit) {
+        throw new ProfileRequestError(`${field} must be at most ${limit} characters`);
+      }
+    }
+    changes[field] = redacted;
   }
   return changes;
 }
 
 export function profileCardCopy(
   target: { name: string; crossBot: boolean },
+  fullProfile: { title: string; description: string; soul: string },
   before: ProfileRequestChanges,
   changes: ProfileRequestChanges,
   reason: string,
 ): ProfileCardCopy {
-  const isSetup = (Object.keys(before) as (keyof ProfileRequestChanges)[])
-    .filter((field) => field !== "name")
-    .every((field) => !before[field]);
+  // Whether this is a first-time setup is a property of the bot's WHOLE
+  // profile, not of the fields this particular proposal happens to touch —
+  // otherwise a name-only rename of an established bot reads as "Set up X?"
+  // just because title/description/soul never appear in `before`.
+  const isSetup = !fullProfile.title && !fullProfile.description && !fullProfile.soul;
   const title = target.crossBot
     ? `Update @${target.name}'s profile?`
     : isSetup
       ? `Set up ${target.name}?`
       : `Update ${target.name}'s profile?`;
 
-  const lines: string[] = [`Why: ${reason}`];
+  const lines: string[] = target.crossBot ? [`Whose profile: @${target.name}`, `Why: ${reason}`] : [`Why: ${reason}`];
   for (const field of PROFILE_REQUEST_FIELDS) {
     if (field === "soul") continue;
     if (changes[field] === undefined) continue;
@@ -230,7 +250,7 @@ export class ProfileRequestService {
       expectedRevision: profileRevision(target),
     };
 
-    const copy = profileCardCopy({ name: targetName, crossBot }, before, finalChanges, reason);
+    const copy = profileCardCopy({ name: targetName, crossBot }, snapshot, before, finalChanges, reason);
     const persistence = this.canPersist?.(args.botId, args.threadId);
     if (persistence && !persistence.ok) {
       throw new ProfileRequestError(persistence.error, persistence.status);
@@ -266,6 +286,9 @@ export class ProfileRequestService {
     const card = message?.card;
     const payload = card?.profileRequest;
     if (!message || !card || !payload) return { claimed: false, state: "not_found" };
+    if (payload.requestId !== card.requestId) {
+      return { claimed: true, state: "invalid", error: "This profile request does not match its card", status: 409 };
+    }
 
     if (args.behavior !== "allow" && args.behavior !== "deny") {
       return { claimed: true, state: "invalid", error: "Profile confirmations must be confirmed or cancelled", status: 400 };

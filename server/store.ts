@@ -17,7 +17,7 @@ import { pickBotName } from "./names.ts";
 import { redactSecretsInText } from "./redact.ts";
 import { botAvatarProfile, type BotAvatarCrop } from "../shared/bot-avatar.ts";
 import type { MascotBodyId } from "../shared/mascot-bodies.ts";
-import type { ProfileRequestCardData } from "../shared/profile-request.ts";
+import type { ProfileRequestCardData, ProfileRequestChanges } from "../shared/profile-request.ts";
 import type { RoutineRequestCardData } from "../shared/routine-request.ts";
 import type { RoutineRunCardData } from "../shared/routine-run.ts";
 import type { SkillRequestCardData } from "../shared/skill-request.ts";
@@ -363,6 +363,26 @@ function redactBotAuthored<T extends Omit<Message, "id" | "at"> & { at?: number 
         preview,
         sha256,
         warnings: card.skillRequest.warnings.map((warning) => redactSecretsInText(warning)),
+      };
+    }
+    // A profile proposal's before/after text (and its reason) is hidden
+    // under the card's visible summary the same way a routine's or skill's
+    // is — scrub it too so nesting it on a card cannot bypass the
+    // transcript's secret-redaction boundary.
+    if (card.profileRequest) {
+      const scrubChanges = (changes: ProfileRequestChanges): ProfileRequestChanges => {
+        const out: ProfileRequestChanges = {};
+        for (const [key, value] of Object.entries(changes)) {
+          out[key as keyof ProfileRequestChanges] = redactSecretsInText(value);
+        }
+        return out;
+      };
+      card.profileRequest = {
+        ...card.profileRequest,
+        targetName: redactSecretsInText(card.profileRequest.targetName),
+        reason: redactSecretsInText(card.profileRequest.reason),
+        before: scrubChanges(card.profileRequest.before),
+        changes: scrubChanges(card.profileRequest.changes),
       };
     }
     out.card = card;

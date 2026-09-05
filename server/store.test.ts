@@ -890,6 +890,33 @@ describe("Store redacts bot-authored secrets on write", () => {
     if (routineCard.card?.routineRequest?.operation.action !== "create") throw new Error("missing routine payload");
     expect(routineCard.card.routineRequest.operation.routine.name).not.toContain(key);
     expect(routineCard.card.routineRequest.operation.routine.instructions).not.toContain(key);
+    const profileCard = store.appendMessage(bot.threadId, {
+      role: "bot",
+      kind: "options",
+      card: {
+        title: "Update profile?",
+        subtitle: "Why: because you asked",
+        options: ["Confirm", "Cancel"],
+        requestId: "profile-request",
+        tool: "update_profile",
+        profileRequest: {
+          version: 1,
+          requestId: "profile-request",
+          botId: bot.id,
+          threadId: bot.threadId,
+          targetBotId: bot.id,
+          targetName: `Scout ${key}`,
+          createdAt: 1,
+          reason: `because you asked about ${key}`,
+          changes: { name: "Kiwi" },
+          before: { name: "Scout", soul: `token ${key}` },
+          expectedRevision: "r",
+        },
+      },
+    });
+    expect(profileCard.card?.profileRequest?.targetName).not.toContain(key);
+    expect(profileCard.card?.profileRequest?.reason).not.toContain(key);
+    expect(profileCard.card?.profileRequest?.before.soul).not.toContain(key);
     const skillCard = store.appendMessage(bot.threadId, {
       role: "bot",
       kind: "options",
