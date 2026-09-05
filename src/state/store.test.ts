@@ -1015,22 +1015,70 @@ describe("bot settings section", () => {
     expect(next.botSettingsSection).toBe("soul");
   });
 
-  it("selecting another bot resets botSettingsSection to overview", () => {
+  it("selecting a different bot resets botSettingsSection to overview", () => {
+    // Add bot A and select it
     let state = reducer(initialState, {
+      type: "botAdded",
+      bot: { ...bot, id: "bot-a", threadId: "thread-a" },
+    });
+    // Add bot B (becomes selected automatically)
+    state = reducer(state, {
+      type: "botAdded",
+      bot: { ...bot, id: "bot-b", threadId: "thread-b" },
+    });
+    expect(state.selectedId).toBe("bot-b");
+
+    // Set section to "identity" while bot-b is selected
+    state = reducer(state, {
       type: "toggleSettings",
       open: true,
       section: "identity",
     });
-    state = reducer(state, {
-      type: "botAdded",
-      bot: { ...bot, id: "other-bot", threadId: "other-thread" },
-    });
     expect(state.botSettingsSection).toBe("identity");
 
+    // Select bot A → should reset to "overview" because we're changing bots
     const next = reducer(state, {
       type: "select",
-      id: "other-bot",
+      id: "bot-a",
     });
     expect(next.botSettingsSection).toBe("overview");
+  });
+
+  it("re-selecting the same bot keeps botSettingsSection, but selecting a different bot resets it", () => {
+    // Add bot A (becomes selected)
+    let state = reducer(initialState, {
+      type: "botAdded",
+      bot: { ...bot, id: "bot-a", threadId: "thread-a" },
+    });
+    expect(state.selectedId).toBe("bot-a");
+
+    // Open settings with section "soul"
+    state = reducer(state, {
+      type: "toggleSettings",
+      open: true,
+      section: "soul",
+    });
+    expect(state.botSettingsSection).toBe("soul");
+
+    // Re-select bot A (same bot) → section should stay "soul"
+    state = reducer(state, {
+      type: "select",
+      id: "bot-a",
+    });
+    expect(state.botSettingsSection).toBe("soul");
+
+    // Add bot B (becomes selected)
+    state = reducer(state, {
+      type: "botAdded",
+      bot: { ...bot, id: "bot-b", threadId: "thread-b" },
+    });
+    expect(state.selectedId).toBe("bot-b");
+
+    // Select bot A again → should reset to "overview" because we're changing from bot-b to bot-a
+    state = reducer(state, {
+      type: "select",
+      id: "bot-a",
+    });
+    expect(state.botSettingsSection).toBe("overview");
   });
 });
