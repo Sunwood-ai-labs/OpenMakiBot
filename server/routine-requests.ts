@@ -70,6 +70,7 @@ const routineToolDefinitionSchema = z.object({
   runOn: z.enum(["maus", "cloud"]).optional(),
   durationMinutes: z.number().optional(),
   timeoutMinutes: z.number().nullable().optional(),
+  continuity: z.boolean().optional(),
 }).strict();
 
 const routineToolChangesSchema = routineToolDefinitionSchema
@@ -121,6 +122,7 @@ const storedDefinitionSchema = z.object({
   runOn: z.enum(["maus", "cloud"]),
   durationMinutes: z.number().int().min(5).max(240),
   timeoutMinutes: z.number().int().min(5).max(240).optional(),
+  continuity: z.boolean().optional(),
 }).strict();
 const storedChangesSchema = storedDefinitionSchema
   .omit({ timeoutMinutes: true })
@@ -222,6 +224,9 @@ export interface ProposeRoutineRequestArgs {
   proposal: unknown;
   /** Room cards retain the member attribution used by every other bot message. */
   from?: { botId: string; name: string; color: string };
+  /** Exact caller/turn lease checked synchronously after any readiness await
+   * and immediately before the durable card append. */
+  canCommit?: () => boolean;
 }
 
 export interface RoutineProposalResult {
@@ -379,6 +384,7 @@ function normalizeDefinition(input: RoutineToolDefinitionInput, now: number): Ro
     runOn: runOn(input.runOn),
     durationMinutes: duration(input.durationMinutes),
     ...(timeoutMinutes == null ? {} : { timeoutMinutes }),
+    ...(input.continuity === true ? { continuity: true } : {}),
   };
 }
 
@@ -390,6 +396,7 @@ function normalizeChanges(input: RoutineToolChangesInput, now: number): RoutineR
   if (input.runOn !== undefined) changes.runOn = runOn(input.runOn);
   if (input.durationMinutes !== undefined) changes.durationMinutes = duration(input.durationMinutes);
   if (input.timeoutMinutes !== undefined) changes.timeoutMinutes = timeout(input.timeoutMinutes);
+  if (input.continuity !== undefined) changes.continuity = input.continuity === true;
   return changes;
 }
 
@@ -509,6 +516,7 @@ function effectiveDefinition(operation: RoutineRequestOperation, manager: Routin
     runOn: existing.runOn,
     durationMinutes: existing.durationMinutes,
     ...(existing.timeoutMinutes === undefined ? {} : { timeoutMinutes: existing.timeoutMinutes }),
+    ...(existing.continuity ? { continuity: true } : {}),
   };
   if (operation.action !== "update") return base;
   const { timeoutMinutes, ...changes } = operation.changes;
@@ -581,6 +589,7 @@ function cardCopy(
       ...(operation.action === "create" || operation.action === "update"
         ? [consequenceLine(definition.schedule)]
         : []),
+      `Continuity: ${definition.continuity ? "Carries the previous run's report into the next run" : "Each run starts fresh"}`,
       "",
       "Instructions:",
       visibleInstructions,
@@ -600,6 +609,7 @@ function inputFromDefinition(definition: RoutineRequestDefinition, botId: string
     schedule: asSchedule(definition.schedule, now),
     durationMinutes: definition.durationMinutes,
     ...(definition.timeoutMinutes === undefined ? {} : { timeoutMinutes: definition.timeoutMinutes }),
+    ...(definition.continuity ? { continuity: true } : {}),
   };
 }
 
@@ -611,6 +621,7 @@ function updateFromChanges(changes: RoutineRequestChanges, now: number): Partial
   if (changes.runOn !== undefined) patch.runOn = changes.runOn;
   if (changes.durationMinutes !== undefined) patch.durationMinutes = changes.durationMinutes;
   if (changes.timeoutMinutes !== undefined) patch.timeoutMinutes = changes.timeoutMinutes;
+  if (changes.continuity !== undefined) patch.continuity = changes.continuity;
   return patch;
 }
 
@@ -764,6 +775,9 @@ export class RoutineRequestService {
     const persistence = this.canPersist?.(botId, threadId);
     if (persistence && !persistence.ok) {
       throw new RoutineRequestError(persistence.error, persistence.status);
+    }
+    if (args.canCommit && !args.canCommit()) {
+      throw new RoutineRequestError("The requesting turn ended before this proposal could be saved", 401);
     }
     const message = this.store.appendMessage(threadId, messageInput);
     return {

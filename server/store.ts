@@ -16,6 +16,7 @@ import { newId, type CloudBackend, type ModelSelection, type ThreadId } from "./
 import { pickBotName } from "./names.ts";
 import { redactSecretsInText } from "./redact.ts";
 import { botAvatarProfile, type BotAvatarCrop } from "../shared/bot-avatar.ts";
+import { isApprovalMode, type ApprovalMode } from "../shared/approval-mode.ts";
 import type { MascotBodyId } from "../shared/mascot-bodies.ts";
 import type { ProfileRequestCardData, ProfileRequestChanges } from "../shared/profile-request.ts";
 import type { RoutineRequestCardData } from "../shared/routine-request.ts";
@@ -78,6 +79,8 @@ export interface ConnectorCardData {
   status: "required" | "authorizing" | "connected" | "failed";
   /** Cards created by one agent request resume together after all connect. */
   resumeKey: string;
+  /** Account alias supplied by the agent when adding a second (or first) account. */
+  alias?: string;
   error?: string;
   dismissed?: boolean;
   resumed?: boolean;
@@ -128,6 +131,13 @@ export interface Message {
    * model saw it mid-turn, so the transcript marks it — a reader should
    * know the reply above it may already account for this line */
   steered?: boolean;
+  /** A user-role message that did not come from a person at a keyboard:
+   * a headless server's HTTP API, reached with no paired session and no
+   * browser origin — which is to say, most often a script, and possibly a
+   * bot's own shell. Stamped rather than refused because loopback is the
+   * owner on such a server by design; but a reader (a bot's room turn, the
+   * posting budget, the transcript) must not take it for the person. */
+  via?: "api";
   /** Provider turn that produced this message. Assistant output can arrive
    * in several pieces around tool calls; the UI uses this identity to keep
    * those pieces together without discarding them. */
@@ -157,6 +167,12 @@ export interface Message {
    * letting it read as ordinary room conversation. `unattended` records that
    * nobody was watching the bot that posted it. */
   peerPost?: { unattended?: boolean };
+  /** Set on the user-role line another bot delivered with ask_bot into this
+   * bot's own conversation. The text opens with the provenance note, but a
+   * reader that windows into the message (recall snippets, a renderer) never
+   * sees the opening — this is the same fact where it cannot be cut off.
+   * `unattended` records that nobody was watching the bot that asked. */
+  peerAsk?: { botId: string; name: string; unattended?: boolean };
   /** emoji reactions; by = "user" or a member botId. */
   reactions?: Array<{ emoji: string; by: string }>;
   /** comm chips: "Messaged @X" in the caller's chat, linking to the
@@ -485,6 +501,18 @@ export interface BotRecord {
    * working instead of stopping to ask. Questions it asks YOU still come
    * through, and a short list of destructive commands still stops it. */
   autoApprove?: boolean;
+  /** Canonical approval level. Missing means a legacy record and resolves
+   * through autoApprove (true = safe Auto, otherwise Ask). */
+  approvalMode?: ApprovalMode;
+  /** Server-private elevation journal. Full/Custom executes as Ask until
+   * Electron confirms the exact prepared reply and then activates it over
+   * the utility-process channel. Any marker surviving a restart is revoked
+   * during Store load. */
+  approvalGrant?: {
+    requestId: string;
+    mode: "full" | "custom";
+    phase: "prepared" | "confirmed" | "activated" | "committed";
+  };
   /** Optional model review of otherwise undecided, attended approval cards.
    * Unknown persisted values are treated as off by the review boundary. */
   autoReview?: "off" | "shadow" | "enforce";
@@ -720,6 +748,21 @@ export class Store {
       }
       if (b.autoStartVps !== undefined && b.autoStartVps !== true && b.autoStartVps !== false) {
         delete b.autoStartVps;
+        botsMigrated = true;
+      }
+      if (b.approvalMode !== undefined && !isApprovalMode(b.approvalMode)) {
+        delete b.approvalMode;
+        botsMigrated = true;
+      }
+      // A trusted elevation is a prepare/confirm/activate commit. If the
+      // desktop process or its private reply path died before activation,
+      // the durable marker survives beside the mode in the same atomic
+      // bots.json write. Revoke it before schedulers, listeners, or HTTP can
+      // start any new work.
+      if (b.approvalGrant !== undefined) {
+        b.approvalMode = "ask";
+        b.autoApprove = false;
+        delete b.approvalGrant;
         botsMigrated = true;
       }
       const avatar = botAvatarProfile(b);
@@ -1114,6 +1157,14 @@ export class Store {
 
   messagesFor(threadId: string): Message[] {
     return this.thread(threadId).messages;
+  }
+
+  /** Used only with newly allocated import threads. No live actions are
+   * replayed: the importer supplies inert text and freshly remapped IDs. */
+  importTranscript(threadId: string, messages: Message[], activeLeafId: string | null): void {
+    if (this.messagesFor(threadId).length) throw new Error("Cannot import over an existing conversation");
+    mdb.importThread(threadId, messages, activeLeafId);
+    this.threads.delete(threadId);
   }
 
   activeLeaf(threadId: string): string | null {

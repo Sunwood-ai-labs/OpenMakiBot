@@ -46,7 +46,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -101,6 +101,7 @@ import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.ChatTarget
 import com.openmausbot.companion.core.LocalMessageLink
 import com.openmausbot.companion.core.PendingMessageAttachment
+import com.openmausbot.companion.core.QueuedSend
 import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.Dictation
 import com.openmausbot.companion.core.DisplayedMessageAttachment
@@ -112,6 +113,7 @@ import com.openmausbot.companion.core.transcriptRows
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -209,6 +211,38 @@ private fun LoadedChat(
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    // Words this computer is holding until the running turn settles.
+    val queuedSends = state.pendingQueued[threadId].orEmpty()
+    val steeringInstanceIds by session.steeringInstanceIds.collectAsState()
+    // Whether this bot's engine can take a message INTO the running turn.
+    // Unknown reads as false, which is the promise that is always safe to
+    // make: the message will be sent, just not necessarily right now.
+    val steerTarget = (chat as? Chat.BotChat)?.bot
+    val engineCanSteer = steerTarget?.modelSelection?.instanceId
+        ?.let { it in steeringInstanceIds }
+        ?: false
+    // A Steer is in flight. Cleared when the queue drains or the turn ends,
+    // whichever the engine gets to first — and after twenty seconds even if
+    // neither frame ever arrives, because a control that spins for ever is
+    // worse than one that admits it does not know.
+    var steering by remember(threadId) { mutableStateOf(false) }
+    LaunchedEffect(queuedSends.size, chat.busy) {
+        if (queuedSends.isEmpty() || !chat.busy) steering = false
+    }
+    LaunchedEffect(steering) {
+        if (steering) {
+            delay(20_000)
+            steering = false
+        }
+    }
+    val steerNow: (() -> Unit)? = steerTarget?.let { target ->
+        {
+            haptics.play(HapticCue.SELECT)
+            dictation.stop()
+            steering = true
+            scope.launch { session.interrupt(target) }
+        }
+    }
     var showingTasks by remember { mutableStateOf(false) }
     // Saveable: the profile form is a form, and a rotation must not throw away
     // what was typed into it — the sheet has to come back for that to matter.
@@ -568,6 +602,7 @@ private fun LoadedChat(
                 dictation.stop()
                 if (bot != null) onOpenComputer(bot.id)
             }
+            ChatActionId.SETTINGS -> if (bot != null) showingProfile = true
             ChatActionId.SHARE_MARKDOWN -> share(scope, environment, threadId, ShareFormat.MARKDOWN)
             ChatActionId.SHARE_JSON -> share(scope, environment, threadId, ShareFormat.JSON)
             ChatActionId.INTERRUPT -> if (bot != null) scope.launch { session.interrupt(bot) }
@@ -848,6 +883,14 @@ private fun LoadedChat(
                 attachments = attachments,
                 sending = sendingMessage,
                 preparing = preparingAttachments,
+                busy = chat.busy,
+                engineCanSteer = engineCanSteer,
+                queuedSends = queuedSends,
+                steering = steering,
+                onSteer = steerNow,
+                onCancelQueued = { queued ->
+                    scope.launch { session.cancelQueued(queued, chat) }
+                },
                 openingFileName = openingFileName,
                 attachmentError = fileOpenError ?: attachmentError,
                 onRemoveAttachment = { attachment ->
@@ -1039,7 +1082,7 @@ private fun ChatHeader(
                 modifier = if (chat is Chat.BotChat) {
                     Modifier
                         .clickable(role = Role.Button, onClick = onOpenProfile)
-                        .semantics { contentDescription = "Open ${chat.name} profile" }
+                        .semantics { contentDescription = "Open ${chat.name} settings" }
                 } else {
                     Modifier
                 },
@@ -1102,7 +1145,7 @@ private fun NamePill(chat: Chat, onOpen: () -> Unit) {
             .clickable(
                 role = Role.Button,
                 onClickLabel = if (isBot) {
-                    "Open ${chat.name} profile"
+                    "Open ${chat.name} settings"
                 } else {
                     "Open ${chat.name} chat options"
                 },
@@ -1131,7 +1174,7 @@ private fun NamePill(chat: Chat, onOpen: () -> Unit) {
             )
         }
         Icon(
-            imageVector = if (isBot) Icons.Filled.Person else Icons.Filled.MoreVert,
+            imageVector = if (isBot) Icons.Filled.Settings else Icons.Filled.MoreVert,
             contentDescription = null,
             tint = secondaryTint,
             modifier = Modifier.size(16.dp),
@@ -1277,6 +1320,8 @@ private fun ChatActionIcon(id: ChatActionId, tint: Color) {
             Icon(Icons.AutoMirrored.Filled.List, null, tint = tint, modifier = modifier)
         ChatActionId.WATCH_COMPUTER ->
             Icon(painterResource(R.drawable.ic_display), null, tint = tint, modifier = modifier)
+        ChatActionId.SETTINGS ->
+            Icon(Icons.Filled.Settings, null, tint = tint, modifier = modifier)
         ChatActionId.SHARE_MARKDOWN, ChatActionId.SHARE_JSON ->
             Icon(Icons.Filled.Share, null, tint = tint, modifier = modifier)
         ChatActionId.INTERRUPT ->
@@ -1308,6 +1353,12 @@ private fun Composer(
     attachments: List<PendingMessageAttachment>,
     sending: Boolean,
     preparing: Boolean,
+    busy: Boolean,
+    engineCanSteer: Boolean,
+    queuedSends: List<QueuedSend>,
+    steering: Boolean,
+    onSteer: (() -> Unit)?,
+    onCancelQueued: (QueuedSend) -> Unit,
     openingFileName: String?,
     attachmentError: String?,
     onRemoveAttachment: (PendingMessageAttachment) -> Unit,
@@ -1372,6 +1423,17 @@ private fun Composer(
                         .padding(horizontal = 6.dp, vertical = 4.dp),
                 )
             }
+        }
+        // Everything the computer is holding, stacked straight above the chat
+        // bar in the order it was sent.
+        queuedSends.forEach { queued ->
+            QueuedSendRow(
+                send = queued,
+                onSteer = onSteer,
+                steering = steering,
+                onCancel = { onCancelQueued(queued) },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         if (attachments.isNotEmpty()) {
             Row(
@@ -1485,11 +1547,13 @@ private fun Composer(
                 ) {
                     if (draft.isEmpty()) {
                         Text(
-                            text = when {
-                                sending -> "Sending…"
-                                dictationListening -> "Listening…"
-                                else -> "Ask $name"
-                            },
+                            text = ComposerPromise.placeholder(
+                                name = name,
+                                busy = busy,
+                                engineCanSteer = engineCanSteer,
+                                sending = sending,
+                                listening = dictationListening,
+                            ),
                             fontSize = 17.sp,
                             color = secondaryTint,
                         )

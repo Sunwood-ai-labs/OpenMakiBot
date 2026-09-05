@@ -1,21 +1,24 @@
-// Permissions: how autonomously this bot acts — Auto mode, review-routine
-// approvals, whether it asks before contacting other bots, and whether it
-// holds the section's Chief of Staff role. Moved verbatim from
-// SettingsPanel.tsx (Chief of Staff ~720-755, Ask-before-contacting
-// ~757-776, Auto mode ~968-989, Review routine approvals ~991-1024).
+// Permissions: how autonomously this bot acts — the approval level (ask /
+// auto / full / custom), review-routine approvals, whether it asks before
+// contacting other bots, and whether it holds the section's Chief of Staff
+// role. Moved from SettingsPanel.tsx (Chief of Staff ~720-755,
+// Ask-before-contacting ~757-776, Approval level ~990-1010, Review routine
+// approvals ~1013-1050).
 //
-// The Auto-mode branch of LocalComputerAutoWarning (warning when turning
-// Auto mode on while bot.computer === "local") moves here with its
-// trigger; the Works-on-picker branch (turning computer to "local" while
-// Auto mode is already on) stays with AccessSection, next to that picker.
-// Each section keeps its own local `localAutoWarning` state — only one
-// section is ever visible at a time, so there's no risk of two warnings
-// fighting over one flag the way SettingsPanel's single shared state did.
+// The Auto branch of LocalComputerAutoWarning (choosing Auto while
+// bot.computer === "local") and the FullAccessWarning live here with their
+// triggers; the Works-on-picker branch (turning computer to "local" while
+// already on Auto) stays with AccessSection, next to that picker. The
+// warnings remember which bot they were opened for, so a bot switch while
+// one is up never applies the choice to the newly selected bot.
 import { useState } from "react";
 import { Crown } from "lucide-react";
 
 import { cn } from "@/lib/cn";
-import type { Bot } from "@/state/store";
+import { useStore, type Bot } from "@/state/store";
+import type { ApprovalMode } from "../../../shared/approval-mode";
+import { ApprovalModeSelector } from "../ApprovalModeSelector";
+import { FullAccessWarning } from "../FullAccessWarning";
 import { LocalComputerAutoWarning } from "../LocalComputerAutoWarning";
 import { Switch } from "../SettingsPrimitives";
 import type { useBotSettingsDerived } from "./useBotSettingsDerived";
@@ -27,8 +30,22 @@ export function PermissionsSection({
   bot: Bot;
   derived: ReturnType<typeof useBotSettingsDerived>;
 }) {
-  const { patch, canCoordinate, canAutoReview, sectionName, currentChief } = derived;
-  const [localAutoWarning, setLocalAutoWarning] = useState(false);
+  const { patch, engine, canCoordinate, canAutoReview, approvalMode, trustedModesAvailable, sectionName, currentChief } = derived;
+  const { dispatch } = useStore();
+  const [localAutoWarning, setLocalAutoWarning] = useState<string | null>(null);
+  const [fullAccessTarget, setFullAccessTarget] = useState<string | null>(null);
+  const setApprovalMode = (mode: ApprovalMode) => {
+    if (bot.busy || mode === approvalMode) return;
+    if (mode === "full") {
+      setFullAccessTarget(bot.id);
+      return;
+    }
+    if (mode === "auto" && bot.computer === "local") {
+      setLocalAutoWarning(bot.id);
+      return;
+    }
+    patch({ approvalMode: mode });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -92,35 +109,34 @@ export function PermissionsSection({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-xl bg-card p-4">
-        <div>
-          <div className="text-[15px] font-medium text-ink">Auto mode</div>
-          <div className="mt-0.5 text-[13px] text-ink-secondary">
-            {bot.computer === "local"
-              ? bot.autoApprove
-                ? "Keeps going on this computer — you'll still be asked about anything destructive, and about questions it asks you."
-                : "Approve each action on this computer yourself. Turn on to let this bot keep working without stopping to ask."
-              : bot.autoApprove
-                ? "Keeps going on its own — you'll still be asked about anything destructive, and about questions it asks you."
-                : "Approve each action yourself. Turn on to let this bot keep working without stopping to ask."}
-          </div>
+      <div className="rounded-xl bg-card p-4">
+        <div className="text-[15px] font-medium text-ink">Approval level</div>
+        <div className="mt-0.5 text-[13px] text-ink-secondary">
+          Choose how much this bot can do before it stops to ask you.
         </div>
-        <Switch
-          checked={Boolean(bot.autoApprove)}
-          aria-label="Auto mode"
-          onClick={() => {
-            if (!bot.autoApprove && bot.computer === "local") setLocalAutoWarning(true);
-            else patch({ autoApprove: !bot.autoApprove });
-          }}
-        />
+        <div className="mt-3">
+          <ApprovalModeSelector
+            approvalMode={bot.approvalMode}
+            autoApprove={bot.autoApprove}
+            providerName={engine?.displayName ?? bot.name}
+            driverKind={engine?.driverKind ?? ""}
+            onSelect={setApprovalMode}
+            menuDirection="down"
+            wide
+            disabled={Boolean(bot.busy)}
+            trustedModesAvailable={trustedModesAvailable}
+          />
+        </div>
       </div>
 
       <div className="rounded-xl bg-card p-4">
         <div className="text-[15px] font-medium text-ink">Review routine approvals</div>
         <div className="mt-0.5 text-[13px] text-ink-secondary">
-          {canAutoReview
-            ? "The same engine reviews ordinary approval cards. Existing safety rules, unattended turns, local-computer access, and questions still wait for you."
-            : "This engine cannot run an isolated review safely, so approval cards continue to wait for you."}
+          {approvalMode === "custom"
+            ? "Custom follows your Codex config.toml and its approval prompts. Routine auto-review stays off in this mode."
+            : canAutoReview
+              ? "The same engine reviews ordinary approval cards. Existing safety rules, unattended turns, local-computer access, and questions still wait for you."
+              : "This engine cannot run an isolated review safely, so approval cards continue to wait for you."}
         </div>
         <div className="mt-3 flex gap-1 rounded-lg bg-inset p-0.5">
           {(
@@ -130,12 +146,20 @@ export function PermissionsSection({
               ["enforce", "On", "Answer only reviews that return a strict approval."],
             ] as const
           ).map(([value, label, hint]) => {
-            const current = bot.autoReview === "shadow" || bot.autoReview === "enforce" ? bot.autoReview : "off";
-            const disabled = value !== "off" && !canAutoReview;
+            const current = approvalMode === "custom"
+              ? "off"
+              : bot.autoReview === "shadow" || bot.autoReview === "enforce"
+                ? bot.autoReview
+                : "off";
+            const disabled = value !== "off" && (approvalMode === "custom" || !canAutoReview);
             return (
               <button
                 key={value}
-                title={disabled ? "Not supported by this engine" : hint}
+                title={disabled
+                  ? approvalMode === "custom"
+                    ? "Custom approval behavior is controlled by config.toml"
+                    : "Not supported by this engine"
+                  : hint}
                 disabled={disabled}
                 onClick={() => patch({ autoReview: value })}
                 className={cn(
@@ -151,11 +175,23 @@ export function PermissionsSection({
       </div>
 
       <LocalComputerAutoWarning
-        open={localAutoWarning}
-        onCancel={() => setLocalAutoWarning(false)}
+        open={localAutoWarning !== null}
+        onCancel={() => setLocalAutoWarning(null)}
         onConfirm={() => {
-          patch({ autoApprove: true, acknowledgeLocalAuto: true });
-          setLocalAutoWarning(false);
+          const target = localAutoWarning;
+          setLocalAutoWarning(null);
+          if (!target) return;
+          dispatch({ type: "updateBot", botId: target, patch: { approvalMode: "auto", acknowledgeLocalAuto: true } });
+        }}
+      />
+      <FullAccessWarning
+        open={fullAccessTarget !== null}
+        onCancel={() => setFullAccessTarget(null)}
+        onConfirm={() => {
+          const target = fullAccessTarget;
+          setFullAccessTarget(null);
+          if (!target) return;
+          dispatch({ type: "updateBot", botId: target, patch: { approvalMode: "full", confirmFullAccess: true } });
         }}
       />
     </div>

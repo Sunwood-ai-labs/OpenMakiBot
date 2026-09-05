@@ -8,6 +8,7 @@ import { builtInBrowserEnabled } from "@/lib/feature-flags";
 import { instanceSupportsLocalComputer, localComputerDisabledReason, localComputerSelectable } from "@/lib/local-computer";
 import { stateForBot } from "@/lib/mascot";
 import { useStore, type Bot } from "@/state/store";
+import { approvalModeFor } from "../../../shared/approval-mode";
 
 export type BotPatch = Partial<
   Pick<
@@ -26,6 +27,7 @@ export type BotPatch = Partial<
     | "avatarCrop"
     | "alwaysAllow"
     | "autoApprove"
+    | "approvalMode"
     | "autoReview"
     | "speakReplies"
     | "voice"
@@ -35,7 +37,7 @@ export type BotPatch = Partial<
     | "browser"
     | "modelSelection"
   >
-> & { computer?: Bot["computer"] | null; acknowledgeLocalAuto?: boolean };
+> & { computer?: Bot["computer"] | null; acknowledgeLocalAuto?: boolean; confirmFullAccess?: boolean };
 
 export function useBotSettingsDerived(bot: Bot) {
   const { state, dispatch } = useStore();
@@ -48,6 +50,12 @@ export function useBotSettingsDerived(bot: Bot) {
   const mascotMotion = state.mascotMotion?.botId === bot.id ? state.mascotMotion : null;
   const engine = state.instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId);
   const canAutoReview = engine?.capabilities?.approvalReview === true;
+  // The approval level (ask / auto / full / custom) as the shared rule reads
+  // it from the record — bots saved before approvalMode existed still carry
+  // only autoApprove. Full and Custom need the packaged desktop's trusted
+  // channel (SettingsPanel used the same test before the dialog replaced it).
+  const approvalMode = approvalModeFor(bot);
+  const trustedModesAvailable = Boolean(window.ogb?.approvals && capabilities.host.packaged);
   const canCoordinate = engine?.capabilities?.agentsMcp === true;
   const canUseConnectedApps = engine?.capabilities?.composioMcp === true;
   const canUseVps = engine?.capabilities?.computerMcp === true && engine.driverKind !== "boxAgent";
@@ -80,6 +88,8 @@ export function useBotSettingsDerived(bot: Bot) {
     patch,
     engine,
     canAutoReview,
+    approvalMode,
+    trustedModesAvailable,
     canCoordinate,
     canUseConnectedApps,
     canUseVps,

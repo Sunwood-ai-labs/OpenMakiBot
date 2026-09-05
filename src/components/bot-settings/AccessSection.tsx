@@ -106,7 +106,7 @@ export function AccessSection({
   bot: Bot;
   derived: ReturnType<typeof useBotSettingsDerived>;
 }) {
-  const { state } = useStore();
+  const { state, dispatch } = useStore();
   const {
     patch,
     canUseVps,
@@ -124,7 +124,7 @@ export function AccessSection({
     localSelectable,
     localDisabledReason,
   } = derived;
-  const [localAutoWarning, setLocalAutoWarning] = useState(false);
+  const [localAutoWarning, setLocalAutoWarning] = useState<string | null>(null);
   const [inventory, setInventory] = useState<ConnectorInventory | null>(null);
 
   useEffect(() => {
@@ -173,7 +173,7 @@ export function AccessSection({
               }
               onClick={() => {
                 if ((mode === null && bot.computer === undefined) || mode === bot.computer) return;
-                if (mode === "local" && bot.autoApprove) setLocalAutoWarning(true);
+                if (mode === "local" && derived.approvalMode === "auto") setLocalAutoWarning(bot.id);
                 // a browser-only bot must actually have its browser: flip
                 // the per-bot switch on with the destination
                 else if (mode === "browser") patch({ computer: mode, browser: true });
@@ -350,11 +350,13 @@ export function AccessSection({
       </div>
 
       <LocalComputerAutoWarning
-        open={localAutoWarning}
-        onCancel={() => setLocalAutoWarning(false)}
+        open={localAutoWarning !== null}
+        onCancel={() => setLocalAutoWarning(null)}
         onConfirm={() => {
-          patch({ computer: "local", acknowledgeLocalAuto: true });
-          setLocalAutoWarning(false);
+          const target = localAutoWarning;
+          setLocalAutoWarning(null);
+          if (!target) return;
+          dispatch({ type: "updateBot", botId: target, patch: { computer: "local", acknowledgeLocalAuto: true } });
         }}
       />
     </div>
