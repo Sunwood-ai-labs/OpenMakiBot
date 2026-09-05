@@ -1,5 +1,5 @@
 // App settings, as a real modal with sections rather than one long panel.
-// Per-bot settings (persona, model, computer) stay in SettingsPanel — this
+// Per-bot settings (persona, model, computer) live in BotSettingsDialog — this
 // is the stuff shared by every bot: who you are, your keys, and the
 // machine your bots can borrow.
 import { useEffect, useRef, useState } from "react";

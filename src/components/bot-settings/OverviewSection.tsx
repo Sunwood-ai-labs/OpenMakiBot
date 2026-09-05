@@ -6,15 +6,9 @@
 import { useState } from "react";
 
 import type { BotOverview } from "@/lib/bot-overview-types";
-import { niceDate, niceTime } from "@/lib/schedule-label";
+import { whenLabel } from "@/lib/schedule-label";
 import type { BotSettingsSection } from "@/state/store";
 import { PromptPreview, type PromptPreviewData } from "./PromptPreview";
-
-function formatWhen(at: number): string {
-  const date = new Date(at);
-  const sameDay = new Date().toDateString() === date.toDateString();
-  return sameDay ? niceTime(at) : niceDate(at);
-}
 
 export function OverviewSection({
   overview,
@@ -67,8 +61,8 @@ export function OverviewSection({
           <p className="mt-2 text-[13px] text-ink-secondary">Nothing scheduled or learned yet.</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-1.5 text-[13px] leading-relaxed text-ink">
-            {overview.does.map((line) => (
-              <li key={line}>{line}</li>
+            {overview.does.map((line, i) => (
+              <li key={i}>{line}</li>
             ))}
           </ul>
         )}
@@ -80,8 +74,8 @@ export function OverviewSection({
           <p className="mt-2 text-[13px] text-ink-secondary">Nothing yet.</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-1.5 text-[13px] leading-relaxed text-ink">
-            {overview.reaches.map((line) => (
-              <li key={line}>{line}</li>
+            {overview.reaches.map((line, i) => (
+              <li key={i}>{line}</li>
             ))}
           </ul>
         )}
@@ -90,8 +84,8 @@ export function OverviewSection({
       <div className="rounded-xl bg-card p-4">
         <div className="text-[15px] font-medium text-ink">Won&rsquo;t</div>
         <ul className="mt-2 flex flex-col gap-1.5 text-[13px] leading-relaxed text-ink">
-          {overview.wont.map((line) => (
-            <li key={line}>{line}</li>
+          {overview.wont.map((line, i) => (
+            <li key={i}>{line}</li>
           ))}
         </ul>
       </div>
@@ -118,10 +112,10 @@ export function OverviewSection({
           <p className="mt-2 text-[13px] text-ink-secondary">Nothing changed recently.</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-1.5 text-[13px] text-ink">
-            {overview.recent.map((entry) => (
-              <li key={entry.at} className="flex items-baseline justify-between gap-3">
+            {overview.recent.map((entry, i) => (
+              <li key={i} className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate">{entry.summary}</span>
-                <span className="shrink-0 text-[11.5px] text-ink-secondary">· {formatWhen(entry.at)}</span>
+                <span className="shrink-0 text-[11.5px] text-ink-secondary">· {whenLabel(entry.at)}</span>
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { intervalLabel, runsPerDay, scheduleSentence } from "./schedule-label";
+import { intervalLabel, scheduleSentence, whenLabel } from "./schedule-label";
 
 describe("schedule labels", () => {
   it("names intervals", () => {
@@ -21,9 +21,13 @@ describe("schedule labels", () => {
     expect(scheduleSentence({ type: "once", at: Date.UTC(2026, 8, 5, 12) })).toMatch(/^once on /);
   });
 
-  it("estimates runs per day", () => {
-    expect(runsPerDay({ type: "interval", everyMinutes: 5, anchorAt: 0 })).toBe(288);
-    expect(runsPerDay({ type: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5] })).toBe(0.71);
-    expect(runsPerDay({ type: "once", at: 0 })).toBeNull();
+  it("labels a change by time today and by date otherwise", () => {
+    const now = Date.now();
+    expect(whenLabel(now)).toBe(new Date(now).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+    const lastYear = new Date(now);
+    lastYear.setFullYear(lastYear.getFullYear() - 1);
+    expect(whenLabel(lastYear.getTime())).toBe(
+      lastYear.toLocaleDateString([], { month: "short", day: "numeric" }),
+    );
   });
 });

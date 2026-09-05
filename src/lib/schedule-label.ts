@@ -11,6 +11,15 @@ export function niceDate(at: number): string {
   return new Date(at).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 }
 
+/** A change's timestamp for a list row: the time alone if it happened
+ * today, else the date — one rule shared by the Overview's recent-changes
+ * card and the History section so the same row never reads two ways. */
+export function whenLabel(at: number): string {
+  const date = new Date(at);
+  const sameDay = new Date().toDateString() === date.toDateString();
+  return sameDay ? niceTime(at) : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export function durationLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
   if (minutes % 60 === 0) return `${minutes / 60} hr`;
@@ -71,17 +80,4 @@ export function scheduleSentence(schedule: RoutineSchedule): string {
 
   // Custom multi-day selection
   return `${days.map((day) => DAY_NAMES[day]).join(", ")} at ${timeStr}`;
-}
-
-export function runsPerDay(schedule: RoutineSchedule): number | null {
-  if (schedule.type === "once") {
-    return null;
-  }
-  if (schedule.type === "interval") {
-    return Math.round(1440 / schedule.everyMinutes);
-  }
-  // type === "daily"
-  const runsPerWeek = schedule.weekdays.length;
-  const runsPerDayValue = runsPerWeek / 7;
-  return Math.round(runsPerDayValue * 100) / 100;
 }

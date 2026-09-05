@@ -25,16 +25,16 @@ export const BOT_SECTIONS: Array<{
   icon: LucideIcon;
   keywords: string[];
 }> = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard, keywords: ["summary", "status", "what it does"] },
+  { id: "overview", label: "Overview", icon: LayoutDashboard, keywords: ["summary", "status", "what it does", "won't", "prompt", "what the model sees"] },
   { id: "identity", label: "Identity", icon: User, keywords: ["name", "title", "avatar", "blurb", "instructions"] },
-  { id: "soul", label: "Soul", icon: Sparkles, keywords: ["standing instructions", "persona", "rules", "soul.md"] },
+  { id: "soul", label: "Soul", icon: Sparkles, keywords: ["standing instructions", "instructions", "persona", "rules", "soul.md"] },
   { id: "skills", label: "Skills", icon: BookOpen, keywords: ["skills", "learned", "procedures", "teach"] },
   { id: "memory", label: "Memory", icon: Brain, keywords: ["memory", "notes", "remember", "topics"] },
   { id: "routines", label: "Routines", icon: CalendarClock, keywords: ["schedule", "routines", "cron", "tasks"] },
-  { id: "access", label: "Access", icon: Network, keywords: ["peers", "coordination", "chief of staff", "section", "webhooks"] },
-  { id: "model", label: "Model", icon: Cpu, keywords: ["engine", "model", "provider", "cli"] },
-  { id: "permissions", label: "Permissions", icon: ShieldCheck, keywords: ["approve", "auto approve", "review", "computer"] },
+  { id: "access", label: "Access", icon: Network, keywords: ["works on", "computer", "vm", "cloud", "vps", "folder", "workspace", "browser", "connected apps", "composio", "webhooks", "always allow", "grants"] },
+  { id: "model", label: "Model", icon: Cpu, keywords: ["engine", "model", "provider", "cli", "effort"] },
+  { id: "permissions", label: "Permissions", icon: ShieldCheck, keywords: ["auto mode", "approve", "auto approve", "review", "routine approvals", "peers", "contact", "coordination", "chief of staff", "section"] },
   { id: "voice", label: "Voice & alerts", icon: Mic, keywords: ["voice", "alerts", "notifications", "speak"] },
-  { id: "history", label: "History", icon: History, keywords: ["history", "changes", "rollback"] },
+  { id: "history", label: "History", icon: History, keywords: ["history", "changes", "undo", "rollback", "log"] },
   { id: "usage", label: "Usage", icon: Coins, keywords: ["tokens", "cost", "billing"] },
 ];

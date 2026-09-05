@@ -1,10 +1,9 @@
 // Model: which provider/model this bot runs on, and how hard it thinks.
-// Moved verbatim from SettingsPanel.tsx (~835-881), except ModelPicker no
-// longer gets `contained` — that layout renders its dropdown inline at
-// `w-full` for the old 400px settings aside, where a floating popover
-// wouldn't fit; this dialog is 860px wide, so the picker's normal floating
-// dropdown fits fine and the label it used to lay out for `contained` is
-// laid out here instead.
+// Moved from SettingsPanel.tsx (~835-881). ModelPicker keeps `contained`:
+// this section sits inside the dialog's overflow-y-auto scroller, where the
+// picker's floating popover (absolute, ~480px tall) would open below the
+// fold and only become visible by scrolling; the in-flow menu pushes the
+// Effort card down instead and is fully visible where it opens.
 import { ModelPicker } from "../ModelPicker";
 import { cn } from "@/lib/cn";
 import type { Bot } from "@/state/store";
@@ -22,15 +21,18 @@ export function ModelSection({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl bg-card p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[15px] font-medium text-ink">Model</div>
-            <div className="mt-0.5 text-[13px] text-ink-secondary">
-              Which provider and model this bot runs on
+        <ModelPicker
+          bot={bot}
+          contained
+          label={
+            <div>
+              <div className="text-[15px] font-medium text-ink">Model</div>
+              <div className="mt-0.5 text-[13px] text-ink-secondary">
+                Which provider and model this bot runs on
+              </div>
             </div>
-          </div>
-          <ModelPicker bot={bot} />
-        </div>
+          }
+        />
       </div>
 
       {!!engine?.capabilities?.effortLevels?.length && (
