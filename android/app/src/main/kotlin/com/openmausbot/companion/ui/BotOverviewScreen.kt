@@ -123,11 +123,10 @@ fun BotOverviewScreen(botId: String, onBack: () -> Unit) {
 @Composable
 private fun OverviewBody(overview: BotOverview) {
     FormSection(header = OverviewRules.WHO) {
-        Text(overview.who.title, fontWeight = FontWeight.SemiBold)
-        if (overview.who.blurb.isNotBlank()) Text(overview.who.blurb, color = secondaryTint)
-        if (overview.who.soulLead.isNotBlank()) {
-            Text(overview.who.soulLead, color = secondaryTint, fontSize = 13.sp)
-        }
+        Text(overview.who.name, fontWeight = FontWeight.SemiBold)
+        Text(overview.who.title)
+        Text(overview.who.blurb)
+        Text(overview.who.soulLead, color = secondaryTint, fontSize = 13.sp)
     }
 
     FormSection(header = OverviewRules.DOES) {
@@ -140,19 +139,18 @@ private fun OverviewBody(overview: BotOverview) {
         }
     }
 
-    if (OverviewRules.showsReaches(overview)) {
-        FormSection(header = OverviewRules.REACHES) {
-            overview.reaches.forEach { line ->
-                IconNote(text = line, painter = R.drawable.ic_hub)
-            }
+    // No empty-state copy on either phone: the server sends this only when
+    // there is something to say, and an empty list here is just a header
+    // with nothing under it (`ios/App/BotOverviewView.swift:39-43`).
+    FormSection(header = OverviewRules.REACHES) {
+        overview.reaches.forEach { line ->
+            IconNote(text = line, painter = R.drawable.ic_hub)
         }
     }
 
-    if (OverviewRules.showsWont(overview)) {
-        FormSection(header = OverviewRules.WONT) {
-            overview.wont.forEach { line ->
-                IconNote(text = line, painter = R.drawable.ic_block)
-            }
+    FormSection(header = OverviewRules.WONT) {
+        overview.wont.forEach { line ->
+            IconNote(text = line, painter = R.drawable.ic_block)
         }
     }
 
