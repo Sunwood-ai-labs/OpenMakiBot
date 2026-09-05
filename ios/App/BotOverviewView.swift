@@ -18,11 +18,17 @@ struct BotOverviewView: View {
             if let overview {
                 Section("Who") {
                     Text(overview.who.name).font(.headline)
-                    Text(overview.who.title)
-                    Text(overview.who.blurb)
-                    Text(overview.who.soulLead)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    if !overview.who.title.isEmpty {
+                        Text(overview.who.title)
+                    }
+                    if !overview.who.blurb.isEmpty {
+                        Text(overview.who.blurb)
+                    }
+                    if !overview.who.soulLead.isEmpty {
+                        Text(overview.who.soulLead)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Does") {
@@ -30,20 +36,20 @@ struct BotOverviewView: View {
                         Text("Nothing scheduled or learned yet.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(overview.does, id: \.self) { line in
+                        ForEach(Array(overview.does.enumerated()), id: \.offset) { _, line in
                             Label(line, systemImage: "calendar.badge.clock")
                         }
                     }
                 }
 
                 Section("Can reach") {
-                    ForEach(overview.reaches, id: \.self) { line in
+                    ForEach(Array(overview.reaches.enumerated()), id: \.offset) { _, line in
                         Label(line, systemImage: "network")
                     }
                 }
 
                 Section("Won't") {
-                    ForEach(overview.wont, id: \.self) { line in
+                    ForEach(Array(overview.wont.enumerated()), id: \.offset) { _, line in
                         Label(line, systemImage: "hand.raised")
                     }
                 }
