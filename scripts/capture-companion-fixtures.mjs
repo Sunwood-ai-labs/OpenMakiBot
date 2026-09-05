@@ -196,6 +196,17 @@ async function main() {
   const bot = created.body.bot;
   if (!bot) throw new Error(`could not create a bot: ${JSON.stringify(created.body)}`);
 
+  // The harness names a fresh bot at random. Pin it so recaptures do not
+  // churn on that name every run, and so this bot stays visibly distinct
+  // from the deliberately named Kiwi created later.
+  const renamed = await json(`${SIDECAR}/api/bots/${bot.id}/profile`, asDevice({
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Pesto" }),
+  }));
+  if (renamed.status !== 200) throw new Error(`could not rename the bot: ${JSON.stringify(renamed.body)}`);
+  bot.name = "Pesto";
+
   // The harness seeds a lone starter bot on a fresh, empty store
   // (Store.seedIfEmpty, "so the app never opens empty") before it ever
   // starts listening, well before this script's own fetches happen — that
@@ -266,8 +277,31 @@ async function main() {
     await sleep(120);
   }
 
+  // The five posts above return as soon as the harness accepts them, not
+  // once the store has actually appended all five rows — on a slow machine
+  // bots-paged below could be read back mid-write and pin a smaller page
+  // than intended. Poll the room's thread until at least 4 rows have
+  // landed (enough to keep `?messages=3`'s hasMore true below), with a
+  // timeout so a real regression still fails loudly instead of hanging.
+  const roomMessageCount = async () => {
+    const page = await json(`${SIDECAR}/api/threads/${room.threadId}/messages`, asDevice());
+    return (page.body.messages ?? []).length;
+  };
+  const pollDeadline = Date.now() + 5_000;
+  let landed = await roomMessageCount();
+  while (landed < 4) {
+    if (Date.now() > pollDeadline) {
+      throw new Error(`only ${landed} of the 5 room messages landed before the timeout`);
+    }
+    await sleep(150);
+    landed = await roomMessageCount();
+  }
+
   // ── the shapes the app hydrates from ───────────────────────────────────
-  // messages=3 pairs with the five room messages above; see the room comment.
+  // The room above landed at least 4 of its 5 messages (asserted just
+  // above), so `?messages=3` below still slices a strict prefix off the
+  // room's thread and hasMore stays true regardless of whether the 5th
+  // message won the race with this read.
   write("bots-full", (await json(`${SIDECAR}/api/bots`, asDevice())).body);
   write("bots-paged", (await json(`${SIDECAR}/api/bots?messages=3`, asDevice())).body);
   write(
@@ -329,6 +363,10 @@ async function main() {
     }),
   }));
   if (routined.status !== 201) throw new Error(`could not create Kiwi's routine: ${JSON.stringify(routined.body)}`);
+  // bot-overview.json pins the SHAPE, not the exact wording: the `does`
+  // sentence for Kiwi's routine embeds the capture machine's own time zone
+  // and clock, so it will read differently machine to machine. The wording
+  // itself is owned by server/bot-overview.test.ts, not this fixture.
   write("bot-overview", (await json(`${HARNESS}/api/bots/${kiwi.id}/overview`)).body);
 
   console.log("\nnot captured: options-card.json — needs a real approval from a real turn");

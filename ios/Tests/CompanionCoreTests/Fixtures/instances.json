@@ -597,7 +597,7 @@
       "displayName": "Hermes",
       "snapshot": {
         "state": "available",
-        "version": "Hermes Agent v0.15.1 (2026.5.29)\nProject: /Users/omkar/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 21532 commits behind — run 'hermes update'",
+        "version": "Hermes Agent v0.15.1 (2026.5.29)\nProject: /Users/omkar/.hermes/hermes-agent\nPython: 3.11.15\nOpenAI SDK: 2.24.0\nUpdate available: 21540 commits behind — run 'hermes update'",
         "authenticated": true
       },
       "models": {

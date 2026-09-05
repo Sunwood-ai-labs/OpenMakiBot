@@ -1,9 +1,9 @@
 {
   "device": {
-    "id": "55ce8156-3590-4742-bff5-68673f3fbeea",
+    "id": "fbe983ac-23ad-449f-8b23-ec4a7332c1f7",
     "name": "Ada's iPhone",
-    "createdAt": 1788604269211,
-    "lastSeenAt": 1788604269211,
+    "createdAt": 1788606108630,
+    "lastSeenAt": 1788606108630,
     "cloudDesktopAccess": false
   },
   "token": "omb_REDACTED",
@@ -14,12 +14,12 @@
   ],
   "endpoints": [
     {
-      "url": "http://192.168.1.2:20798",
+      "url": "http://192.168.1.2:21105",
       "kind": "lan",
       "priority": 200
     },
     {
-      "url": "http://openmausbot-cb59e1a3.local:20798",
+      "url": "http://openmausbot-cb59e1a3.local:21105",
       "kind": "bonjour",
       "priority": 300
     }
