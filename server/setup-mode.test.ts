@@ -53,14 +53,28 @@ describe("setupModeActive", () => {
 });
 
 describe("setupSystemPrompt", () => {
-  it("is the block when active and empty otherwise", () => {
+  it("is empty when not active, regardless of the skills option", () => {
     expect(setupSystemPrompt(false)).toBe("");
-    expect(setupSystemPrompt(true)).toBe(SETUP_PROMPT);
+    expect(setupSystemPrompt(false, { skills: true })).toBe("");
+  });
+
+  it("is the skill_manage-naming block when active with skills on", () => {
+    expect(setupSystemPrompt(true, { skills: true })).toBe(SETUP_PROMPT);
     expect(SETUP_PROMPT.startsWith("\n\n")).toBe(true);
     for (const tool of ["propose_profile", "propose_routine", "skill_manage", "request_credential"]) {
       expect(SETUP_PROMPT).toContain(tool);
     }
     expect(SETUP_PROMPT).toContain("at most three questions");
     expect(SETUP_PROMPT).toContain("Wait for a yes");
+  });
+
+  it("never mentions skill_manage when active with skills off (or unspecified)", () => {
+    for (const prompt of [setupSystemPrompt(true), setupSystemPrompt(true, { skills: false })]) {
+      expect(prompt).not.toContain("skill_manage");
+      expect(prompt).toContain("propose_profile");
+      expect(prompt).toContain("propose_routine");
+      expect(prompt).toContain("request_credential");
+      expect(prompt).toContain("describe procedures plainly in your standing instructions");
+    }
   });
 });

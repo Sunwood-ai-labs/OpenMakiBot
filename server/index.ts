@@ -1015,8 +1015,18 @@ function previewSystemPrompt(bot: BotRecord) {
       ? peerRosterSystemPrompt(peers)
       : "";
   ensureWorkspace(bot.id);
+  // Same gate a real turn applies: the block only goes to a bot whose
+  // engine actually mounts agent tools, since it names propose_profile,
+  // propose_routine and request_credential.
+  const agentsMounted = registry.get(bot.modelSelection.instanceId)?.adapter.capabilities.agentsMcp === true;
   const built = buildSystemPrompt(persona, bot.soul ?? "", [
-    { id: "setup", label: "Setup", text: setupSystemPrompt(setupModeActive({ soul: bot.soul, description: bot.description, text: "" })) },
+    {
+      id: "setup",
+      label: "Setup",
+      text: setupSystemPrompt(agentsMounted && setupModeActive({ soul: bot.soul, description: bot.description, text: "" }), {
+        skills: skillRecorderEnabled(cfg),
+      }),
+    },
     { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
     { id: "composio", label: "Connected apps", text: bot.composio !== false && composio.configured(cfg) ? COMPOSIO_PROMPT : "" },
     { id: "browser", label: "Browser", text: bot.browser !== false && bot.computer !== "off" ? BUILT_IN_BROWSER_SYSTEM_PROMPT : "" },
@@ -3475,17 +3485,22 @@ async function startTurn(
     !rewound &&
     !externalContextMarker &&
     engineIsFresh({ instanceId, lastInstanceId: task.lastInstanceId, resumeCursors: task.resumeCursors, transcript });
-  const skillAuthoring =
-    skillRecorderEnabled(cfg) &&
-    commsDepth < MAX_COMMS_DEPTH &&
-    instance.adapter.capabilities.agentsMcp === true;
-  // Setup mode: a bot with neither standing instructions nor a description
-  // has not been set up; /setup re-enters the mode on purpose. Direct turns
-  // only — a room message must not put every member into setup.
-  const setupMode = setupModeActive({ soul: bot.soul, description: bot.description, text: providerText });
+  // Agent-tool gate shared by skill authoring, the /setup turn-text rewrite,
+  // the setup prompt block, and the peer-comms integration below: a driver
+  // that never mounts agent tools (or a turn already at the comms-depth cap)
+  // must not be steered into — or told about — tools it cannot call.
+  const agentsMounted = commsDepth < MAX_COMMS_DEPTH && instance.adapter.capabilities.agentsMcp === true;
+  const skillAuthoring = skillRecorderEnabled(cfg) && agentsMounted;
+  // Setup mode's turn-text rewrite (parseSetupCommand/expandSetupTurnText)
+  // must not run ahead of a system prompt that can't explain it: a driver
+  // without agent tools sees the user's literal "/setup ..." message. The
+  // gate on whether the coaching block itself is active — setupModeActive,
+  // which also depends on the bot's soul/description — is decided below,
+  // from the same bot snapshot the prompt's soul is built from.
+  const setupText = agentsMounted ? expandSetupTurnText(providerText) : providerText;
   const { turnText, resume } = buildTurnContext({
     text: promptWithReply(
-      skillAuthoring ? expandLearnTurnText(expandSetupTurnText(providerText)) : expandSetupTurnText(providerText),
+      skillAuthoring ? expandLearnTurnText(setupText) : setupText,
       opts?.replyTo,
       cfg.profile?.name?.trim() || "User",
     ),
@@ -3786,10 +3801,7 @@ async function startTurn(
       // resolution: a bot is never told about — or nudged toward — a peer
       // that ask_bot and delegate_bot would then refuse.
       const sectionPeers = reachablePeers(store.bots, bot);
-      if (
-        commsDepth < MAX_COMMS_DEPTH &&
-        instance.adapter.capabilities.agentsMcp === true
-      ) {
+      if (agentsMounted) {
         integrations.agents = agentsIntegration(bot.id, threadId, commsDepth, skillAuthoring);
       }
       // @mentions in the user's message (the composer's tagging UI) become
@@ -3833,7 +3845,17 @@ async function startTurn(
       // Mint the browser bearer at the last possible moment. The desktop
       // registration is asynchronous, so validate this exact setup claim
       // again inside browserIntegration before the capability is published.
+      // Also the one bot snapshot setupModeActive and the prompt's soul
+      // (below) share, so a soul saved mid-dispatch is seen by both instead
+      // of the two disagreeing about whether setup mode is still active.
       const liveBot = store.bot(bot.id);
+      const setupMode =
+        agentsMounted &&
+        setupModeActive({
+          soul: liveBot?.soul ?? bot.soul,
+          description: liveBot?.description ?? bot.description,
+          text: providerText,
+        });
       if (
         liveBot &&
         plan.browser &&
@@ -3872,10 +3894,11 @@ async function startTurn(
               : computerKind === "local"
                 ? "local"
                 : null;
-      const prompt = buildSystemPrompt(persona, store.bot(bot.id)?.soul ?? bot.soul ?? "", [
+      const prompt = buildSystemPrompt(persona, liveBot?.soul ?? bot.soul ?? "", [
         // first after the soul: the block names agent tools, so it only goes
-        // to a turn whose engine actually mounted them
-        { id: "setup", label: "Setup", text: integrations.agents ? setupSystemPrompt(setupMode) : "" },
+        // to a turn whose engine actually mounted them (setupMode is already
+        // false when they are not — see agentsMounted above)
+        { id: "setup", label: "Setup", text: setupSystemPrompt(setupMode, { skills: skillAuthoring }) },
         { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
         { id: "plan", label: "Surface", text: plan.note },
         // gated on the integration, not the key: the hint only goes to a

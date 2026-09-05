@@ -4,6 +4,14 @@
 // (propose_profile, propose_routine, skill_manage, request_credential) — so
 // nothing changes without the user's approval. Mirrors skill-learn.ts:
 // /setup is a turn-text rewrite plus a prompt block, never a hidden mode.
+//
+// Setup mode is card-gated, not provenance-gated: it doesn't matter who sent
+// the message that entered it — a peer message or a routine trigger that
+// happens to begin with /setup enters it exactly like a message the user
+// typed, and nothing about the bot actually changes until a card is
+// confirmed. And like /learn, only the current turn's text is rewritten —
+// the transcript keeps the raw "/setup …" user message verbatim, so replay
+// and history read the same thing the user sent.
 
 const SETUP_COMMAND = /^\/setup(?:\s+|$)([\s\S]*)$/i;
 
@@ -30,13 +38,27 @@ export function setupModeActive(input: { soul?: string; description?: string; te
   return blank || parseSetupCommand(input.text) !== null;
 }
 
-export const SETUP_PROMPT =
-  "\n\nThis bot has not been set up yet, or the user asked you to set yourself up. Your job this conversation is to set yourself up from what the user tells you." +
-  " First ask at most three questions that change what you would build: what the job is, when it should happen (on demand, on a schedule, or when something arrives), and which apps or accounts it touches." +
-  " Then, before any tool call, tell the user in plain language what you intend: who you will be, what you will do and when, what you will need from them, and what you will not do. Wait for a yes." +
-  " Then emit proposals, each of which the user must confirm: propose_profile for your identity and standing rules (keep SOUL.md short; put step-by-step procedure into a skill with skill_manage), propose_routine for anything scheduled (propose it paused), request_credential for any token." +
-  " Never claim something is set up until its card is confirmed. Finish by saying what remains for the user to do by hand, such as authorizing an app or enabling a routine.";
+// skill_manage is only ever mounted alongside the other agent tools when
+// skill authoring is turned on for this turn (OMB_SKILL_AUTHORING_ENABLED);
+// the block must never name a tool the model cannot actually call.
+const SKILL_MANAGE_ASIDE = "(keep SOUL.md short; put step-by-step procedure into a skill with skill_manage)";
+const NO_SKILL_MANAGE_ASIDE = "(keep SOUL.md short; describe procedures plainly in your standing instructions for now)";
 
-export function setupSystemPrompt(active: boolean): string {
-  return active ? SETUP_PROMPT : "";
+function buildSetupPrompt(profileAside: string): string {
+  return (
+    "\n\nThis bot has not been set up yet, or the user asked you to set yourself up. Your job this conversation is to set yourself up from what the user tells you." +
+    " First ask at most three questions that change what you would build: what the job is, when it should happen (on demand, on a schedule, or when something arrives), and which apps or accounts it touches." +
+    " Then, before any tool call, tell the user in plain language what you intend: who you will be, what you will do and when, what you will need from them, and what you will not do. Wait for a yes." +
+    ` Then emit proposals, each of which the user must confirm: propose_profile for your identity and standing rules ${profileAside}, propose_routine for anything scheduled (propose it paused), request_credential for any token.` +
+    " Never claim something is set up until its card is confirmed." +
+    " Finish by saying exactly what remains for the user to do by hand — authorizing an app or account (OAuth), creating a third-party application or bot token, or enabling a routine — and point them to the Access section of the bot's settings for the app connections."
+  );
+}
+
+/** The setup block naming skill_manage, for a turn with skill authoring on. */
+export const SETUP_PROMPT = buildSetupPrompt(SKILL_MANAGE_ASIDE);
+
+export function setupSystemPrompt(active: boolean, options?: { skills?: boolean }): string {
+  if (!active) return "";
+  return options?.skills ? SETUP_PROMPT : buildSetupPrompt(NO_SKILL_MANAGE_ASIDE);
 }
