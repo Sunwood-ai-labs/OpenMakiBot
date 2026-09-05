@@ -92,6 +92,9 @@ const ALLOWED: ReadonlyArray<{ method: string; path: RegExp }> = [
   { method: "POST", path: /^\/api\/bots\/[\w-]+\/tasks\/[\w-]+$/ },
   { method: "PATCH", path: /^\/api\/bots\/[\w-]+\/tasks\/[\w-]+$/ },
   { method: "DELETE", path: /^\/api\/bots\/[\w-]+\/tasks\/[\w-]+$/ },
+  // Read-only summary: who the bot is, what it does and won't do, and its
+  // recent activity. No settings, no transcript — safe for a phone to poll.
+  { method: "GET", path: /^\/api\/bots\/[\w-]+\/overview$/ },
   // Paired-safe profile subset. The harness route itself rejects fields
   // outside identity, avatar, notifications, and voice preferences.
   { method: "PATCH", path: /^\/api\/bots\/[\w-]+\/profile$/ },
