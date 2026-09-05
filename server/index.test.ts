@@ -5108,12 +5108,16 @@ describe("harness HTTP API", () => {
       const preview = await api("GET", `/api/bots/${bot.id}/system-prompt`);
       expect(preview.body.sections.map((s: { id: string }) => s.id)).toContain("setup");
 
-      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+      // Interrupt requests a stop; the child can still be shutting down.
+      // This assertion compares two separate turns, not a mid-turn steer.
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBe(false);
       expect((await api("PATCH", `/api/bots/${bot.id}`, { description: "Files bugs." })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello again" })).status).toBe(202);
-      // Windows may still be reaping the interrupted child. Wait for the
-      // complete replacement payload, not just the file's creation.
       system = (await readJsonFileWhenReady<{ systemPrompt: string }>(fakeClaudeDump, 15_000)).systemPrompt;
       expect(system).not.toContain("This bot has not been set up yet");
       expect((await api("GET", `/api/bots/${bot.id}/system-prompt`)).body.sections.map((s: { id: string }) => s.id)).not.toContain("setup");

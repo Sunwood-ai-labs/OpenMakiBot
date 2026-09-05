@@ -11,13 +11,14 @@ import { connect, createServer as createNetServer, type Socket } from "node:net"
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ensureDirs, NATIVE_DIR } from "../config.ts";
 import type { ProviderInstance } from "../contracts.ts";
 import { recordEvents, type EventRecorder } from "../testing/events.ts";
 import { brokerSocketCandidates, ClaudeDriver, createPermissionBroker, permissionSocketPath, type ClaudeConfig } from "./claude.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
+import * as procs from "../procs.ts";
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "testing", "fake-claude-cli.ts");
 
@@ -831,6 +832,44 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     await instance.adapter.interruptTurn("t-int");
     const done = await recorder.until((e) => e.type === "turn.completed");
     expect(done).toMatchObject({ ok: false, stopReason: "exit_before_result" });
+  });
+
+  it.each([false, true])("refuses steering after interrupt before process exit (retained=%s)", async (retained) => {
+    const finishGate = join(scratch, "finish-gate");
+    const dump = join(scratch, "interrupt-dump.json");
+    await create("slow", { FAKE_CLAUDE_SLOW_FINISH_GATE: finishGate, FAKE_CLAUDE_DUMP: dump });
+    const threadId = "t-stop-steer";
+    if (retained) {
+      writeFileSync(finishGate, "finish");
+      const first = await instance.adapter.sendTurn({ threadId, text: "first" });
+      await recorder.until((e) => e.type === "turn.completed" && e.turnId === first.turnId);
+      rmSync(finishGate);
+    }
+    const running = await instance.adapter.sendTurn({ threadId, text: "stop this turn" });
+    await recorder.until((e) => e.type === "item.completed" && e.itemType === "tool" && e.turnId === running.turnId);
+    const stoppedPid = JSON.parse(readFileSync(dump, "utf8")).pid;
+    // Windows taskkill returns before the child exits. Hold that window open
+    // deterministically: the pipe remains writable until we release the kill.
+    const kill = procs.killCliTree;
+    const delayedKill = vi.spyOn(procs, "killCliTree").mockImplementation(() => {});
+    try {
+      await instance.adapter.interruptTurn(threadId);
+      expect(instance.adapter.hasSession(threadId)).toBe(true);
+      await expect(instance.adapter.steer!(threadId, "replacement")).resolves.toBe(false);
+    } finally {
+      const children = delayedKill.mock.calls.map(([child]) => child);
+      delayedKill.mockRestore();
+      for (const child of children) kill(child);
+    }
+    await recorder.until((e) => e.type === "turn.completed" && e.turnId === running.turnId);
+
+    writeFileSync(finishGate, "finish");
+    const replacement = await instance.adapter.sendTurn({ threadId, text: "replacement" });
+    await recorder.until((e) => e.type === "turn.completed" && e.turnId === replacement.turnId);
+    expect(JSON.parse(readFileSync(dump, "utf8")).pid).not.toBe(stoppedPid);
+    expect(recorder.events).toContainEqual(expect.objectContaining({
+      type: "item.completed", turnId: replacement.turnId, text: "reply to: replacement",
+    }));
   });
 
   it("a message sent mid-turn is steered into the running turn", async () => {
