@@ -272,15 +272,13 @@ async function main() {
   // Kiwi exercises every section of GET .../overview at once: a named
   // interval routine (does), a persona (who.soulLead), and the
   // profile-change history a soul edit appends (recent). The soul PATCH goes
-  // straight to the harness rather than through asDevice(): the paired-safe
-  // /profile route deliberately excludes soul, and the endpoint that accepts
-  // it (plain PATCH /api/bots/:id) is the desktop-only one, absent from the
-  // companion's route allowlist. The overview GET is captured the same way,
-  // straight from the harness — the allowlist has no entry for it yet
-  // either, so a paired phone cannot reach this route through the sidecar
-  // today. That is a real gap for whoever wires the phone screens up to it,
-  // not something this capture can paper over by calling a route that
-  // presently 404s.
+  // through the sidecar like every other phone-reachable step here: the
+  // paired-safe /profile route accepts soul too. The overview GET is
+  // captured straight from the harness instead — the companion allowlist has
+  // no entry for it yet, so a paired phone cannot reach this route through
+  // the sidecar today. That is a real gap for whoever wires the phone
+  // screens up to it, not something this capture can paper over by calling a
+  // route that presently 404s.
   const kiwiCreated = await json(`${SIDECAR}/api/bots`, asDevice({
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -294,11 +292,11 @@ async function main() {
     body: JSON.stringify({ name: "Fixtures", botIds: [kiwi.id] }),
   }));
   if (filed.status !== 200) throw new Error(`could not file Kiwi: ${JSON.stringify(filed.body)}`);
-  const souled = await json(`${HARNESS}/api/bots/${kiwi.id}`, {
+  const souled = await json(`${SIDECAR}/api/bots/${kiwi.id}/profile`, asDevice({
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ soul: "File bugs.\n\nNever file noise." }),
-  });
+  }));
   if (souled.status !== 200) throw new Error(`could not set Kiwi's soul: ${JSON.stringify(souled.body)}`);
   const routined = await json(`${SIDECAR}/api/routines`, asDevice({
     method: "POST",
