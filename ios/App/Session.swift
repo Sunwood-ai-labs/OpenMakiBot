@@ -1629,6 +1629,12 @@ final class Session: ObservableObject {
         return try? await client.config()
     }
 
+    func botOverview(for bot: Bot) async -> BotOverview? {
+        guard let client else { return nil }
+        do { return try await client.overview(botId: bot.id) }
+        catch { actionError = error.localizedDescription; return nil }
+    }
+
     // MARK: - Routines
 
     func loadRoutines() async -> (routines: [Routine], runs: [RoutineRun]) {

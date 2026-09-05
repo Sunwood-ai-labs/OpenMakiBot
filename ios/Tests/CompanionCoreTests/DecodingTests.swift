@@ -56,6 +56,15 @@ final class DecodingTests: XCTestCase {
         XCTAssertNil(fleet.bots.first?.hasMore)
     }
 
+    func testDecodesABotOverview() throws {
+        let overview = try decode(BotOverview.self, "bot-overview")
+        XCTAssertEqual(overview.who.name, "Kiwi")
+        XCTAssertEqual(overview.who.soulLead, "File bugs.")
+        XCTAssertFalse(overview.does.isEmpty)
+        XCTAssertEqual(overview.wont.last, "Won't change its own instructions without your approval.")
+        XCTAssertFalse(overview.recent.isEmpty)
+    }
+
     func testStorePreviewRemainsADecodableFleet() throws {
         let iosDirectory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
