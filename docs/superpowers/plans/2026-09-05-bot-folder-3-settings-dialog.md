@@ -4,7 +4,7 @@
 
 **Goal:** Replace the 400px right-hand "Agent profile" strip with a centered bot-settings dialog shaped like the app Settings modal (left section rail, search), whose first page is a generated Overview that says in plain language what the bot is, does, can reach, and will not do, shows the exact system prompt with byte counts, and lists recent changes; give skills an Import-from-GitHub button; add consequence lines to proposal cards.
 
-**Architecture:** All copy generation is pure and tested: `src/lib/schedule-label.ts` (moved out of the calendar page) and `src/lib/bot-overview.ts` (`overviewSentences(...)`) turn the bot record, routines, runs, webhooks, skills, engine capabilities, and connected-apps inventory into `{ who, does, reaches, wont }`. The dialog shell (`src/components/bot-settings/BotSettingsDialog.tsx`) is a copy of `SettingsModal`'s overlay/rail/body with its own section list; the store gains `botSettingsSection`. Each existing card of `SettingsPanel.tsx` moves verbatim into a section file under `src/components/bot-settings/`; `SettingsPanel.tsx` is deleted at the end. Presentational sections take everything by prop so they get static-markup tests.
+**Architecture:** The overview sentences are built once, server-side, by a pure tested `buildBotOverview(facts)` behind `GET /api/bots/:id/overview`, so the web dialog and the phones read the same words. `src/lib/schedule-label.ts` (moved out of the calendar page) serves the client's own routine rows. The dialog shell (`src/components/bot-settings/BotSettingsDialog.tsx`) is a copy of `SettingsModal`'s overlay/rail/body with its own section list; the store gains `botSettingsSection`. Each existing card of `SettingsPanel.tsx` moves verbatim into a section file under `src/components/bot-settings/`; `SettingsPanel.tsx` is deleted at the end. Presentational sections take everything by prop so they get static-markup tests.
 
 **Tech Stack:** React 18, Tailwind classes via `cn`, Vitest with `react-dom/server` static markup for component tests (`.test.ts` files with `createElement`, never `.tsx` tests).
 
@@ -28,7 +28,7 @@
 ## File map
 
 - Create `src/lib/schedule-label.ts`, `src/lib/schedule-label.test.ts` — `niceTime`, `niceDate`, `intervalLabel`, `scheduleLabel`, `DAY_NAMES`, `runsPerDay` (moved from `RoutineCalendarPage.tsx`, which re-imports them).
-- Create `src/lib/bot-overview.ts`, `src/lib/bot-overview.test.ts` — `overviewSentences`, `soulLead`, `lastRunFor`.
+- Create `server/bot-overview.ts`, `server/bot-overview.test.ts` — `buildBotOverview`, `soulLead`; route `GET /api/bots/:id/overview` in `server/index.ts`; `src/lib/bot-overview-types.ts` mirrors the response type.
 - Modify `src/state/store.tsx` — `BotSettingsSection`, `botSettingsSection` state, `toggleSettings` `section?`.
 - Modify `src/state/store.test.ts` — reducer test.
 - Create `src/components/bot-settings/BotSettingsDialog.tsx` — shell + rail + section switch + data loading for Overview/History.
@@ -102,45 +102,65 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 ---
 
-### Task 2: `src/lib/bot-overview.ts` — the sentences
+### Task 2: `server/bot-overview.ts` and `GET /api/bots/:id/overview` — the sentences, built once
 
 **Files:**
-- Create: `src/lib/bot-overview.ts`, `src/lib/bot-overview.test.ts`
+- Create: `server/bot-overview.ts`, `server/bot-overview.test.ts`
+- Modify: `server/index.ts` — route next to `GET /api/bots/:id/system-prompt`
+- Modify: `server/routine-requests.ts` — export `scheduleText` (it is module-private today)
+- Test: `server/index.test.ts`
+
+Why server-side: the phones (step 5) and the web dialog must agree on what a bot "does" and "won't" do, and the rules read server-only state (engine capabilities, connected-apps inventory, history). One builder, one route, three readers.
 
 **Interfaces:**
-- Consumes: `Bot` from `@/state/store`; `Routine`, `RoutineRun` from `@/lib/routines`; `WebhookTrigger` from `@/lib/webhooks`; `scheduleSentence`, `niceTime` from `@/lib/schedule-label`.
+- Consumes: `BotRecord`; `routines!.listRoutines()`, `routines!.listRuns()`; `webhooks.list()`; `listSkills(botId)`; `readHistory(botId, 5)` (step 2); `composio.configured(cfg)`, `composio.connectorAvailability(cfg)`, `composio.connectedServices(cfg)`; `registry.get(bot.modelSelection.instanceId)?.capabilities`; `reachablePeers(store.bots, bot)`; `scheduleText(schedule, timeZone)` from `server/routine-requests.ts`.
 - Produces:
 
 ```ts
-export interface OverviewSkill { name: string; description: string; enabled: boolean; source: string }
-export interface OverviewInput {
-  bot: Bot;
-  routines: Routine[];
-  runs: RoutineRun[];
-  webhooks: WebhookTrigger[];
-  skills: OverviewSkill[];
-  engine?: { agentsMcp?: boolean; composioMcp?: boolean; browserMcp?: boolean; computerMcp?: boolean } | null;
-  connectedApps: { configured: boolean; authoritative: boolean; services: string[] }; // slugs currently connected
-  sectionPeers: number; // other visible bots in the same section
-  desktopBrowser: boolean;
+export interface BotOverview {
+  who: { name: string; title: string; blurb: string; soulLead: string };
+  does: string[];
+  reaches: string[];
+  wont: string[];
+  recent: Array<{ at: number; summary: string }>;
 }
-export interface OverviewSentences { who: { name: string; title: string; blurb: string; soulLead: string }; does: string[]; reaches: string[]; wont: string[] }
-export function soulLead(soul: string | undefined): string  // first paragraph, ≤ 240 chars, "" when empty
-export function lastRunFor(routineId: string, runs: RoutineRun[]): RoutineRun | undefined  // newest by finishedAt ?? startedAt ?? scheduledFor
-export function overviewSentences(input: OverviewInput): OverviewSentences
+export interface OverviewFacts {          // everything the builder needs, already read
+  bot: Pick<BotRecord, "name" | "title" | "description" | "soul" | "computer" | "cloudBackend" | "cwd" | "autoApprove" | "approvePeerComms" | "peers" | "composio" | "browser" | "chiefOfStaff">;
+  routines: Array<{ id: string; name: string; enabled: boolean; schedule: RoutineRequestSchedule | Routine["schedule"]; nextRunAt: number | null }>;
+  runs: Array<{ routineId: string; status: string; finishedAt?: number; startedAt?: number; scheduledFor: number }>;
+  webhooks: Array<{ name: string; enabled: boolean }>;
+  skills: Array<{ name: string; description: string; enabled: boolean }>;
+  engine: { agentsMcp?: boolean; composioMcp?: boolean; browserMcp?: boolean; computerMcp?: boolean } | null;
+  connectedApps: { configured: boolean; authoritative: boolean; services: string[] };
+  sectionPeers: number;
+  timeZone: string;
+  recent: Array<{ at: number; summary: string }>;
+}
+export function soulLead(soul: string | undefined): string;                 // first paragraph, ≤ 240 chars
+export function buildBotOverview(facts: OverviewFacts): BotOverview;        // pure
 ```
 
-Rules for `does`: one sentence per **enabled** routine: `` `${capitalize(scheduleSentence(r.schedule))}, ${lowerFirst(r.name)}.${nextRun}${lastRun}` `` where `nextRun` is `` ` Next run ${niceTime(r.nextRunAt)}.` `` when set and `lastRun` is `` ` Last run ${status} at ${niceTime(at)}.` `` when a run exists; paused routines → `Paused: ${name}.`; one per enabled skill: `Knows how to ${lowerFirst(description || name)}.`; one per enabled webhook: `Listens for “${name}” webhooks.`.
-Rules for `reaches`: computer (`Works on a cloud computer.` / `Works in the Local VM.` / `Can act on this computer.` / `Uses only the built-in browser.` / `Picks a computer automatically.` for absent); folder (`Works in ${bot.cwd}.` or `Works in its private workspace.`); connected apps (`Can use ${n} connected apps: a, b, c.` when on and authoritative and n>0; `Connected apps could not be checked.` when not authoritative); browser (`Has the built-in browser.` when `bot.browser !== false && desktopBrowser && bot.computer !== "off"`); team (`Can talk to ${sectionPeers} other bots in its section.` when engine.agentsMcp and peers>0); chief (`Coordinates its section as Chief of Staff.`).
-Rules for `wont`: exactly the six from Global Constraints, each under its condition; `Has no connected apps.` when `bot.composio === false || !configured || !engine?.composioMcp || (authoritative && services.length === 0)`.
+Sentence rules — `does`: one per **enabled** routine: `` `${capitalize(scheduleText(schedule, tz))}: ${name}.${nextRun}${lastRun}` `` with `nextRun` = `` ` Next run ${time(nextRunAt)}.` `` when set and `lastRun` = `` ` Last run ${status} at ${time(finishedAt ?? startedAt ?? scheduledFor)}.` `` when a run exists (newest by that timestamp); paused routine → `Paused: ${name}.`; one per enabled skill `Knows how to ${lowerFirst(description || name)}.`; one per enabled webhook `Listens for “${name}” webhooks.`.
+`reaches`: computer (`Works on a cloud computer.` / `Works in the Local VM.` / `Can act on this computer.` / `Uses only the built-in browser.` / `Picks a computer automatically.`); folder (`Works in ${cwd}.` or `Works in its private workspace.`); apps (`Can use ${n} connected apps: a, b, c.` when `composio !== false && configured && engine?.composioMcp && authoritative && n > 0`; `Connected apps could not be checked.` when `!authoritative`); browser (`Has the built-in browser.` when `browser !== false && computer !== "off"`); team (`Can talk to ${n} other bots in its section.` when `engine?.agentsMcp && sectionPeers > 0 && peers?.length !== 0`); chief (`Coordinates its section as Chief of Staff.`).
+`wont`: `Won't run commands without asking you first.` unless `autoApprove`; `Won't contact other bots without asking.` when `approvePeerComms || peers?.length === 0`; `Has no connected apps.` when `composio === false || !configured || !engine?.composioMcp || (authoritative && services.length === 0)`; `Can't use a computer.` when `computer === "off"`; `Won't act on a schedule.` when no enabled routine; `Won't change its own instructions without your approval.` always (last).
+`time(at)` = `new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone })`.
 
-- [ ] **Step 1: Failing tests** — cover: a fresh bot yields all six `wont` lines and `does: []`; auto mode on drops the first; an enabled 5-minute routine with a completed run yields `Every 5 minutes, triage discord. Next run … Last run completed at ….`; a paused routine → `Paused: …`; connected apps authoritative with 2 services → `Can use 2 connected apps: gmail, linear.`; not authoritative → `Connected apps could not be checked.` and no `Has no connected apps.`; `soulLead` cuts at the first blank line and 240 chars.
+Route:
 
-- [ ] **Step 2: Run → FAIL, implement, run → PASS.** Keep the module free of React and store imports beyond types.
+```ts
+    m = path.match(/^\/api\/bots\/([\w-]+)\/overview$/);
+    if (m && method === "GET") {
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      return json(res, 200, await botOverview(bot));
+    }
+```
 
-- [ ] **Step 3: Verify and commit** (`pnpm vitest run src/lib/bot-overview.test.ts && pnpm typecheck && pnpm lint`; commit `feat(overview): plain-language sentences for a bot's overview`).
+with `async function botOverview(bot: BotRecord): Promise<BotOverview>` in `index.ts` that gathers `OverviewFacts` (connected apps: `configured = composio.configured(cfg)`; `authoritative = composio.connectorAvailability(cfg) !== "unreadable"`; `services = configured && authoritative ? Object.entries(await composio.connectedServices(cfg)).filter(([, s]) => s.connected).map(([slug]) => slug) : []`; engine from `registry.get(bot.modelSelection.instanceId)?.capabilities ?? null`; `sectionPeers = reachablePeers(store.bots, bot).length`; `timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone`; `recent = readHistory(bot.id, 5).map(r => ({ at: r.at, summary: r.summary }))`) and calls `buildBotOverview`.
 
----
+- [ ] **Step 1: Failing tests** — `server/bot-overview.test.ts`: a fresh bot yields all six `wont` lines in order and `does: []`; `autoApprove: true` drops the first; an enabled 5-minute interval routine with a completed run yields a `does` line containing `: Triage Discord.` and `Last run completed at`; a paused routine → `Paused: …`; two connected services → `Can use 2 connected apps: gmail, linear.`; `authoritative: false` → `Connected apps could not be checked.` and no `Has no connected apps.`; `soulLead` cuts at the first blank line and at 240 chars. `server/index.test.ts`: `GET /api/bots/:id/overview` on a fresh bot → 200 with `who.name`, six `wont` lines, `recent: []`; after `PATCH` soul → `who.soulLead` set and `recent[0].summary` starts with `soul:`; 404 for unknown.
+- [ ] **Step 2: Run → FAIL, implement, run → PASS.** Export `scheduleText` from `routine-requests.ts` (add `export`; no behavior change; its test file still passes).
+- [ ] **Step 3: Verify and commit** (`pnpm typecheck && pnpm lint && pnpm vitest run server/bot-overview.test.ts server/routine-requests.test.ts && pnpm vitest run server/index.test.ts -t overview`; commit `feat(overview): server-built plain-language overview for a bot`).
 
 ### Task 3: Store — a section for the bot dialog
 
@@ -162,8 +182,8 @@ Commit: `feat(store): bot settings dialog remembers its section`.
 
 **Interfaces:**
 - `sections.ts`: `BOT_SECTIONS: Array<{ id: BotSettingsSection; label: string; icon: LucideIcon; keywords: string[] }>` in the order overview, identity, soul, skills, memory, routines, access, model, permissions, voice, history, usage, with labels `Overview, Identity, Soul, Skills, Memory, Routines, Access, Model, Permissions, Voice & alerts, History, Usage`.
-- `BotSettingsDialog({ bot })`: copies `SettingsModal`'s return JSX (overlay `fixed inset-0 z-50 …`, dialog `h-[560px] w-full max-w-[860px] …`, rail `w-[190px] …`, search, header row, scroller) with `dispatch({ type: "toggleSettings", … })` in place of `toggleAppSettings`, title `bot.name`, `aria-labelledby="bot-settings-title"`, and the same Escape/Tab focus-trap effect. Renders the active section. Loads on open (and when `bot.id` changes): `GET /api/bots/:id/skills`, `GET /api/bots/:id/system-prompt`, `GET /api/bots/:id/history?limit=5`, and `preloadConnectedApps()` from `PluginsPanel.tsx` (reuse; do not duplicate its cache), passing results down. Wrap each fetch so one failure leaves that block reading "couldn't load" rather than breaking the dialog.
-- `OverviewSection` props: `{ sentences: OverviewSentences; prompt: PromptPreviewData | null; recent: HistoryRow[]; onOpen: (section: BotSettingsSection) => void }` — pure presentational. Layout in reading order: **Who** (name, title, blurb, soulLead + "Read all" → `onOpen("soul")`), **Does** (list, or `Nothing scheduled or learned yet.`), **Can reach**, **Won't**, **What the model sees** (`<PromptPreview>` collapsed), **Recent changes** (up to 5 rows `summary · when`, link → `onOpen("history")`).
+- `BotSettingsDialog({ bot })`: copies `SettingsModal`'s return JSX (overlay `fixed inset-0 z-50 …`, dialog `h-[560px] w-full max-w-[860px] …`, rail `w-[190px] …`, search, header row, scroller) with `dispatch({ type: "toggleSettings", … })` in place of `toggleAppSettings`, title `bot.name`, `aria-labelledby="bot-settings-title"`, and the same Escape/Tab focus-trap effect. Renders the active section. Loads on open (and when `bot.id` changes, and again whenever `state.routines`, `state.webhooks`, or the bot record change — debounce to one request per 500 ms): `GET /api/bots/:id/overview` and `GET /api/bots/:id/system-prompt`; the Skills section loads `GET /api/bots/:id/skills` itself. Wrap each fetch so one failure leaves that block reading "couldn't load" rather than breaking the dialog.
+- `OverviewSection` props: `{ overview: BotOverview | null; prompt: PromptPreviewData | null; onOpen: (section: BotSettingsSection) => void }` (types mirrored in `src/lib/bot-overview-types.ts`: `BotOverview` exactly as the server returns it) — pure presentational. Layout in reading order: **Who** (name, title, blurb, soulLead + "Read all" → `onOpen("soul")`), **Does** (list, or `Nothing scheduled or learned yet.`), **Can reach**, **Won't**, **What the model sees** (`<PromptPreview>` collapsed), **Recent changes** (`overview.recent`, `summary · when`, link → `onOpen("history")`). While `overview` is null show `Loading…`; on fetch failure show `Couldn't load the overview.`
 - `PromptPreview` props: `{ data: { sections: Array<{ id: string; label: string; text: string; bytes: number }>; totalBytes: number; approxTokens: number; note: string } | null; open: boolean; onToggle(): void }` — header `What the model sees · ${totalBytes.toLocaleString()} bytes ≈ ${approxTokens.toLocaleString()} tokens`; when open, one row per section: label, bytes, and a `<details>` with the text in a `<pre>`; `note` in small text.
 - `IdentitySection({ bot, patch, activeState, mascotMotion })`: `BotProfileAvatarCard` + Name + Title + Instructions (the existing description textarea block, relabelled **Blurb** with helper text `One line shown in rosters and on the phone. Long instructions belong in Soul.`; keep the 4,000 counter and the "View full" dialog).
 - `SoulSection({ bot, patch })`: `<SoulField>` plus a short intro `Who this bot is and the rules it never breaks. Always in its context.`.
@@ -217,8 +237,8 @@ Commit: `feat(store): bot settings dialog remembers its section`.
 **Files:**
 - Modify: `BotSettingsDialog.tsx`, `OverviewSection.tsx`
 
-- Compute `overviewSentences` in the dialog from `state.routines`, `state.routineRuns`, `state.webhooks`, the fetched skills, `derived.engine?.capabilities`, the connected-apps inventory (`configured`, `authoritative`, connected slugs), `sectionPeers` (visible bots in the same section minus this one), `Boolean(window.ogb?.browser)`.
-- Recent changes: the 5 history rows with `when` formatted via `niceTime`/`niceDate`.
+- Refetch `GET /overview` when routines, webhooks, or the bot record change (debounced), so toggling a control updates the Won't list live.
+- Recent changes `when` formatted via `niceTime`/`niceDate`.
 - Search: the rail search filters `BOT_SECTIONS` by label + keywords like the app modal; when the active section is filtered out, jump to the first visible one (same effect as `SettingsModal`).
 - Keyboard: Escape closes; Tab trap as in `SettingsModal`.
 - [ ] Verify with `pnpm build` and the dev app; commit `feat(settings): overview reads live routines, apps, skills, and history`.
