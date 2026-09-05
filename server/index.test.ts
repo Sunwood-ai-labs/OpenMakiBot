@@ -1709,7 +1709,7 @@ describe("harness HTTP API", () => {
   it("searches transcripts and exports a conversation", async () => {
     const bot = (await api("POST", "/api/bots")).body.bot;
     // every new bot opens with a seeded greeting — a known searchable string
-    const hits = await api("GET", "/api/search?q=set%20myself%20up");
+    const hits = await api("GET", "/api/search?q=what%20would%20you%20like");
     expect(hits.status).toBe(200);
     const hit = hits.body.hits.find((h: { botId?: string }) => h.botId === bot.id);
     expect(hit).toMatchObject({
@@ -1719,10 +1719,10 @@ describe("harness HTTP API", () => {
       kind: "text",
       onActivePath: true,
     });
-    expect(hit.snippet.toLowerCase()).toContain("set myself up");
-    expect(hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength).toLowerCase()).toBe("set myself up");
+    expect(hit.snippet.toLowerCase()).toContain("what would you like");
+    expect(hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength).toLowerCase()).toBe("what would you like");
     expect((await api("GET", "/api/search?q=")).body.hits).toEqual([]);
-    const scoped = await api("GET", `/api/search?q=set%20myself%20up&threadId=${bot.threadId}`);
+    const scoped = await api("GET", `/api/search?q=what%20would%20you%20like&threadId=${bot.threadId}`);
     expect(scoped.status).toBe(200);
     expect(scoped.body.hits.every((candidate: { threadId: string }) => candidate.threadId === bot.threadId)).toBe(true);
     expect((await api("GET", "/api/search?q=hello&threadId=missing-thread")).status).toBe(404);
@@ -1732,7 +1732,7 @@ describe("harness HTTP API", () => {
     expect(markdown.headers.get("content-type")).toContain("text/markdown");
     expect(markdown.headers.get("content-disposition")).toContain("attachment");
     const text = await markdown.text();
-    expect(text).toContain("set myself up");
+    expect(text).toContain("What would you like");
 
     const asJson = await api("GET", `/api/threads/${bot.threadId}/export?format=json`);
     expect(asJson.status).toBe(200);
@@ -8026,6 +8026,32 @@ describe("bot memory API", () => {
       await api("DELETE", `/api/bots/${bot.id}`);
     }
     expect(existsSync(join(home, ".openmausbot", "bots", bot.id))).toBe(false);
+  });
+
+  it("keeps mixed-request runtime revocations effective when profile persistence fails", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Mixed profile safety" })).body.bot;
+    const botsFile = join(home, ".openmausbot", "bots.json");
+    let saved: string | undefined;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { soul: "old", browser: true, browserProfile: "guest" })).status).toBe(200);
+      saved = readFileSync(botsFile, "utf8");
+      rmSync(botsFile);
+      mkdirSync(botsFile);
+      const failed = await api("PATCH", `/api/bots/${bot.id}`, { soul: "new", browser: false, browserProfile: null });
+      expect(failed.status).toBe(500);
+      const current = (await api("GET", "/api/bots?messages=0")).body.bots.find((candidate: any) => candidate.id === bot.id);
+      expect(current.browser).toBe(false);
+      expect(current.browserProfile).toBeUndefined();
+      expect(current.soul).toBe("old");
+      expect(current.soulHash).toBe(createHash("sha256").update("old").digest("hex"));
+      expect(readFileSync(soulFileOf(bot.id), "utf8")).toBe("old");
+    } finally {
+      if (saved !== undefined) {
+        rmSync(botsFile, { recursive: true, force: true });
+        writeFileSync(botsFile, saved);
+      }
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
   });
 
   it("reads the soul with its file path, and reports, applies, or discards drift", async () => {

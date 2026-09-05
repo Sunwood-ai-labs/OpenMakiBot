@@ -10567,9 +10567,18 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         body.chiefOfStaff !== false &&
         section !== undefined &&
         sectionKey(existingBot?.section) !== sectionKey(section);
-      const bot = profile.patch.soul !== undefined
-        ? store.patchBotProfile(m[1], patch)
-        : store.patchBot(m[1], patch);
+      let bot: BotRecord | null;
+      if (profile.patch.soul !== undefined) {
+        // A mixed settings request must not turn a runtime revocation into
+        // a persist-first edit. Apply runtime fields with their existing
+        // fail-closed semantics; atomically commit only the profile fields.
+        const runtimePatch = { ...patch };
+        for (const field of Object.keys(profile.patch)) delete runtimePatch[field];
+        if (Object.keys(runtimePatch).length) store.patchBot(m[1], runtimePatch);
+        bot = store.patchBotProfile(m[1], profile.patch);
+      } else {
+        bot = store.patchBot(m[1], patch);
+      }
       if (!bot) return json(res, 404, { error: "no such bot" });
       const chiefChanges =
         body.chiefOfStaff === true || chiefMovedSections
