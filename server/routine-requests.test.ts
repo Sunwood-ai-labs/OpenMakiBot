@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   RoutineRequestError,
   RoutineRequestService,
+  consequenceLine,
   routineRequestFingerprint,
   type RoutineProposalInput,
   type RoutineRequestMessage,
@@ -1213,5 +1214,20 @@ describe("cross-bot routine targeting", () => {
     expect(routines.listRoutines()).toHaveLength(0);
     // the refusal is written back onto the card so the user sees why
     expect(store.messagesFor("thread-a")[0]?.card?.held).toMatch(/no longer exists/);
+  });
+});
+
+describe("consequenceLine", () => {
+  it("uses singular wording for one run a day and one day a week", () => {
+    expect(consequenceLine({ type: "interval", everyMinutes: 1440 })).toBe(
+      "Will run about once a day; each run starts a fresh session.",
+    );
+    expect(consequenceLine({ type: "daily", time: "09:00", weekdays: [1] })).toBe(
+      "Will run one day a week; each run starts a fresh session.",
+    );
+    expect(consequenceLine({ type: "daily", time: "09:00", weekdays: [1, 3] })).toBe(
+      "Will run 2 days a week; each run starts a fresh session.",
+    );
+    expect(consequenceLine({ type: "once", at: 0 })).toBe("Will run once; that run starts a fresh session.");
   });
 });

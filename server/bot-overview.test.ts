@@ -70,7 +70,10 @@ describe("buildBotOverview", () => {
     });
     const overview = buildBotOverview(facts);
     expect(overview.does).toHaveLength(1);
-    expect(overview.does[0]).toContain(": Triage Discord.");
+    // Prose, not the approval card's exact form: no anchor instant, no timezone name.
+    expect(overview.does[0]).toMatch(/^Every 5 minutes: Triage Discord\./);
+    expect(overview.does[0]).not.toContain("UTC");
+    expect(overview.does[0]).not.toContain("anchored");
     expect(overview.does[0]).toContain("Last run completed at");
     expect(overview.does[0]).toContain("Next run");
     // Won't-act-on-a-schedule should not appear since an enabled routine exists.
@@ -136,14 +139,56 @@ describe("buildBotOverview", () => {
     expect(overview.reaches.some((line) => line.startsWith("Can use"))).toBe(false);
   });
 
-  it("never claims no connected apps when composio is off AND the inventory is unverifiable", () => {
+  it("states 'Has no connected apps.' when apps are off for the bot, even if the inventory is unverifiable", () => {
+    // Apps off is a definite negative that needs no inventory — saying
+    // "could not be checked" here would imply the bot might have apps.
     const facts = baseFacts({
       bot: { ...baseFacts().bot, composio: false, computer: "local" },
-      connectedApps: { configured: false, authoritative: false, services: [] },
+      engine: { composioMcp: true },
+      connectedApps: { configured: true, authoritative: false, services: [] },
     });
     const overview = buildBotOverview(facts);
-    expect(overview.reaches).toContain("Connected apps could not be checked.");
-    expect(overview.wont).not.toContain("Has no connected apps.");
+    expect(overview.wont).toContain("Has no connected apps.");
+    expect(overview.reaches).not.toContain("Connected apps could not be checked.");
+  });
+
+  it("stays silent about apps in reaches when the engine cannot mount them", () => {
+    const facts = baseFacts({
+      bot: { ...baseFacts().bot, composio: true, computer: "local" },
+      engine: { composioMcp: false },
+      connectedApps: { configured: true, authoritative: false, services: ["gmail"] },
+    });
+    const overview = buildBotOverview(facts);
+    expect(overview.wont).toContain("Has no connected apps.");
+    expect(overview.reaches.some((line) => line.includes("connected app"))).toBe(false);
+  });
+
+  it("uses the singular for one connected app", () => {
+    const facts = baseFacts({
+      bot: { ...baseFacts().bot, composio: true, computer: "local" },
+      engine: { composioMcp: true },
+      connectedApps: { configured: true, authoritative: true, services: ["gmail"] },
+    });
+    expect(buildBotOverview(facts).reaches).toContain("Can use 1 connected app: gmail.");
+  });
+
+  it("writes daily and once schedules as prose", () => {
+    const overview = buildBotOverview(baseFacts({
+      routines: [
+        { id: "a", name: "Standup", enabled: true, schedule: { type: "daily", time: "09:30", weekdays: [1, 2, 3, 4, 5] }, nextRunAt: null },
+        { id: "b", name: "Digest", enabled: true, schedule: { type: "daily", time: "18:00", weekdays: [0, 1, 2, 3, 4, 5, 6] }, nextRunAt: null },
+        { id: "c", name: "Review", enabled: true, schedule: { type: "daily", time: "08:00", weekdays: [3] }, nextRunAt: null },
+        { id: "d", name: "Launch", enabled: true, schedule: { type: "once", at: Date.UTC(2026, 8, 5, 12) }, nextRunAt: null },
+        { id: "e", name: "Hourly", enabled: true, schedule: { type: "interval", everyMinutes: 60 }, nextRunAt: null },
+      ],
+    }));
+    expect(overview.does).toEqual([
+      "Every weekday at 9:30 AM: Standup.",
+      "Every day at 6:00 PM: Digest.",
+      "Weekly on Wednesday at 8:00 AM: Review.",
+      "Once on September 5 at 12:00 PM: Launch.",
+      "Every hour: Hourly.",
+    ]);
   });
 
   it("picks a computer automatically and stays reachable by default when computer/peers are unset", () => {
@@ -165,8 +210,8 @@ describe("soulLead", () => {
   it("cuts at 240 characters", () => {
     const long = "A".repeat(300);
     const result = soulLead(long);
-    expect(result).toHaveLength(240);
-    expect(result).toBe("A".repeat(240));
+    // Cut at 240 characters, with an ellipsis so the card says it is a cut.
+    expect(result).toBe(`${"A".repeat(240)}…`);
   });
 
   it("returns an empty string for an unset soul", () => {

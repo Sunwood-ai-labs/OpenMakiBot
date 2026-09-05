@@ -1055,12 +1055,21 @@ function previewSystemPrompt(bot: BotRecord) {
  * read this same route, so they can never disagree about what a bot does. */
 async function botOverview(bot: BotRecord): Promise<BotOverview> {
   const appsConfigured = composio.configured(cfg);
-  const authoritative = composio.connectorAvailability(cfg) !== "unreadable";
-  const services = appsConfigured && authoritative
-    ? Object.entries(await composio.connectedServices(cfg))
-      .filter(([, s]) => s.connected)
-      .map(([slug]) => slug)
-    : [];
+  let authoritative = composio.connectorAvailability(cfg) !== "unreadable";
+  let services: string[] = [];
+  if (appsConfigured && authoritative) {
+    try {
+      services = Object.entries(await composio.connectedServices(cfg))
+        .filter(([, s]) => s.connected)
+        .map(([slug]) => slug);
+    } catch {
+      // The inventory could not be read right now (connector down, token
+      // rejected). The page still renders — the builder says "could not be
+      // checked" for an unverified inventory — instead of a 500 that blanks
+      // the whole Overview.
+      authoritative = false;
+    }
+  }
   const engine = registry.get(bot.modelSelection.instanceId)?.adapter.capabilities ?? null;
   const sectionPeers = reachablePeers(store.bots, bot).length;
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;

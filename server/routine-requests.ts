@@ -486,13 +486,15 @@ export function scheduleText(schedule: RoutineRequestSchedule, timeZone: string)
 
 /** One plain sentence describing how often a routine will actually run, so
  * the approval card states the consequence rather than just the schedule. */
-function consequenceLine(schedule: RoutineRequestSchedule): string {
+export function consequenceLine(schedule: RoutineRequestSchedule): string {
   if (schedule.type === "once") return "Will run once; that run starts a fresh session.";
   if (schedule.type === "interval") {
     const runsPerDay = Math.round(1440 / schedule.everyMinutes);
-    return `Will run about ${runsPerDay} times a day; each run starts a fresh session.`;
+    const cadence = runsPerDay <= 1 ? "about once a day" : `about ${runsPerDay} times a day`;
+    return `Will run ${cadence}; each run starts a fresh session.`;
   }
-  const cadence = schedule.weekdays.length === 7 ? "every day" : `${schedule.weekdays.length} days a week`;
+  const days = schedule.weekdays.length;
+  const cadence = days === 7 ? "every day" : days === 1 ? "one day a week" : `${days} days a week`;
   return `Will run ${cadence}; each run starts a fresh session.`;
 }
 
