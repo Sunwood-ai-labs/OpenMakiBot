@@ -7127,6 +7127,20 @@ describe("harness HTTP API", () => {
     // override must keep Composio configured until the next app launch.
     expect((await api("PUT", "/api/config", { profile: { name: "Grace" } })).status).toBe(200);
     expect((await api("GET", "/api/config")).body.composio).toEqual({ configured: true, mode: "self-hosted" });
+
+    // With the connector configured, the overview route now reads the
+    // connected-apps inventory against the stub. It must answer 200 and
+    // never invent a connected app (the failing-read fallback itself is
+    // unit-tested in bot-overview.test.ts, since the stub answers every
+    // session path with a fake session rather than an error).
+    const kiwi = (await api("POST", "/api/bots", { name: "Kiwi" })).body.bot;
+    try {
+      const overview = await api("GET", `/api/bots/${kiwi.id}/overview`);
+      expect(overview.status).toBe(200);
+      expect(overview.body.reaches.some((line: string) => line.startsWith("Can use"))).toBe(false);
+    } finally {
+      await api("DELETE", `/api/bots/${kiwi.id}`);
+    }
   });
 
   it.skipIf(process.platform === "win32")("stores the credentials file with owner-only permissions", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBotOverview, soulLead, type OverviewFacts } from "./bot-overview.ts";
+import { buildBotOverview, connectedAppsFacts, soulLead, type OverviewFacts } from "./bot-overview.ts";
 
 function baseFacts(overrides: Partial<OverviewFacts> = {}): OverviewFacts {
   return {
@@ -216,5 +216,33 @@ describe("soulLead", () => {
 
   it("returns an empty string for an unset soul", () => {
     expect(soulLead(undefined)).toBe("");
+  });
+});
+
+describe("connectedAppsFacts", () => {
+  it("lists the connected slugs when the inventory reads cleanly", async () => {
+    const facts = await connectedAppsFacts(true, "configured", async () => ({
+      gmail: { connected: true },
+      linear: { connected: false },
+    }));
+    expect(facts).toEqual({ configured: true, authoritative: true, services: ["gmail"] });
+  });
+
+  it("marks the inventory unverified instead of throwing when the read fails", async () => {
+    const facts = await connectedAppsFacts(true, "configured", async () => {
+      throw new Error("Connected apps: HTTP 502");
+    });
+    expect(facts).toEqual({ configured: true, authoritative: false, services: [] });
+  });
+
+  it("never reads when the connector is unconfigured or the store was unreadable", async () => {
+    let reads = 0;
+    const read = async () => {
+      reads += 1;
+      return {};
+    };
+    expect(await connectedAppsFacts(false, "unconfigured", read)).toEqual({ configured: false, authoritative: true, services: [] });
+    expect(await connectedAppsFacts(false, "unreadable", read)).toEqual({ configured: false, authoritative: false, services: [] });
+    expect(reads).toBe(0);
   });
 });

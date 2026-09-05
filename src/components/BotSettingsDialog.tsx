@@ -79,6 +79,8 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
         bot.cwd,
         bot.autoApprove,
         bot.approvePeerComms,
+        bot.peers,
+        bot.section,
         bot.composio,
         bot.browser,
         bot.chiefOfStaff,
@@ -94,6 +96,8 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
       bot.cwd,
       bot.autoApprove,
       bot.approvePeerComms,
+      bot.peers,
+      bot.section,
       bot.composio,
       bot.browser,
       bot.chiefOfStaff,
@@ -204,6 +208,10 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
       // and Tab while it is up: Escape closes only that layer, and the focus
       // trap below must not pull focus back out of it.
       if (dialog?.querySelector('[role="dialog"]')) return;
+      // BotInstructionsDialog portals to document.body, so it is not in this
+      // subtree: a key pressed with focus outside this dialog belongs to
+      // whatever holds focus, never to us.
+      if (dialog && event.target instanceof Node && !dialog.contains(event.target)) return;
       if (event.key === "Escape") {
         event.preventDefault();
         dispatch({ type: "toggleSettings", open: false });

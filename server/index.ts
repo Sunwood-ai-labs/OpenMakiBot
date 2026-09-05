@@ -266,7 +266,7 @@ import {
 import { captureOutsideHumanControl } from "./private-screen-capture.ts";
 import { screenFrameHash, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { RoutineRequestService } from "./routine-requests.ts";
-import { buildBotOverview, type BotOverview } from "./bot-overview.ts";
+import { buildBotOverview, type BotOverview, connectedAppsFacts } from "./bot-overview.ts";
 import { ProfileRequestService } from "./profile-requests.ts";
 import { profileSnapshot } from "./profile-revision.ts";
 import { flushAllProfileHistory, flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
@@ -1054,22 +1054,11 @@ function previewSystemPrompt(bot: BotRecord) {
  * sentence builder. The phones (step 5) and the web settings dialog both
  * read this same route, so they can never disagree about what a bot does. */
 async function botOverview(bot: BotRecord): Promise<BotOverview> {
-  const appsConfigured = composio.configured(cfg);
-  let authoritative = composio.connectorAvailability(cfg) !== "unreadable";
-  let services: string[] = [];
-  if (appsConfigured && authoritative) {
-    try {
-      services = Object.entries(await composio.connectedServices(cfg))
-        .filter(([, s]) => s.connected)
-        .map(([slug]) => slug);
-    } catch {
-      // The inventory could not be read right now (connector down, token
-      // rejected). The page still renders — the builder says "could not be
-      // checked" for an unverified inventory — instead of a 500 that blanks
-      // the whole Overview.
-      authoritative = false;
-    }
-  }
+  const connectedApps = await connectedAppsFacts(
+    composio.configured(cfg),
+    composio.connectorAvailability(cfg),
+    () => composio.connectedServices(cfg),
+  );
   const engine = registry.get(bot.modelSelection.instanceId)?.adapter.capabilities ?? null;
   const sectionPeers = reachablePeers(store.bots, bot).length;
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1121,7 +1110,7 @@ async function botOverview(bot: BotRecord): Promise<BotOverview> {
       enabled: skill.enabled,
     })),
     engine,
-    connectedApps: { configured: appsConfigured, authoritative, services },
+    connectedApps,
     sectionPeers,
     timeZone,
     recent,

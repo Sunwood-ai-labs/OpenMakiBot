@@ -146,6 +146,30 @@ function doesLines(facts: OverviewFacts): string[] {
   return lines;
 }
 
+/** The connected-apps facts for the route: reads the inventory only when a
+ * connector is configured and the credential store was readable, and treats
+ * a failing read (connector down, token rejected) as "unverified" rather
+ * than letting it fail the whole Overview. `read` is injected so the
+ * fallback is unit-testable without a live connector. */
+export async function connectedAppsFacts(
+  configured: boolean,
+  availability: "configured" | "unconfigured" | "unreadable",
+  read: () => Promise<Record<string, { connected: boolean }>>,
+): Promise<OverviewFacts["connectedApps"]> {
+  let authoritative = availability !== "unreadable";
+  let services: string[] = [];
+  if (configured && authoritative) {
+    try {
+      services = Object.entries(await read())
+        .filter(([, state]) => state.connected)
+        .map(([slug]) => slug);
+    } catch {
+      authoritative = false;
+    }
+  }
+  return { configured, authoritative, services };
+}
+
 /** Whether this bot could use connected apps at all: apps on for the bot,
  * a connector configured, and an engine that mounts the Composio MCP. */
 function couldUseApps(facts: OverviewFacts): boolean {
@@ -186,7 +210,7 @@ function reachesLines(facts: OverviewFacts): string[] {
   }
   if (facts.bot.browser !== false && facts.bot.computer !== "off") lines.push("Has the built-in browser.");
   if (facts.engine?.agentsMcp && facts.sectionPeers > 0 && facts.bot.peers?.length !== 0) {
-    lines.push(`Can talk to ${facts.sectionPeers} other bots in its section.`);
+    lines.push(`Can talk to ${facts.sectionPeers} other bot${facts.sectionPeers === 1 ? "" : "s"} in its section.`);
   }
   if (facts.bot.chiefOfStaff) lines.push("Coordinates its section as Chief of Staff.");
   return lines;
