@@ -267,7 +267,7 @@ import { screenFrameHash, screenTouchingTool, settledFrameIsNews } from "./scree
 import { RoutineRequestService } from "./routine-requests.ts";
 import { ProfileRequestService } from "./profile-requests.ts";
 import { profileSnapshot } from "./profile-revision.ts";
-import { flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
+import { flushAllProfileHistory, flushProfileHistory, readHistory, recordProfileChange } from "./profile-versions.ts";
 import { fetchBotDirectory, matchDirectoryBots, type MatchedDirectoryBot } from "./bot-directory.ts";
 import { scoutProject, suggestTeam } from "./project-scout.ts";
 import { fetchGithubTeam, fetchLibraryTeam, fetchTeamCatalog } from "./team-library.ts";
@@ -9689,7 +9689,20 @@ const server = createServer(async (req, res) => {
       // reading history right after causing a change must see its own row.
       await flushProfileHistory(m[1]);
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 100));
-      return json(res, 200, { rows: readHistory(m[1], limit) });
+      // A soul row's full before/after can be the entire standing
+      // instructions (up to 24,000 bytes) — fine for a rollback, which
+      // reads the file server-side, but not for a client that only asked
+      // to see what changed. Strip the bodies (keep the byte-count
+      // summary) unless the caller explicitly wants them.
+      const full = url.searchParams.get("full") === "1";
+      const rows = readHistory(m[1], limit).map((row) => {
+        if (full || row.field !== "soul") return row;
+        const rest: typeof row = { ...row };
+        delete rest.before;
+        delete rest.after;
+        return rest;
+      });
+      return json(res, 200, { rows });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/history\/rollback$/);
     if (m && method === "POST") {
@@ -11549,6 +11562,7 @@ const gracefulShutdown = createGracefulShutdown({
     },
     () => releaseAllBrowserCapabilities(),
     () => registry.disposeAll(),
+    () => flushAllProfileHistory(),
   ],
   // Cleanup jobs run concurrently. Release only after they settle (or reach
   // the shutdown deadline), immediately before the process exits, so no new

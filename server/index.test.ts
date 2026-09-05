@@ -6571,7 +6571,20 @@ describe("harness HTTP API", () => {
       expect(fields.slice(0, 2).sort()).toEqual(["name:bot:card", "soul:bot:card"]);
       expect(fields).toContain("title:user:api");
 
-      // rollback the soul
+      // the default list never carries a soul row's full text
+      const soulRowDefault = history.body.rows.find((r: any) => r.field === "soul");
+      expect(soulRowDefault.before).toBeUndefined();
+      expect(soulRowDefault.after).toBeUndefined();
+      expect(soulRowDefault.summary).toMatch(/^soul: \d+ → \d+ bytes$/);
+
+      // ?full=1 still has it, for anyone who explicitly asks
+      const fullHistory = await api("GET", `/api/bots/${bot.id}/history?full=1`);
+      const fullSoulRow = fullHistory.body.rows.find((r: any) => r.field === "soul");
+      expect(fullSoulRow.before).toBe("");
+      expect(fullSoulRow.after).toBe("Be brief.");
+
+      // rollback the soul — the row from the default (stripped) list still
+      // carries enough (`at`) for the server to look the full row up itself
       const soulRow = history.body.rows.find((r: any) => r.field === "soul");
       const rolled = await api("POST", `/api/bots/${bot.id}/history/rollback`, { at: soulRow.at });
       expect(rolled.status).toBe(200);

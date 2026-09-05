@@ -5,7 +5,7 @@
 // text is kept only for the soul (so rollback is a plain write); other
 // fields keep short one-liners.
 import { appendFile } from "node:fs/promises";
-import { mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { PROFILE_REQUEST_FIELDS, type ProfileRequestChanges } from "../shared/profile-request.ts";
@@ -49,6 +49,11 @@ function rowFor(field: string, at: number, actor: HistoryActor, via: string, bef
 }
 
 async function writeRows(botId: string, rows: HistoryRow[]): Promise<void> {
+  // A bot's folder is created when the bot is (writeSoulMirror on bot
+  // creation), so a real change always finds it there. If it is gone, the
+  // bot was deleted between the change firing and this write landing —
+  // skip rather than recreate a folder for a bot that no longer exists.
+  if (!existsSync(botFolder(botId))) return;
   const file = historyFile(botId);
   mkdirSync(botFolder(botId), { recursive: true, mode: 0o700 });
   const text = rows.map((row) => JSON.stringify(redactSecrets(row))).join("\n") + "\n";
@@ -84,6 +89,15 @@ export function recordProfileChange(
 /** Test/shutdown seam. */
 export async function flushProfileHistory(botId: string): Promise<void> {
   await writeQueues.get(botId);
+}
+
+/** Shutdown seam for every bot at once: awaits whatever is currently
+ * queued, so a history write in flight when the process stops still lands
+ * before it exits. Each queued promise already swallows its own error
+ * (`writeRows` must never take down the change it records), so this never
+ * rejects either. */
+export async function flushAllProfileHistory(): Promise<void> {
+  await Promise.allSettled(writeQueues.values());
 }
 
 const isRow = (value: unknown): value is HistoryRow =>
