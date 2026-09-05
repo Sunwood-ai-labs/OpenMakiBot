@@ -72,6 +72,6 @@ describe("bot folder", () => {
     const block = soulSystemPrompt("Be brief.\n");
     expect(block.startsWith("\n\n")).toBe(true);
     expect(block).toContain("--- BEGIN STANDING INSTRUCTIONS (SOUL.md, 9 bytes) ---\nBe brief.\n--- END STANDING INSTRUCTIONS ---");
-    expect(block).toContain("you cannot edit them yourself");
+    expect(block).toContain("propose changes with propose_profile");
   });
 });

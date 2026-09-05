@@ -12,6 +12,7 @@ import {
   COMPOSIO_PROMPT,
   CREDENTIAL_PROMPT,
   LEARN_PROMPT,
+  PROFILE_PROMPT,
   ROUTINE_PROMPT,
   WEBHOOK_PROMPT,
 } from "./system-prompt.ts";
@@ -70,7 +71,7 @@ describe("computerPrompt", () => {
 
 describe("shared sentences", () => {
   it("each begins with one space so they concatenate onto the persona line", () => {
-    for (const sentence of [COMPOSIO_PROMPT, CREDENTIAL_PROMPT, ROUTINE_PROMPT, LEARN_PROMPT, WEBHOOK_PROMPT]) {
+    for (const sentence of [COMPOSIO_PROMPT, CREDENTIAL_PROMPT, ROUTINE_PROMPT, LEARN_PROMPT, WEBHOOK_PROMPT, PROFILE_PROMPT]) {
       expect(sentence.startsWith(" ")).toBe(true);
       expect(sentence.startsWith("  ")).toBe(false);
     }
@@ -81,5 +82,10 @@ describe("shared sentences", () => {
     expect(mentionPrompt([{ id: "a1", name: "Ana" }, { id: "b2", name: "Bo" }])).toBe(
       " The user tagged @Ana (bot_id a1) and @Bo (bot_id b2) in their message. If they assigned independent work, use delegate_bot and finish your turn without waiting; use ask_bot only if their short reply is required in this answer.",
     );
+  });
+
+  it("PROFILE_PROMPT names the tool and the confirmation rule", () => {
+    expect(PROFILE_PROMPT).toContain("propose_profile");
+    expect(PROFILE_PROMPT).toContain("nothing changes until the user confirms");
   });
 });
