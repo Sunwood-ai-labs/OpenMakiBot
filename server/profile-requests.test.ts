@@ -234,6 +234,20 @@ describe("ProfileRequestService", () => {
     settle.mockRestore();
   });
 
+  it("never reapplies an interrupted card after a later proposal restores its original text", () => {
+    const { service, store, bot } = harness({ name: "Scout" });
+    const a = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { name: "Kiwi", soul: "Brief." }, reason: "r" });
+    const patch = vi.spyOn(store, "patchBotProfile");
+    vi.spyOn(store, "patchMessage").mockImplementationOnce(() => { throw new Error("card write failed"); });
+    const args = { botId: bot.id, threadId: bot.threadId, requestId: a.requestId, behavior: "allow" };
+    expect(service.resolve(args)).toMatchObject({ state: "applied", settlementPending: true });
+    const b = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { name: "Scout", soul: "" }, reason: "restore" });
+    expect(service.resolve({ ...args, requestId: b.requestId })).toMatchObject({ state: "applied" });
+    expect(service.resolve(args)).toMatchObject({ state: "invalid", status: 409 });
+    expect(bot).toMatchObject({ name: "Scout", soul: "", lastProfileRequestId: b.requestId });
+    expect(patch).toHaveBeenCalledTimes(2);
+  });
+
   it("pins ownership to the proposing conversation and rejects other behaviors", () => {
     const { service, bot } = harness({ name: "Scout" });
     const { requestId } = service.propose({ botId: bot.id, threadId: bot.threadId, changes: { title: "T" }, reason: "r" });

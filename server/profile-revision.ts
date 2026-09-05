@@ -13,7 +13,11 @@ export function profileSnapshot(
 }
 
 export function profileRevision(
-  bot: { name: string; title: string; description: string; soul?: string; cwd?: string },
+  bot: { name: string; title: string; description: string; soul?: string; cwd?: string; lastProfileRequestId?: string },
 ): string {
-  return createHash("sha256").update(JSON.stringify(profileSnapshot(bot)), "utf8").digest("hex");
+  // A later proposal can restore identical text. Keep its private receipt
+  // in the opaque revision so an older, interrupted card cannot apply twice.
+  return createHash("sha256")
+    .update(JSON.stringify({ ...profileSnapshot(bot), lastProfileRequestId: bot.lastProfileRequestId ?? "" }), "utf8")
+    .digest("hex");
 }
