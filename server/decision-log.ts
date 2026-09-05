@@ -45,6 +45,7 @@ export type DecisionSource =
   | "auto-fallback"
   | "routine"
   | "skill"
+  | "profile"
   | "user"
   | "auto-review"
   | "auto-review-shadow";
