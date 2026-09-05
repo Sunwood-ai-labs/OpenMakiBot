@@ -1,8 +1,9 @@
 // Per-bot settings, as a centered dialog with the same section-rail shell
 // as the app SettingsModal — replaces the old right-hand SettingsPanel
-// aside. Only overview/identity/soul are wired up in this commit; every
-// other section is a placeholder until later commits move it over.
-import { useEffect, useRef, useState } from "react";
+// aside. Every section now lives under bot-settings/; this dialog owns
+// only the fetches (overview, system-prompt, history) and the section
+// switch.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import { api, useStore, type Bot } from "@/state/store";
@@ -17,6 +18,11 @@ import { SkillsSection } from "./bot-settings/SkillsSection";
 import { MemorySection } from "./bot-settings/MemorySection";
 import { RoutinesSection } from "./bot-settings/RoutinesSection";
 import { AccessSection } from "./bot-settings/AccessSection";
+import { ModelSection } from "./bot-settings/ModelSection";
+import { PermissionsSection } from "./bot-settings/PermissionsSection";
+import { VoiceSection } from "./bot-settings/VoiceSection";
+import { HistorySection, type HistoryRow } from "./bot-settings/HistorySection";
+import { UsageSection } from "./bot-settings/UsageSection";
 import type { PromptPreviewData } from "./bot-settings/PromptPreview";
 
 function sectionMatches(entry: (typeof BOT_SECTIONS)[number], query: string): boolean {
@@ -37,6 +43,8 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
   const [overviewError, setOverviewError] = useState(false);
   const [prompt, setPrompt] = useState<PromptPreviewData | null>(null);
   const [promptError, setPromptError] = useState(false);
+  const [historyRows, setHistoryRows] = useState<HistoryRow[] | null>(null);
+  const [historyError, setHistoryError] = useState(false);
 
   // A new bot starts from a clean slate rather than showing the previous
   // bot's overview for a moment.
@@ -45,6 +53,8 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     setOverviewError(false);
     setPrompt(null);
     setPromptError(false);
+    setHistoryRows(null);
+    setHistoryError(false);
   }, [bot.id]);
 
   // Loads on open, and again whenever bot.id, state.routines, state.webhooks,
@@ -71,6 +81,33 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     }, 500);
     return () => window.clearTimeout(timer);
   }, [bot.id, bot, state.routines, state.webhooks]);
+
+  // History is fetched only once the section is actually opened — every
+  // other section's data loads eagerly, but reading a bot's full change log
+  // is the one facts a visit to Settings almost never needs, and the fetch
+  // reads a per-bot NDJSON file (readHistory) rather than in-memory state.
+  const loadHistory = useCallback(() => {
+    setHistoryError(false);
+    return api(`/api/bots/${bot.id}/history?limit=100`)
+      .then((data: { rows: HistoryRow[] }) => setHistoryRows(data.rows))
+      .catch(() => setHistoryError(true));
+  }, [bot.id]);
+
+  useEffect(() => {
+    if (section !== "history") return;
+    void loadHistory();
+  }, [section, loadHistory]);
+
+  // A rollback failure (the row's soul text no longer round-trips the
+  // server's validation, say) leaves the list exactly as it was rather than
+  // replacing valid rows with an error banner — the row's still-visible Undo
+  // button is the retry.
+  const rollbackHistory = (at: number) => {
+    void api(`/api/bots/${bot.id}/history/rollback`, { method: "POST", body: JSON.stringify({ at }) }).then(
+      () => loadHistory(),
+      () => {},
+    );
+  };
 
   useEffect(() => {
     const visible = BOT_SECTIONS.filter((entry) => sectionMatches(entry, q));
@@ -224,15 +261,20 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
 
             {section === "access" && <AccessSection bot={bot} derived={derived} />}
 
-            {section !== "overview" &&
-              section !== "identity" &&
-              section !== "soul" &&
-              section !== "skills" &&
-              section !== "memory" &&
-              section !== "routines" &&
-              section !== "access" && (
-                <div className="text-[13px] text-ink-secondary">Moving in the next commit.</div>
-              )}
+            {section === "model" && <ModelSection bot={bot} derived={derived} />}
+
+            {section === "permissions" && <PermissionsSection bot={bot} derived={derived} />}
+
+            {section === "voice" && <VoiceSection bot={bot} derived={derived} />}
+
+            {section === "history" &&
+              (historyError ? (
+                <div className="rounded-xl bg-card p-4 text-[13px] text-ink-secondary">Couldn’t load history.</div>
+              ) : (
+                <HistorySection bot={bot} rows={historyRows} onRollback={rollbackHistory} />
+              ))}
+
+            {section === "usage" && <UsageSection bot={bot} />}
           </div>
         </div>
       </div>
