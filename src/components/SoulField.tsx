@@ -9,12 +9,9 @@ import { BOT_PROFILE_LIMITS } from "../../shared/bot-profile";
 import { cn } from "@/lib/cn";
 import { firstSentence, soulPatchFor, utf8Bytes } from "@/lib/soul";
 import { api, useStore, type Bot } from "@/state/store";
+import { inputCls } from "./bot-settings/field";
 
 type SoulRead = { soul: string; bytes: number; limit: number; file: string; drift: boolean; fileText?: string };
-
-// Same field styling as SettingsPanel's own inputs.
-const inputCls =
-  "w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2.5 text-[15px] text-ink placeholder:text-ink-secondary focus:outline-none focus:border-hairline";
 
 export function SoulField({
   bot,
