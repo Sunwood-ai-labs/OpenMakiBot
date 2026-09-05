@@ -20,22 +20,28 @@ describe("Store", () => {
     rmSync(DATA_DIR, { recursive: true, force: true });
   });
 
-  it("createBot seeds a greeting and an onboarding card", () => {
+  it("createBot seeds only a greeting that invites setup", () => {
     const store = new Store(selection);
     const bot = store.createBot();
 
     const messages = store.messagesFor(bot.threadId);
-    expect(messages).toHaveLength(2);
-    expect(messages[0]).toMatchObject({ role: "bot", kind: "text" });
-    expect(messages[1].kind).toBe("options");
-    expect(messages[1].card?.options.length).toBeGreaterThan(1);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      role: "bot",
+      kind: "text",
+      text: `Hey, I'm ${bot.name}. Tell me what you want me to do and I'll set myself up.`,
+    });
     expect(bot.modelSelection).toEqual(selection());
   });
 
-  it("dismisses the onboarding quiz when the user talks, and leaves live asks", () => {
+  it("dismisses an open options card when the user talks, and leaves live asks", () => {
     const store = new Store(selection);
     const bot = store.createBot();
-    const quiz = store.messagesFor(bot.threadId)[1]!;
+    const quiz = store.appendMessage(bot.threadId, {
+      role: "bot",
+      kind: "options",
+      card: { title: "Quick question", subtitle: "", options: ["A", "B"] },
+    });
     expect(quiz.card?.dismissed).toBeUndefined();
 
     store.appendMessage(bot.threadId, { role: "user", kind: "text", text: "hi" });
@@ -59,11 +65,16 @@ describe("Store", () => {
     expect(store.messagesFor(bot.threadId).find((m) => m.id === ask.id)?.card?.dismissed).toBeUndefined();
   });
 
-  it("does not dismiss the quiz for bot-authored messages", () => {
+  it("does not dismiss an open options card for bot-authored messages", () => {
     const store = new Store(selection);
     const bot = store.createBot();
+    const quiz = store.appendMessage(bot.threadId, {
+      role: "bot",
+      kind: "options",
+      card: { title: "Quick question", subtitle: "", options: ["A", "B"] },
+    });
     store.appendMessage(bot.threadId, { role: "bot", kind: "text", text: "still here" });
-    expect(store.messagesFor(bot.threadId)[1]?.card?.dismissed).toBeUndefined();
+    expect(store.messagesFor(bot.threadId).find((m) => m.id === quiz.id)?.card?.dismissed).toBeUndefined();
   });
 
   it("marks only the last assistant message from a settled provider turn as terminal", () => {
@@ -480,7 +491,11 @@ describe("Store", () => {
   it("patchMessage merges card patches and returns null for unknown ids", () => {
     const store = new Store(selection);
     const bot = store.createBot();
-    const card = store.messagesFor(bot.threadId)[1];
+    const card = store.appendMessage(bot.threadId, {
+      role: "bot",
+      kind: "options",
+      card: { title: "Quick question", subtitle: "", options: ["A", "B"] },
+    });
 
     const patched = store.patchMessage(bot.threadId, card.id, {
       card: { ...card.card!, answered: "Work & projects" },
@@ -492,7 +507,11 @@ describe("Store", () => {
   it("keeps memory and SQLite pending when a card patch cannot persist", () => {
     const store = new Store(selection);
     const bot = store.createBot();
-    const card = store.messagesFor(bot.threadId)[1]!;
+    const card = store.appendMessage(bot.threadId, {
+      role: "bot",
+      kind: "options",
+      card: { title: "Quick question", subtitle: "", options: ["A", "B"] },
+    });
     const update = vi.spyOn(mdb, "updateMessage").mockImplementationOnce(() => {
       throw new Error("simulated SQLite failure");
     });
@@ -534,7 +553,7 @@ describe("Store", () => {
     const user = store.appendMessage(bot.threadId, { role: "user", kind: "text", text: "hi" });
 
     const messages = store.messagesFor(bot.threadId);
-    expect(user.parentId).toBe(messages[1].id); // follows the onboarding card
+    expect(user.parentId).toBe(messages[0].id); // follows the greeting
     expect(store.activeLeaf(bot.threadId)).toBe(user.id);
     expect(store.activePath(bot.threadId).map((m) => m.id)).toEqual(messages.map((m) => m.id));
   });
@@ -678,10 +697,14 @@ describe("Store change stream", () => {
     expect(store.messagesFor(bot.threadId).at(-1)).toBe(m);
   });
 
-  it("emits a card patch after a user message hides the onboarding quiz", () => {
+  it("emits a card patch after a user message hides an open options card", () => {
     const store = new Store(selection);
     const bot = store.createBot();
-    const quiz = store.messagesFor(bot.threadId)[1]!;
+    const quiz = store.appendMessage(bot.threadId, {
+      role: "bot",
+      kind: "options",
+      card: { title: "Quick question", subtitle: "", options: ["A", "B"] },
+    });
     const events = record(store);
     const m = store.appendMessage(bot.threadId, { role: "user", kind: "text", text: "hi" });
     expect(events.map((event) => event.type)).toEqual(["message", "message.patch"]);
@@ -693,11 +716,11 @@ describe("Store change stream", () => {
     });
   });
 
-  it("announces a new bot before its onboarding messages", () => {
+  it("announces a new bot before its greeting", () => {
     const store = new Store(selection);
     const events = record(store);
     const bot = store.createBot();
-    expect(events.map((event) => event.type)).toEqual(["bot", "message", "message"]);
+    expect(events.map((event) => event.type)).toEqual(["bot", "message"]);
     expect(events[0]).toEqual({ type: "bot", botId: bot.id });
     expect(events.slice(1).every((event) => event.threadId === bot.threadId)).toBe(true);
   });

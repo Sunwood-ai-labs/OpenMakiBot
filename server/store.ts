@@ -659,12 +659,6 @@ export function roomResponders<T extends { id: string; name: string; hidden?: bo
   return [];
 }
 
-const onboardingCard = (): OptionCardData => ({
-  title: "What do you mostly want help with?",
-  subtitle: "Pick whatever's closest; we can always expand from there.",
-  options: ["Work & projects", "Writing & research", "Life admin", "A bit of everything"],
-});
-
 /** Messages form a tree (forks appear when a message is edited); the
  * visible conversation is the path from the root to activeLeafId. */
 interface ThreadState {
@@ -1341,13 +1335,14 @@ export class Store {
     // Announce the owner before its onboarding transcript. SSE clients need
     // the bot/thread mapping before they can place either message.
     this.emit({ type: "bot", botId: bot.id });
+    // One line, and it points at setup mode: the bot's first turn carries the
+    // setup coach, so the invitation is real, not decorative.
     if (opts.seedMessages !== false) {
       this.appendMessage(bot.threadId, {
         role: "bot",
         kind: "text",
-        text: `Hey — I'm ${name}. Nice to meet you.`,
+        text: `Hey, I'm ${name}. Tell me what you want me to do and I'll set myself up.`,
       });
-      this.appendMessage(bot.threadId, { role: "bot", kind: "options", card: onboardingCard() });
     }
     return bot;
   }

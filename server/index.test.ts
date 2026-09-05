@@ -894,7 +894,7 @@ describe("harness HTTP API", () => {
     const { status, body } = await api("GET", "/api/bots");
     expect(status).toBe(200);
     expect(body.bots.length).toBeGreaterThanOrEqual(1);
-    expect(body.bots[0].messages.length).toBeGreaterThanOrEqual(2);
+    expect(body.bots[0].messages.length).toBeGreaterThanOrEqual(1);
   });
 
   it("projects privacy-safe live team-map metadata", async () => {
@@ -1568,7 +1568,7 @@ describe("harness HTTP API", () => {
   it("searches transcripts and exports a conversation", async () => {
     const bot = (await api("POST", "/api/bots")).body.bot;
     // every new bot opens with a seeded greeting — a known searchable string
-    const hits = await api("GET", "/api/search?q=nice%20to%20meet");
+    const hits = await api("GET", "/api/search?q=set%20myself%20up");
     expect(hits.status).toBe(200);
     const hit = hits.body.hits.find((h: { botId?: string }) => h.botId === bot.id);
     expect(hit).toMatchObject({
@@ -1578,10 +1578,10 @@ describe("harness HTTP API", () => {
       kind: "text",
       onActivePath: true,
     });
-    expect(hit.snippet.toLowerCase()).toContain("nice to meet");
-    expect(hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength).toLowerCase()).toBe("nice to meet");
+    expect(hit.snippet.toLowerCase()).toContain("set myself up");
+    expect(hit.snippet.slice(hit.matchStart, hit.matchStart + hit.matchLength).toLowerCase()).toBe("set myself up");
     expect((await api("GET", "/api/search?q=")).body.hits).toEqual([]);
-    const scoped = await api("GET", `/api/search?q=nice%20to%20meet&threadId=${bot.threadId}`);
+    const scoped = await api("GET", `/api/search?q=set%20myself%20up&threadId=${bot.threadId}`);
     expect(scoped.status).toBe(200);
     expect(scoped.body.hits.every((candidate: { threadId: string }) => candidate.threadId === bot.threadId)).toBe(true);
     expect((await api("GET", "/api/search?q=hello&threadId=missing-thread")).status).toBe(404);
@@ -1591,7 +1591,7 @@ describe("harness HTTP API", () => {
     expect(markdown.headers.get("content-type")).toContain("text/markdown");
     expect(markdown.headers.get("content-disposition")).toContain("attachment");
     const text = await markdown.text();
-    expect(text).toContain("Nice to meet you");
+    expect(text).toContain("set myself up");
 
     const asJson = await api("GET", `/api/threads/${bot.threadId}/export?format=json`);
     expect(asJson.status).toBe(200);
@@ -4228,13 +4228,16 @@ describe("harness HTTP API", () => {
     expect(stopped).toEqual({ status: 200, body: { ok: true } });
   });
 
-  it("persists an answered onboarding card", async () => {
-    const { body } = await api("GET", "/api/bots");
-    const bot = body.bots[0];
-    const card = bot.messages.find((m: { kind: string }) => m.kind === "options");
-    const res = await api("PATCH", `/api/bots/${bot.id}/cards/${card.id}`, { answered: card.card.options[0] });
-    expect(res.status).toBe(200);
-    expect(res.body.message.card.answered).toBe(card.card.options[0]);
+  it("a new bot opens with one greeting and no quiz card", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Fresh" })).body.bot;
+    try {
+      expect(bot.messages).toHaveLength(1);
+      expect(bot.messages[0]).toMatchObject({ role: "bot", kind: "text" });
+      expect(bot.messages[0].text).toBe("Hey, I'm Fresh. Tell me what you want me to do and I'll set myself up.");
+      expect(bot.messages.some((m: { kind: string }) => m.kind === "options")).toBe(false);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
   });
 
   it("validates approval decisions and reports a request that is no longer open", async () => {
@@ -4312,9 +4315,9 @@ describe("harness HTTP API", () => {
     const send = await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello?" });
     expect(send.status).toBe(409);
     expect(send.body.error).toContain("unavailable");
-    // a failed send never landed a user message, so the first-run quiz stays
+    // a failed send never lands a user message
     const afterFail = (await api("GET", "/api/bots")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
-    expect(afterFail.messages.find((m: { kind: string }) => m.kind === "options")?.card.dismissed).toBeFalsy();
+    expect(afterFail.messages.some((m: { role: string }) => m.role === "user")).toBe(false);
   });
 
   it("refuses to fork a message when the provider is unavailable, without mutating", async () => {
@@ -4326,11 +4329,6 @@ describe("harness HTTP API", () => {
     const greeting = bot.messages.find((m: { role: string }) => m.role === "bot");
     const notUser = await api("POST", `/api/bots/${bot.id}/messages/${greeting.id}/edit`, { text: "x" });
     expect(notUser.status).toBe(404);
-
-    // no user message exists yet, so fabricate the check via the card id
-    const card = bot.messages.find((m: { kind: string }) => m.kind === "options");
-    const res = await api("POST", `/api/bots/${bot.id}/messages/${card.id}/edit`, { text: "x" });
-    expect(res.status).toBe(404); // options card, not a user text message
 
     const empty = await api("POST", `/api/bots/${bot.id}/messages/${greeting.id}/edit`, { text: "  " });
     expect(empty.status).toBe(400);
