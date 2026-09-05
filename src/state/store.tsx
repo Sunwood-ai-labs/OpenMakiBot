@@ -1219,8 +1219,11 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         settingsOpen: open,
         botSettingsSection: action.section ?? state.botSettingsSection,
-        computerOpen: open ? false : state.computerOpen,
-        inspectorOpen: open ? false : state.inspectorOpen,
+        // A centered modal sits over the side panels, so opening it leaves
+        // the computer panel and inspector as they were — the computer
+        // panel's own gear opens this dialog, and closing the panel under it
+        // would destroy what the user was just looking at. The app settings
+        // modal is the one thing that cannot share the screen with it.
         appSettingsOpen: open ? false : state.appSettingsOpen,
       };
     }

@@ -1002,6 +1002,15 @@ describe("bot settings section", () => {
     expect(next.botSettingsSection).toBe("identity");
   });
 
+  it("toggleSettings leaves the computer panel and inspector open, closes app settings", () => {
+    const withPanels = { ...initialState, computerOpen: true, inspectorOpen: true, appSettingsOpen: true };
+    const next = reducer(withPanels, { type: "toggleSettings", open: true });
+    expect(next.settingsOpen).toBe(true);
+    expect(next.computerOpen).toBe(true);
+    expect(next.inspectorOpen).toBe(true);
+    expect(next.appSettingsOpen).toBe(false);
+  });
+
   it("toggleSettings without a section keeps it", () => {
     const state = reducer(initialState, {
       type: "toggleSettings",

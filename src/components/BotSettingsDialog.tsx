@@ -3,7 +3,7 @@
 // aside. Every section now lives under bot-settings/; this dialog owns
 // only the fetches (overview, system-prompt, history) and the section
 // switch.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import { api, useStore, type Bot } from "@/state/store";
@@ -61,9 +61,49 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     firstLoadRef.current = true;
   }, [bot.id]);
 
+  // The bot-record fields the server-built overview and system-prompt
+  // preview actually read (OverviewFacts.bot plus the prompt's persona
+  // inputs). Keyed as one string so a streamed message, an unread flag, or
+  // a typing indicator — which all replace the bot object — never restarts
+  // the debounce below; while a bot is answering, the whole object changes
+  // many times a second and an effect keyed on it would never fire.
+  const factsSignature = useMemo(
+    () =>
+      JSON.stringify([
+        bot.name,
+        bot.title,
+        bot.description,
+        bot.soul,
+        bot.computer,
+        bot.cloudBackend,
+        bot.cwd,
+        bot.autoApprove,
+        bot.approvePeerComms,
+        bot.composio,
+        bot.browser,
+        bot.chiefOfStaff,
+        bot.modelSelection,
+      ]),
+    [
+      bot.name,
+      bot.title,
+      bot.description,
+      bot.soul,
+      bot.computer,
+      bot.cloudBackend,
+      bot.cwd,
+      bot.autoApprove,
+      bot.approvePeerComms,
+      bot.composio,
+      bot.browser,
+      bot.chiefOfStaff,
+      bot.modelSelection,
+    ],
+  );
+
   // Loads on open, and again whenever bot.id, state.routines, state.webhooks,
-  // or the bot record change — those are exactly the facts the server-built
-  // overview and system-prompt preview depend on. The very first load for a
+  // or one of the bot fields above changes — those are exactly the facts the
+  // server-built overview and system-prompt preview depend on. The very first load for a
   // given bot.id (dialog just opened, or switched bots) fires immediately —
   // there is nothing on screen yet to coalesce with, so waiting out a 500ms
   // debounce would only add a visible delay. Every later run — a dependency
@@ -114,7 +154,7 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [bot.id, bot, state.routines, state.webhooks]);
+  }, [bot.id, factsSignature, state.routines, state.webhooks]);
 
   // History is fetched only once the section is actually opened — every
   // other section's data loads eagerly, but reading a bot's full change log
@@ -159,6 +199,11 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
     dialog?.focus();
 
     const onKey = (event: KeyboardEvent) => {
+      // A dialog opened from inside this one (the routine editor, a skill
+      // review, the model picker's popover, a computer warning) owns Escape
+      // and Tab while it is up: Escape closes only that layer, and the focus
+      // trap below must not pull focus back out of it.
+      if (dialog?.querySelector('[role="dialog"]')) return;
       if (event.key === "Escape") {
         event.preventDefault();
         dispatch({ type: "toggleSettings", open: false });
@@ -312,10 +357,18 @@ export function BotSettingsDialog({ bot }: { bot: Bot }) {
             {section === "voice" && <VoiceSection bot={bot} derived={derived} />}
 
             {section === "history" &&
-              (historyError ? (
+              (historyRows === null && historyError ? (
                 <div className="rounded-xl bg-card p-4 text-[13px] text-ink-secondary">Couldn’t load history.</div>
               ) : (
-                <HistorySection bot={bot} rows={historyRows} onRollback={rollbackHistory} />
+                // Same precedence as the Overview: rows already on screen
+                // survive a failed reload (after an undo, say) with a quiet
+                // note rather than being replaced by an error block.
+                <HistorySection
+                  bot={bot}
+                  rows={historyRows}
+                  refreshError={historyRows !== null && historyError}
+                  onRollback={rollbackHistory}
+                />
               ))}
 
             {section === "usage" && <UsageSection bot={bot} />}
