@@ -45,7 +45,12 @@ export function scheduleSentence(schedule: RoutineSchedule): string {
     const label = intervalLabel(schedule.everyMinutes);
     // Convert "Every X min" → "every X minutes", "Every hour" → "every hour", etc.
     const lowercase = label.replace(/^Every /, "every ");
-    return lowercase.replace(/(\d+) min(?!ute)/g, "$1 minutes");
+    // Replace "N min" with "N minutes" (avoid replacing if already "minutes")
+    const withMinutes = lowercase.replace(/(\d+) min(?!ute)/g, "$1 minutes");
+    // Replace "1 hr" with "1 hour" and "N hr" with "N hours" (but leave "every hour" unchanged)
+    return withMinutes.replace(/(\d+) hr(?!our)/g, (_match, num) => {
+      return num === "1" ? "1 hour" : `${num} hours`;
+    });
   }
   if (schedule.type === "once") {
     return `once on ${niceDate(schedule.at)}, ${niceTime(schedule.at)}`;
