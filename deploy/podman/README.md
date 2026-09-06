@@ -58,9 +58,9 @@ This recipe targets Podman 5.8.3 / podman-compose 1.6.0 and Linux x86_64. The
 remote client is checksum-pinned; the renderer and server both build from your
 checkout. Engine installation is opt-in through `ENGINES`; pin package versions
 there when reproducibility is required. The live acceptance environment is a
-Windows WSL2 machine. Native Linux, SELinux enforcing, ARM64, macOS, and non-systemd
+Windows WSL2 machine. Native Linux, SELinux-enforcing systems, ARM64, macOS, and non-systemd
 hosts need separate validation; the Containerfile explicitly rejects non-x86_64.
-SELinux enforcing needs an appropriate socket/bind policy, not blanket label
+SELinux-enforcing systems need an appropriate socket/bind policy, not blanket label
 disabling. Reboot persistence on Linux additionally needs the user's linger and
 Podman restart service configured according to the host's administration policy.
 
