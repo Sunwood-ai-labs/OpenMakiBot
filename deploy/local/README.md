@@ -15,9 +15,14 @@ Internal service ports remain fixed inside the shared network namespace.
 For Tailscale Serve, set `OMB_PUBLIC_URL` to your HTTPS URL and
 `OMB_HTTPS_HOST` to its hostname without scheme or path. Configure Tailscale
 Serve on the host to forward to the chosen localhost HTTP port.
-Keep the default loopback bind address. The hostname mapping preserves HTTPS
+Keep the default `OMB_BIND_ADDRESS=127.0.0.1`. Caddy refuses to start when
+`OMB_HTTPS_HOST` is set with any other bind address, so direct remote HTTP
+clients cannot claim HTTPS semantics by supplying that hostname.
+The hostname mapping preserves HTTPS
 semantics for that host while localhost access continues to use HTTP.
 Private tailnet webhook URLs are only reachable by callers on that tailnet.
+Without `OMB_HTTPS_HOST`, the bind address can be changed for HTTP access.
+Only use HTTPS hostname mapping with a trusted local TLS-terminating proxy.
 
 Sign in and pair a browser:
 

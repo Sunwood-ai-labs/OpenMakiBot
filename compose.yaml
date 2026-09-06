@@ -19,7 +19,11 @@ services:
       OMB_PUBLIC_URL: ${OMB_PUBLIC_URL:-http://localhost:${OMB_HTTP_PORT:-8080}}
       OMB_WEBHOOK_PUBLIC_URL: ${OMB_WEBHOOK_PUBLIC_URL:-${OMB_PUBLIC_URL:-http://localhost:${OMB_HTTP_PORT:-8080}}}
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8799/api/health | grep -q openmausbot"]
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8799/api/health', { signal: AbortSignal.timeout(4000) }).then(async r => { if (!r.ok || !(await r.text()).includes('openmausbot')) process.exit(1); }).catch(() => process.exit(1))"
       interval: 15s
       timeout: 5s
       start_period: 30s
@@ -29,7 +33,21 @@ services:
     restart: unless-stopped
     network_mode: service:omb
     environment:
-      OMB_HTTPS_HOST: ${OMB_HTTPS_HOST:-https-disabled.invalid}
+      OMB_HTTPS_HOST: ${OMB_HTTPS_HOST:-}
+      OMB_BIND_ADDRESS: ${OMB_BIND_ADDRESS:-127.0.0.1}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        export OMB_UPSTREAM_SCHEME=http
+        if [ -n "$$OMB_HTTPS_HOST" ] && [ "$$OMB_BIND_ADDRESS" != "127.0.0.1" ]; then
+          echo "OMB_HTTPS_HOST requires OMB_BIND_ADDRESS=127.0.0.1; forward HTTPS through a trusted local proxy." >&2
+          exit 1
+        fi
+        if [ -n "$$OMB_HTTPS_HOST" ]; then
+          export OMB_UPSTREAM_SCHEME=https
+        fi
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     depends_on:
       omb:
         condition: service_healthy
