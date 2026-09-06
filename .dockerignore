@@ -12,6 +12,7 @@ release
 *.log
 electron/resources/cloudflared*
 .omb-scratch
+nekoneko-output
 .env
 **/.env
 **/.env.*

@@ -27,6 +27,7 @@ RUN curl -fsSL https://github.com/podman-container-tools/podman/releases/downloa
 WORKDIR /app
 COPY --from=build --chown=maus:maus /src/dist-server ./dist-server
 COPY --from=build --chown=maus:maus /src/dist ./dist
+COPY --chown=maus:maus deploy/nekoneko /opt/nekoneko
 ARG ENGINES=""
 RUN if [ -n "$ENGINES" ]; then npm install -g $ENGINES; fi
 ENV HOME=/data \
