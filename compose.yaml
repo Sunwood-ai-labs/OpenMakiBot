@@ -1,6 +1,7 @@
 name: ${COMPOSE_PROJECT_NAME:-openmausbot}
 services:
   omb:
+    init: true
     build:
       context: ./deploy/local
       args:

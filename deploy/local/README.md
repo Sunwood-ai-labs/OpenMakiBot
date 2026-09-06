@@ -3,6 +3,8 @@
 From the repository root, run `docker compose up -d --build`, then open
 http://localhost:8080. Docker with Linux containers is required.
 Compose supplies defaults; no `.env` file is required.
+The application container uses Docker's init process to reap orphaned agent
+subprocesses.
 
 To customize, copy `.env.example` to `.env` in the repository root.
 The `.env` file is ignored by Git. Shell environment variables take precedence.
