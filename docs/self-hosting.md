@@ -85,6 +85,10 @@ pm2 to keep it up; `openmausbot serve` is a plain foreground process.
 
 ## Docker (with HTTPS on your own domain)
 
+For a single rootless Podman engine running the server, Caddy, and per-bot
+desktops, see the optional [Podman full-stack recipe](../deploy/podman/README.md)
+for Windows/WSL2 and Linux x64. It is separate from the Docker deployment below.
+
 One tenant = one container for the server plus Caddy for HTTPS.
 Requirements: Docker with Compose, a DNS name pointing at the machine, and
 ports 80/443 open.
