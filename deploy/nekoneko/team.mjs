@@ -109,9 +109,26 @@ export async function run(command, options = {}) {
     const group = state.groups?.find(item => item.id === manifest.group?.id);
     const history = group && manifest.group?.threadId ? await api(`/api/threads/${manifest.group.threadId}/messages?limit=100`) : { messages: [] };
     const messages = history.messages || [];
-    const receipt = [...messages].reverse().find(message => message.goalRun)?.goalRun;
+    let page = history;
+    let receipt;
+    let goalSearchTruncated = false;
+    const cursors = new Set();
+    // Goal status is patched on the original card, which may be much older
+    // than the latest activity. Keep approvals scoped to the first page.
+    for (let pages = 1; pages <= 100; pages++) {
+      const batch = page.messages || [];
+      receipt = [...batch].reverse().find(message => message.goalRun)?.goalRun;
+      if (receipt || !page.hasMore) break;
+      const before = batch[0]?.id;
+      if (pages === 100 || !before || cursors.has(before)) {
+        goalSearchTruncated = true;
+        break;
+      }
+      cursors.add(before);
+      page = await api(`/api/threads/${manifest.group.threadId}/messages?limit=100&before=${encodeURIComponent(before)}`);
+    }
     const pending = messages.filter(message => message.card?.requestId && !message.card.answered && !message.card.dismissed).map(message => ({ messageId: message.id, kind: 'approval-or-question' }));
-    return { group: { id: manifest.group?.id, working: group?.working, goalStatus: receipt?.status }, pendingCards: pending, bots: roles.map(([role]) => { const bot = state.bots.find(item => item.id === manifest.bots[role]?.id); return { role, id: bot?.id, busy: bot?.busy }; }), note: 'Pending cards are counted within the latest 100 group messages. Open the group in the app to review approvals and completion evidence.' };
+    return { group: { id: manifest.group?.id, working: group?.working, goalStatus: receipt?.status || 'unknown', goalSearchTruncated }, pendingCards: pending, bots: roles.map(([role]) => { const bot = state.bots.find(item => item.id === manifest.bots[role]?.id); return { role, id: bot?.id, busy: bot?.busy }; }), note: 'Pending cards are counted within the latest 100 group messages. Goal status searches up to 100 pages; unknown means no Goal card was found. Open the group in the app to review approvals and completion evidence.' };
   }
   if (command === 'stop-desktops') {
     requireIdle(await fleet());

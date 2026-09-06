@@ -20,6 +20,8 @@ git clone --branch codex/nekoneko-repro-guide --single-branch https://github.com
 cd OpenMausBot-nekoneko
 ```
 
+完成例は `example/index.html` をブラウザで直接開けます。これは最初の実験の完成HTMLです。Goalで新たに生成するページのデザインや文言は毎回変わります。
+
 ## 2. ビルドして起動
 
 ```powershell
@@ -28,6 +30,12 @@ cd OpenMausBot-nekoneko
 ```
 
 初回はイメージ取得とソースビルドが走ります。`setup`は既存データを移行せず、記事専用の保存領域とマーカーを作ります。生成される`deploy/podman/.env.nekoneko`はGit管理対象外です。別machineを選ぶ場合は全コマンドへ同じ`-Machine NAME`を付けてください。
+
+PowerShellに「スクリプトの実行が無効」と表示された場合は、このPowerShellだけに適用してから再実行します。
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+```
 
 ## 3. GLMを登録
 

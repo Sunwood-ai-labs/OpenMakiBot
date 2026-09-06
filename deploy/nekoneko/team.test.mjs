@@ -70,3 +70,42 @@ test('export copies only HTML/PNG, records hashes, and rejects escaping workspac
     await assert.rejects(run('export', { root, url }), /escapes/);
   } finally { await new Promise(resolve => server.close(resolve)); await fs.rm(root, { recursive: true, force: true }); }
 });
+
+for (const scenario of ['older-completed', 'older-running', 'page-limit', 'repeated-cursor']) {
+  test(`status retrieves the latest Goal card with bounded history: ${scenario}`, async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nekoneko-team-test-'));
+    const cursors = [];
+    const server = http.createServer((req, res) => {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url === '/api/bots?messages=0') return res.end(JSON.stringify({ bots: [], groups: [{ id: 'group', working: scenario === 'older-running' }] }));
+      const before = new URL(req.url, 'http://localhost').searchParams.get('before');
+      cursors.push(before);
+      if (!before) return res.end(JSON.stringify({
+        messages: Array.from({ length: 100 }, (_, i) => ({ id: `recent-${i}`, ...(i === 99 ? { card: { requestId: 'recent-approval' } } : {}) })), hasMore: true,
+      }));
+      if (scenario.startsWith('older-')) return res.end(JSON.stringify({ messages: [
+        { id: 'old-goal', goalRun: { status: 'failed' } },
+        { id: 'current-goal', goalRun: { status: scenario === 'older-completed' ? 'completed' : 'running' } },
+        { id: 'old-approval', card: { requestId: 'old-approval' } },
+      ], hasMore: true }));
+      res.end(JSON.stringify({ messages: [{ id: scenario === 'repeated-cursor' ? 'recent-0' : `page-${cursors.length}` }], hasMore: true }));
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      await fs.writeFile(path.join(root, '.nekoneko-guide.json'), '{"version":1}');
+      await fs.writeFile(path.join(root, 'nekoneko-team.json'), JSON.stringify({ bots: {}, group: { id: 'group', threadId: 'thread' } }));
+      const result = await run('status', { root, url: `http://127.0.0.1:${server.address().port}` });
+      assert.equal(cursors[1], 'recent-0');
+      assert.deepEqual(result.pendingCards, [{ messageId: 'recent-99', kind: 'approval-or-question' }]);
+      if (scenario.startsWith('older-')) {
+        assert.equal(result.group.goalStatus, scenario === 'older-completed' ? 'completed' : 'running');
+        assert.equal(result.group.goalSearchTruncated, false);
+        assert.equal(cursors.length, 2);
+      } else {
+        assert.equal(result.group.goalStatus, 'unknown');
+        assert.equal(result.group.goalSearchTruncated, true);
+        assert.equal(cursors.length, scenario === 'page-limit' ? 100 : 2);
+      }
+    } finally { await new Promise(resolve => server.close(resolve)); await fs.rm(root, { recursive: true, force: true }); }
+  });
+}
