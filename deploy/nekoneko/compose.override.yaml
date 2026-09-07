@@ -1,0 +1,11 @@
+# Article helpers are mounted separately; the official application image,
+# Containerfile, Compose file and server source remain unchanged.
+# Relative paths are resolved against the first file: deploy/podman/compose.yaml.
+services:
+  omb:
+    volumes:
+      - ../nekoneko:/opt/nekoneko:ro
+    environment:
+      OMB_GLM_MODEL: ${OMB_GLM_MODEL:-glm-5.3}
+      OMB_ANTHROPIC_BASE_URL: ${OMB_ANTHROPIC_BASE_URL:-https://api.z.ai/api/anthropic}
+      OMB_TURN_TIMEOUT_MINUTES: ${OMB_TURN_TIMEOUT_MINUTES:-20}
