@@ -58,6 +58,44 @@ screenshots and the settled channel transcript were refreshed for this version.
 The server/Electron full-suite results above are from the preceding revision;
 that full suite was not repeated for this renderer-only color follow-up.
 
+### Multiple-bot color isolation
+
+The follow-up browser run used Atlas (blue), Juniper (red) and 調査担当 (orange)
+in one message, then repeated them in reverse order on a new line, followed by
+neutral `@everyone` and unrecognized `@Ghost`. Drafts and sent messages retained
+each bot's palette in both dark and light themes. Ordinary text remained the
+theme's normal text color. Five DOM snapshots, each containing seven mentions,
+matched the expected per-name palette; the browser reported no console errors.
+The channel settled with fake-engine replies. The corresponding regression test
+mixes all ten palette colors with repeated/reversed names and reversed roster
+order in both MentionText and ChatMarkdown. All 26 focused tests, typecheck and
+targeted lint passed; no additional production-code change was needed.
+
+Evidence: [dark screenshot](evidence/mentions/multi-bot-dark.png),
+[light screenshot](evidence/mentions/multi-bot-light.png),
+[computed styles](evidence/mentions/multi-bot-dom.json),
+[wait](evidence/mentions/multi-bot-wait.json) and
+[transcript](evidence/mentions/multi-bot-messages.json).
+
+Run details (2026-09-07, isolated API `http://127.0.0.1:21621`, renderer
+`http://127.0.0.1:5173/__mentions.html`):
+
+```sh
+node --experimental-strip-types scripts/verify-mentions.ts
+node --experimental-strip-types scripts/control-omb.ts channels --url http://127.0.0.1:21621
+# Fill the real channel composer with the following three lines, switch Light,
+# and press Enter. Refill the same draft after sending for screenshot comparison.
+# @Atlas first. @Juniper second. @調査担当 third.
+# @調査担当 reverse. @Juniper again. @Atlas last.
+# @everyone neutral. @Ghost plain.
+node --experimental-strip-types scripts/control-omb.ts wait --channel ec952c04-4e41-4a13-ba87-8c79b3137c05 --timeout 60 --url http://127.0.0.1:21621
+node --experimental-strip-types scripts/control-omb.ts messages --channel ec952c04-4e41-4a13-ba87-8c79b3137c05 --limit 20 --url http://127.0.0.1:21621
+```
+
+The printed server log was
+`%TEMP%/openmausbot-verification-evidence/server-1788790736762-24868.log`.
+Fresh runs must use their own printed URL and channel ID.
+
 The fixture verifies browser renderer behavior and fake-engine message handling.
 It does not establish packaged Electron, Safari, operating-system IME candidate
 windows, or real-provider delegation behavior. Mention decoration uses the current
