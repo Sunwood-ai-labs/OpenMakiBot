@@ -1,0 +1,69 @@
+{
+  "channel": {
+    "id": "6a4ed0c3-6cdf-459d-8190-aca631076dd5",
+    "name": "Design review",
+    "memberIds": [
+      "32f0b1b4-1068-44fb-844c-8a013a563eda",
+      "29f96972-192f-4881-bc26-0cb1d0635e23",
+      "c0a6c8fb-aa36-4d71-b090-aecf4627a161",
+      "6b20498d-bd57-487f-8a02-15d886667162"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "32f0b1b4-1068-44fb-844c-8a013a563eda"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "bf896f84-2762-4240-8c40-2882b856a4d4",
+    "tasks": [
+      {
+        "taskId": "bf896f84-2762-4240-8c40-2882b856a4d4",
+        "title": "@Juniper Please review the mention styling.",
+        "createdAt": 1788788644617,
+        "active": true
+      }
+    ]
+  },
+  "taskId": "bf896f84-2762-4240-8c40-2882b856a4d4",
+  "messages": [
+    {
+      "id": "af4d1388-4247-49a3-9e0b-da37de65def1",
+      "at": 1788788701970,
+      "role": "user",
+      "kind": "text",
+      "text": "@Juniper Please review the mention styling."
+    },
+    {
+      "id": "0ab7e906-d1ce-4c07-b622-149a9fd1ddf8",
+      "at": 1788788702215,
+      "role": "bot",
+      "kind": "text",
+      "text": "hello from fake claude",
+      "from": {
+        "botId": "29f96972-192f-4881-bc26-0cb1d0635e23",
+        "name": "Juniper",
+        "color": "red"
+      }
+    },
+    {
+      "id": "8fb3ce7e-74f7-4bfe-86ed-d1465c1a8ec1",
+      "at": 1788788702216,
+      "role": "bot",
+      "kind": "activity",
+      "from": {
+        "botId": "29f96972-192f-4881-bc26-0cb1d0635e23",
+        "name": "Juniper",
+        "color": "red"
+      },
+      "tool": {
+        "name": "Bash",
+        "ok": true,
+        "spoken": "running a command"
+      }
+    }
+  ],
+  "hasMore": false
+}
