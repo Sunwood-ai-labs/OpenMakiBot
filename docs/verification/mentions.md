@@ -25,6 +25,7 @@ stops the fixture servers and removes their temporary data directory.
 | Direct chat scope | Enter `@everyone @Atlas @Juniper` in Atlas's direct chat | Only Juniper is highlighted |
 | Responsive draft | Resize from desktop to 390px with the multiple-mention draft | Input grows to three lines; mirror and textarea both measure 80px |
 | Skins | Switch Dark → Light → Dark | Names remain legible in the composer and sent bubbles |
+| Bot identity colors | Compare Juniper (red) and Atlas (blue) with their avatars | Each mention uses its bot's MAUS_COLORS value; everyone remains neutral |
 | Markdown | Run ChatMarkdown tests | Prose/lists/tables highlight known names; code, links and HTML safety are preserved |
 
 ## Recorded run
@@ -47,6 +48,15 @@ The separate Electron suite had 138 passed, 2 failed and 6 skipped. Both AppImag
 installer failures require the missing POSIX `mv` command and also reproduced
 on unmodified `9c681f44`. These checks therefore do not claim a fully green
 Windows suite. The final fresh browser session emitted no console errors.
+
+The bot-color follow-up passed all 789 renderer tests, typecheck, the renderer
+build and targeted lint. The shared avatar palette now supplies each mention's
+foreground tint, background tint and underline; a color change is reflected in
+plain text and Markdown. All 70 bot-color/skin combinations were checked with
+the CSS sRGB mixing ratios: the lowest text contrast was 6.24:1. Dark/light
+screenshots and the settled channel transcript were refreshed for this version.
+The server/Electron full-suite results above are from the preceding revision;
+that full suite was not repeated for this renderer-only color follow-up.
 
 The fixture verifies browser renderer behavior and fake-engine message handling.
 It does not establish packaged Electron, Safari, operating-system IME candidate
