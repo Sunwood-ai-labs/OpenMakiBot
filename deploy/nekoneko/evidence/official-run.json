@@ -1,0 +1,79 @@
+{
+  "officialCommit": "9c681f44a02385ea21d5a3610a658e8eabbf2bfa",
+  "kitTag": "nekoneko-official-kit-2026-09-07",
+  "goal": {
+    "status": "completed",
+    "turns": 5,
+    "durationMs": 1674588,
+    "startedAt": "2026-09-07T14:37:04.571Z",
+    "finishedAt": "2026-09-07T15:04:59.159Z"
+  },
+  "html": {
+    "bytes": 17427,
+    "sha256": "5f7a91c07952f7c6ac2e111969cf5adbc8d24c8f2e965f1b8ddabc8b83ed18b7",
+    "bothRolesMatch": true,
+    "publicExample": "../example/index.html"
+  },
+  "export": {
+    "html": 2,
+    "png": 6,
+    "totalArtifacts": 8
+  },
+  "checked": [
+    "Each bot used its own GUI and workspace",
+    "Tech filter displayed 3/9",
+    "FAQ Q1 answer opened and closed",
+    "Exported artifact bytes and SHA256 verified"
+  ],
+  "images": [
+    {
+      "role": "sora",
+      "file": "official-sora-category-tech.png",
+      "sha256": "802d234eb45438ac073bac30bf951563c2a031281648dae73c985d382197051e",
+      "bytes": 171168
+    },
+    {
+      "role": "sora",
+      "file": "official-sora-faq-open.png",
+      "sha256": "cb870f78f594545b9752e5bea5c8e69c978ba1385d18332bbf8e4732900c7a0e",
+      "bytes": 134636
+    },
+    {
+      "role": "sora",
+      "file": "official-sora-faq-closed.png",
+      "sha256": "745ceeb7a581e0f9da286e6d4482db4fb4d551f15eec4d3419f6050c6e851c51",
+      "bytes": 122018
+    },
+    {
+      "role": "kinako",
+      "file": "official-kinako-category-tech.png",
+      "sha256": "88fb5ddd564b2f41ea98eaf07301ce9c7bf4a52b49b2c431d4ede88c33dd9bbd",
+      "bytes": 303788
+    },
+    {
+      "role": "kinako",
+      "file": "official-kinako-faq-open.png",
+      "sha256": "fd2d484e077b3b5469d465e67a50f619229a7be2c610456ee6d35b87401270c5",
+      "bytes": 134636
+    },
+    {
+      "role": "kinako",
+      "file": "official-kinako-faq-closed.png",
+      "sha256": "094df9bd7ca9f09146db9ac62cef205b26869a109536bbf0fd6156513095dfa7",
+      "bytes": 121984
+    }
+  ],
+  "resume": {
+    "result": "passed",
+    "sequence": [
+      "export",
+      "stop",
+      "stop",
+      "up",
+      "team",
+      "export"
+    ],
+    "unchangedArtifacts": 8,
+    "officialTrackedDiff": "zero"
+  }
+}

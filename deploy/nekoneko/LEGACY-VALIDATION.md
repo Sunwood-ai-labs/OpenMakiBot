@@ -34,7 +34,7 @@
 
 公開候補 `ed22f6df` をGitHubから別フォルダへ取得。project・data root・3ポートを非既定値に変更してsetup/build/upを実行しました。healthy、GLM実接続、3 Bot作成、2 GUI ready、壁紙自動適用まで確認しています。
 
-新規Goalの制作・検証結果は最終確認後に追記します。
+公開cloneの新規Goalも正式completed。6ターン、約48分14秒。途中の20分timeout後、同じGoalで継続しました。A/BのHTMLは18,005byte、SHA-256 `b38ebadf840a9e02f28943d744489100eb3312c5857ce31368c25bb27c76f310` で一致。各Botが自身のGUIでカテゴリ切替・FAQ開閉を確認し、3枚ずつPNGを保存しました。他カテゴリ3ボタンと残りFAQ4問の個別操作は検証範囲外です。
 
 ## Goal再確認と停止・再開
 

@@ -2,265 +2,373 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ネコネコインダストリー株式会社｜猫の暮らしを楽しくするものづくり</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ネコネコインダストリー株式会社｜猫の力で、ひとの暮らしをあたたかく。</title>
 <style>
-  :root{
-    --cream:#fff8ef; --mocha:#6b4c35; --pink:#ff9db8; --pink-soft:#ffe3ec;
-    --sky:#bfe3ff; --sky-soft:#e8f5ff; --mint:#c9f0dd; --mint-soft:#e9fbf2;
-    --sun:#ffe9a8; --line:#f0dcc8;
-  }
-  *{box-sizing:border-box; margin:0; padding:0;}
-  body{
-    font-family:"Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
-    background:var(--cream); color:var(--mocha); line-height:1.7;
-  }
-  header.hero{
-    background:linear-gradient(180deg,var(--sky-soft) 0%,var(--cream) 100%);
-    border-bottom:4px dotted var(--line); padding:48px 16px 40px; text-align:center;
-  }
-  .hero .logo{font-size:44px; letter-spacing:.12em;}
-  .hero h1{font-size:30px; margin:8px 0 6px;}
-  .hero .copy{font-size:17px;}
-  .hero .badges{margin-top:14px;}
-  .badge{
-    display:inline-block; background:#fff; border:2px solid var(--pink); color:var(--mocha);
-    border-radius:999px; padding:2px 14px; margin:3px; font-size:13px;
-  }
-  .paws{font-size:20px; letter-spacing:.5em; margin-top:16px;}
-  section{max-width:960px; margin:0 auto; padding:36px 16px;}
-  h2{
-    font-size:24px; text-align:center; margin-bottom:6px;
-  }
-  h2 .en{display:block; font-size:12px; color:#b09a86; letter-spacing:.2em;}
-  .lead{text-align:center; margin-bottom:22px; font-size:15px;}
-  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:16px;}
-  .card{
-    background:#fff; border:2px solid var(--line); border-radius:18px; padding:18px;
-    box-shadow:0 3px 0 var(--line);
-  }
-  .card .emoji{font-size:34px;}
-  .card h3{font-size:17px; margin:6px 0 4px;}
-  .card p{font-size:13.5px;}
-  .card .tag{
-    display:inline-block; background:var(--pink-soft); border-radius:8px;
-    font-size:11.5px; padding:1px 8px; margin-top:8px; margin-right:4px;
-  }
-  /* 会社紹介 */
-  table.company{width:100%; border-collapse:collapse; background:#fff; border-radius:14px; overflow:hidden; border:2px solid var(--line);}
-  table.company th{background:var(--sky-soft); width:32%; padding:10px 12px; font-size:13.5px; text-align:left;}
-  table.company td{padding:10px 12px; font-size:13.5px; border-top:1px dashed var(--line);}
-  /* カテゴリ切替 */
-  .tabs{display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
-  .tab{
-    font-family:inherit; font-size:15px; cursor:pointer; border:2px solid var(--mocha);
-    background:#fff; color:var(--mocha); border-radius:999px; padding:7px 22px;
-    transition:transform .1s;
-  }
-  .tab:hover{transform:translateY(-2px);}
-  .tab.active[data-cat="toy"]{background:var(--pink); border-color:var(--pink); color:#fff;}
-  .tab.active[data-cat="food"]{background:#ffb977; border-color:#ffb977; color:#fff;}
-  .tab.active[data-cat="sleep"]{background:#9ec7f5; border-color:#9ec7f5; color:#fff;}
-  .tab-status{
-    text-align:center; font-size:13.5px; margin-bottom:16px; background:var(--sun);
-    border-radius:10px; padding:6px; max-width:520px; margin-left:auto; margin-right:auto;
-  }
-  .product{text-align:center;}
-  .product .price{font-size:15px; color:#c46a4f; margin-top:6px; font-weight:bold;}
-  .hidden{display:none;}
-  /* 社員 */
-  .staff .card{text-align:center;}
-  .staff .photo{
-    width:88px; height:88px; border-radius:50%; margin:0 auto; display:flex;
-    align-items:center; justify-content:center; font-size:44px; border:3px solid var(--line);
-  }
-  .staff .role{font-size:12px; background:var(--mint-soft); border-radius:8px; display:inline-block; padding:1px 10px; margin-top:6px;}
-  /* FAQ */
-  .faq details{
-    background:#fff; border:2px solid var(--line); border-radius:14px;
-    padding:12px 16px; margin-bottom:10px; max-width:760px; margin-left:auto; margin-right:auto;
-  }
-  .faq summary{cursor:pointer; font-weight:bold; font-size:15px; list-style:none; position:relative; padding-left:26px;}
-  .faq summary::before{content:"❓"; position:absolute; left:0;}
-  .faq details[open] summary::before{content:"✅";}
-  .faq details p{margin-top:8px; font-size:14px; padding-left:26px;}
-  footer{
-    text-align:center; padding:28px 16px 40px; font-size:12.5px; color:#a08a76;
-    border-top:4px dotted var(--line); background:var(--sky-soft);
-  }
+:root{
+  --orange:#e07b39;
+  --orange-dark:#c9652a;
+  --orange-pale:#f9e7d2;
+  --cream:#fdf6ec;
+  --white:#ffffff;
+  --brown:#4a3b2a;
+  --gray:#8a7a66;
+  --line:#f0e2cf;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:"Noto Sans CJK JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+  background:var(--cream);
+  color:var(--brown);
+  line-height:1.75;
+}
+section{scroll-margin-top:76px}
+.header-inner{
+  position:sticky;top:0;z-index:10;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 24px;
+  background:rgba(255,255,255,.95);
+  border-bottom:1px solid var(--line);
+}
+.logo{font-weight:800;font-size:1.15rem;color:var(--orange-dark)}
+nav a{
+  margin-left:16px;color:var(--brown);text-decoration:none;font-size:.92rem;font-weight:600;
+}
+nav a:hover{color:var(--orange)}
+.hero{
+  background:linear-gradient(135deg,#f9c784 0%,#e8833a 60%,#d96b2b 100%);
+  color:#fff;text-align:center;padding:72px 20px 64px;
+}
+.hero-sub{font-size:.95rem;letter-spacing:.18em;font-weight:700;opacity:.95}
+.hero h1{font-size:clamp(1.6rem,4vw,2.6rem);margin:12px 0 18px;line-height:1.4;text-shadow:0 2px 8px rgba(0,0,0,.15)}
+.hero p{max-width:640px;margin:0 auto;font-size:.98rem}
+.hero ul{
+  list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:26px;
+}
+.hero li{
+  background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);
+  padding:6px 16px;border-radius:999px;font-size:.85rem;font-weight:600;
+}
+.container{max-width:1040px;margin:0 auto;padding:0 20px}
+h2{
+  text-align:center;font-size:clamp(1.3rem,3vw,1.7rem);margin:64px 0 8px;color:var(--brown);
+}
+.section-note{text-align:center;color:var(--gray);font-size:.9rem;margin-bottom:28px}
+/* 製品 */
+.filters{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-bottom:14px}
+.filter-btn{
+  border:2px solid var(--orange);background:var(--white);color:var(--orange-dark);
+  padding:8px 20px;border-radius:999px;font-size:.95rem;font-weight:700;cursor:pointer;
+}
+.filter-btn:hover{background:var(--orange-pale)}
+.filter-btn.active{background:var(--orange);color:#fff}
+.filter-btn:focus-visible{outline:3px solid #b9541b;outline-offset:2px}
+.count{text-align:center;font-size:.88rem;color:var(--gray);margin-bottom:22px}
+.grid{
+  list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px;
+}
+.product-card{
+  background:var(--white);border:1px solid var(--line);border-radius:14px;
+  padding:20px 18px;box-shadow:0 2px 8px rgba(90,60,30,.07);
+}
+.product-card .emoji{font-size:2.1rem;display:block;margin-bottom:8px}
+.product-card h3{font-size:1rem;line-height:1.5;margin-bottom:8px}
+.badge{
+  display:inline-block;font-size:.72rem;font-weight:700;color:#fff;
+  padding:2px 10px;border-radius:999px;margin-bottom:8px;
+}
+.badge.living{background:#5a8f5c}
+.badge.tech{background:#4a7faf}
+.badge.gourmet{background:#c9652a}
+.product-card p{font-size:.85rem;color:var(--gray)}
+/* 社員猫 */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.cat-card{
+  background:var(--white);border:1px solid var(--line);border-radius:14px;
+  text-align:center;padding:26px 20px;box-shadow:0 2px 8px rgba(90,60,30,.07);
+}
+.cat-face{
+  width:76px;height:76px;border-radius:50%;margin:0 auto 12px;
+  display:flex;align-items:center;justify-content:center;font-size:2rem;
+  background:var(--orange-pale);
+}
+.cat-card h3{font-size:1.05rem}
+.cat-card .role{font-size:.82rem;color:var(--orange-dark);font-weight:700;margin-bottom:8px}
+.cat-card dl{font-size:.82rem;color:var(--gray);text-align:left;margin:10px auto 0;max-width:230px}
+.cat-card dt{float:left;clear:left;margin-right:.5em;font-weight:700;color:var(--brown)}
+.cat-card dd{margin-bottom:2px}
+.cat-card .motto{margin-top:12px;font-size:.85rem;background:var(--cream);border-radius:8px;padding:8px}
+/* FAQ */
+.faq-list{max-width:760px;margin:0 auto}
+.faq-item{
+  background:var(--white);border:1px solid var(--line);border-radius:12px;
+  margin-bottom:12px;overflow:hidden;
+}
+.faq-q{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  width:100%;padding:15px 18px;font-weight:700;cursor:pointer;
+  background:none;border:none;text-align:left;font-size:1rem;
+  font-family:inherit;color:var(--brown);line-height:1.6;
+}
+.faq-q:focus-visible{outline:3px solid #b9541b;outline-offset:-3px}
+.faq-mark{color:var(--orange);font-size:1.15rem;font-weight:700;flex:none}
+.faq-a{padding:0 18px 16px;color:var(--gray);font-size:.92rem}
+/* 会社概要 */
+table{
+  width:100%;max-width:760px;margin:0 auto;border-collapse:collapse;background:var(--white);
+  border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:.92rem;
+}
+th,td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{width:170px;background:var(--orange-pale);color:var(--brown);font-weight:700}
+tr:last-child th,tr:last-child td{border-bottom:none}
+footer{
+  margin-top:72px;padding:28px 20px;text-align:center;font-size:.82rem;color:var(--gray);
+  background:var(--white);border-top:1px solid var(--line);
+}
 </style>
 </head>
 <body>
 
-<header class="hero">
-  <div class="logo">🐱 NekoNeko Industry 🐾</div>
-  <h1>ネコネコインダストリー株式会社</h1>
-  <p class="copy">「猫の暮らしを楽しくする」だけを真剣にやる、小さなものづくり会社。</p>
-  <div class="badges">
-    <span class="badge">設立 猫暦ニャン八年</span>
-    <span class="badge">本社 青い山のふもと</span>
-    <span class="badge">社員 猫3匹</span>
+<header>
+  <div class="header-inner">
+    <div class="logo">🐱 ネコネコインダストリー</div>
+    <nav>
+      <a href="#products">製品紹介</a>
+      <a href="#cats">社員猫</a>
+      <a href="#faq">FAQ</a>
+      <a href="#company">会社概要</a>
+    </nav>
   </div>
-  <div class="paws">🐾 🐾 🐾</div>
 </header>
 
-<section id="about">
-  <h2><span class="en">ABOUT US</span>会社紹介</h2>
-  <p class="lead">
-    ネコネコインダストリーは、猫がくしゃみをしただけで会議が止まる、青い山のふもとの小さな工房です。<br>
-    「人が笑って、猫がもっと笑う」を合言葉に、猫の目線で考えた製品を一つずつ手作りしています。
-  </p>
-  <table class="company">
-    <tr><th>会社名</th><td>ネコネコインダストリー株式会社（架空）</td></tr>
-    <tr><th>所在地</th><td>青い山のふもと ネコネコビル 3階（3階は猫専用階）</td></tr>
-    <tr><th>設立</th><td>猫暦ニャン八年 春</td></tr>
-    <tr><th>事業内容</th><td>猫の暮らしを楽しくする製品の企画・製造・検証</td></tr>
-    <tr><th>社員数</th><td>猫3匹（全員が英語を話せる……は嘘で、鳴きます）</td></tr>
-    <tr><th>モットー</th><td>「作るのは人、試すのは猫、撮るのは日光」</td></tr>
-  </table>
+<section class="hero">
+  <p class="hero-sub">NEKONEKO INDUSTRY CO., LTD.（架空の企業です）</p>
+  <h1>猫の力で、<br>ひとの暮らしをあたたかく。</h1>
+  <p>ネコネコインダストリーは「猫がよろこぶものは、ひともよろこぶ」を信条に、
+  住まい・テック・グルメの3分野で暮らしを豊かにする製品を開発しています。
+  すべての製品は社員猫による厳しい実猫テストを経てお届けします。</p>
+  <ul>
+    <li>創業 2018年</li>
+    <li>社員猫 3匹</li>
+    <li>取扱製品 9点</li>
+    <li>本社 猫の手県ニャンニャン市</li>
+  </ul>
 </section>
 
-<section id="products">
-  <h2><span class="en">PRODUCTS</span>製品紹介（全9品・架空）</h2>
-  <p class="lead">カテゴリボタンを押すと、製品が入れかわります。</p>
-  <div class="tabs" role="tablist">
-    <button class="tab active" data-cat="all" type="button">🐾 ぜんぶ</button>
-    <button class="tab" data-cat="toy" type="button">🎣 おもちゃ</button>
-    <button class="tab" data-cat="food" type="button">🍚 ごはん</button>
-    <button class="tab" data-cat="sleep" type="button">🌙 おやすみ</button>
-  </div>
-  <p class="tab-status" id="tab-status">表示中：ぜんぶ（9品）</p>
-  <div class="cards" id="product-list">
-    <div class="card product" data-cat="toy">
-      <div class="emoji">🐭</div><h3>ひかるネズミ「チュルピー」</h3>
-      <p>暗くなるとおしりがぼんやり光るネズミ型おもちゃ。夜のハンティング大会（店内大会）の公式球。</p>
-      <span class="tag">おもちゃ</span><span class="tag">光る</span>
-      <div class="price">猫円 980</div>
-    </div>
-    <div class="card product" data-cat="toy">
-      <div class="emoji">🪶</div><h3>羽根サーカス「フェザーカルテット」</h3>
-      <p>羽根4本がそれぞれちがう動きをする釣り竿。ツンの強さを3段階で調整できる玄人向け。</p>
-      <span class="tag">おもちゃ</span><span class="tag">運動</span>
-      <div class="price">猫円 1,480</div>
-    </div>
-    <div class="card product" data-cat="toy">
-      <div class="emoji">🧩</div><h3>知能配送「もぐもぐパズル」</h3>
-      <p>おやつを隠して遊ぶ知育玩具。むぎ部長は2分で全問正解、きなこ探偵は箱ごとひっくり返す派。</p>
-      <span class="tag">おもちゃ</span><span class="tag">知育</span>
-      <div class="price">猫円 2,200</div>
-    </div>
-    <div class="card product" data-cat="food">
-      <div class="emoji">🐟</div><h3>ふりかけ「かつおの香り ぱらぱらさん」</h3>
-      <p>朝の気分がのらない猫に。小分けパックではなく小瓶詰めで、香りの立て直しに効く（当社比）。</p>
-      <span class="tag">ごはん</span><span class="tag">ふりかけ</span>
-      <div class="price">猫円 680</div>
-    </div>
-    <div class="card product" data-cat="food">
-      <div class="emoji">🍚</div><h3>くるくる碗スロー</h3>
-      <p>食べすぎ防止のうずまき仕切り食器。早食い猫の"3秒で完食"をそっとストップ。</p>
-      <span class="tag">ごはん</span><span class="tag">健康</span>
-      <div class="price">猫円 1,600</div>
-    </div>
-    <div class="card product" data-cat="food">
-      <div class="emoji">🥫</div><h3>おやつ缶「やきさかなせんべい」</h3>
-      <p>缶を開ける音だけで全社員が集合する伝説のおやつ。1日1粒を心がけています（失敗しがち）。</p>
-      <span class="tag">ごはん</span><span class="tag">おやつ</span>
-      <div class="price">猫円 880</div>
-    </div>
-    <div class="card product" data-cat="sleep">
-      <div class="emoji">🏠</div><h3>もこもこドーム「ぬくぬくベッド」</h3>
-      <p>中に入ると形がころっと変わるドーム型ベッド。そら工房長の設計、試作1号は彼自身が占領。</p>
-      <span class="tag">おやすみ</span><span class="tag">ドーム</span>
-      <div class="price">猫円 3,980</div>
-    </div>
-    <div class="card product" data-cat="sleep">
-      <div class="emoji">☁️</div><h3>日向追跡クッション「ひなたゴコロ」</h3>
-      <p>窓から動く日向を追って、自力で転がって移動するクッション（猫が乗ると固定）。</p>
-      <span class="tag">おやすみ</span><span class="tag">日向</span>
-      <div class="price">猫円 2,980</div>
-    </div>
-    <div class="card product" data-cat="sleep">
-      <div class="emoji">🛋️</div><h3>ハンモック「ゆらゆら空」</h3>
-      <p>椅子の背もたれにかけるハンモック。揺れは微風レベル、きなこ探偵のお気に入り検証席。</p>
-      <span class="tag">おやすみ</span><span class="tag">ハンモック</span>
-      <div class="price">猫円 3,480</div>
-    </div>
-  </div>
-</section>
+<main class="container">
 
-<section id="staff" class="staff">
-  <h2><span class="en">OUR CATS</span>社員紹介</h2>
-  <p class="lead">全員、猫です。経理も猫です。</p>
-  <div class="cards">
-    <div class="card">
-      <div class="photo">🐱‍👤</div>
-      <h3>むぎ 部長</h3>
-      <span class="role">プロジェクトマネージャー・白猫</span>
-      <p>計画表は完璧、進捗確認は毎日。ただし昼下がりの会議は欠席（日向優先）。好物は焼き魚。</p>
+  <section id="products">
+    <h2>🐾 製品紹介</h2>
+    <p class="section-note">カテゴリボタンで表示を切り替えられます（全9点）。</p>
+    <div class="filters" role="group" aria-label="製品カテゴリ選択">
+      <button type="button" class="filter-btn active" data-filter="all" aria-pressed="true">すべて（9）</button>
+      <button type="button" class="filter-btn" data-filter="living" aria-pressed="false">住まい（3）</button>
+      <button type="button" class="filter-btn" data-filter="tech" aria-pressed="false">テック（3）</button>
+      <button type="button" class="filter-btn" data-filter="gourmet" aria-pressed="false">グルメ（3）</button>
     </div>
-    <div class="card">
-      <div class="photo">😺</div>
-      <h3>そら 工房長</h3>
-      <span class="role">制作担当・薄グレー</span>
-      <p>窓辺で設計するのが仕事流。描いた図面の上で寝る癖が唯一の弱点。好物はかつお節。</p>
-    </div>
-    <div class="card">
-      <div class="photo">🐈</div>
-      <h3>きなこ 探偵</h3>
-      <span class="role">調査・検証担当・茶トラ</span>
-      <p>届いた製品を段ボールの中で徹底検証。「箱に入らない製品は不良品」が持論。好物はおやつ缶。</p>
-    </div>
-  </div>
-</section>
+    <p id="product-count" class="count" aria-live="polite">表示中: 9 / 9 点</p>
+    <ul class="grid">
+      <li class="product-card" data-category="living">
+        <span class="emoji" aria-hidden="true">☁️</span>
+        <h3>ふかふかドーナツベッド「くもんじろう」</h3>
+        <span class="badge living">住まい</span>
+        <p>入ると5分で眠れると評判の、雲のような固形ウォッフル構造。丸ごと洗えて衛生的。</p>
+      </li>
+      <li class="product-card" data-category="living">
+        <span class="emoji" aria-hidden="true">📦</span>
+        <h3>究極の箱「シン・はこ」</h3>
+        <span class="badge living">住まい</span>
+        <p>開封すると猫が入っている（入らずにいられない）。強度は普通の段ボールの9倍。</p>
+      </li>
+      <li class="product-card" data-category="living">
+        <span class="emoji" aria-hidden="true">🛋️</span>
+        <h3>こたつキャットタワー「ぬくぬくの塔」</h3>
+        <span class="badge living">住まい</span>
+        <p>こたつとキャットタワーの融合。登るとあったかく、おりるのがつらい奇跡の設計。</p>
+      </li>
+      <li class="product-card" data-category="tech">
+        <span class="emoji" aria-hidden="true">📷</span>
+        <h3>ひげレーダー見守りカメラ「ウィスカーアイ」</h3>
+        <span class="badge tech">テック</span>
+        <p>猫のひげ級の感度で寝室もリビングも見守る。暗所でも鬚センサーが猫を捕捉。</p>
+      </li>
+      <li class="product-card" data-category="tech">
+        <span class="emoji" aria-hidden="true">🖱️</span>
+        <h3>ぷにぷに肉球マウス「モフタイプ」</h3>
+        <span class="badge tech">テック</span>
+        <p>クリックするたび肉球の感触。仕事が捗るかどうかは保証いたしかねます。</p>
+      </li>
+      <li class="product-card" data-category="tech">
+        <span class="emoji" aria-hidden="true">⏰</span>
+        <h3>いびり目覚まし時計「ゴロゴロクロック」</h3>
+        <span class="badge tech">テック</span>
+        <p>本物の猫のいびり音を93種収録。音量は「聞こえるか聞こえないか」が最適解。</p>
+      </li>
+      <li class="product-card" data-category="gourmet">
+        <span class="emoji" aria-hidden="true">🐟</span>
+        <h3>国産にぼし「にぼしのまごころ」</h3>
+        <span class="badge gourmet">グルメ</span>
+        <p>煮干しの匠が一枚ずつ手干し。社員猫3匹全員が「文句なし」と認定。</p>
+      </li>
+      <li class="product-card" data-category="gourmet">
+        <span class="emoji" aria-hidden="true">🍵</span>
+        <h3>キャットニップハーブティー「ニャンニャンティー」</h3>
+        <span class="badge gourmet">グルメ</span>
+        <p>飼い主さんのための癒しのブレンドティー。猫は香りだけお楽しみください。</p>
+      </li>
+      <li class="product-card" data-category="gourmet">
+        <span class="emoji" aria-hidden="true">🍮</span>
+        <h3>あったけ〜ゼリー「ぬくぬくプリン」</h3>
+        <span class="badge gourmet">グルメ</span>
+        <p>猫舌でも安心のぬるま湯あたためセット付き。冬の定番おやつ。</p>
+      </li>
+    </ul>
+  </section>
 
-<section id="faq" class="faq">
-  <h2><span class="en">FAQ</span>よくあるご質問</h2>
-  <p class="lead">質問をクリックすると、答えが開きます。</p>
-  <details>
-    <summary>製品を注文できますか？</summary>
-    <p>申し訳ありません。ネコネコインダストリーは架空の会社で、このページはデモ用のため、注文・販売はできません。</p>
-  </details>
-  <details>
-    <summary>本社見学はできますか？</summary>
-    <p>青い山のふもと、ネコネコビル3階です。ただし入口の段ボール箱で検査（きなこ探偵）があり、通過できるのは猫のみです。</p>
-  </details>
-  <details>
-    <summary>製品の保証期間は？</summary>
-    <p>「猫の気分により変動」（架空）です。破損ではなく猫の飽きによる返品はお受けできません。</p>
-  </details>
-  <details>
-    <summary>採用情報を教えてください。</summary>
-    <p>猫は随時採用中です。履歴書の代わりに、段ボール箱への着地動画をご提出ください（架空の話です）。</p>
-  </details>
-</section>
+  <section id="cats">
+    <h2>🐈 社員猫紹介</h2>
+    <p class="section-note">わたしたちの仕事は、猫が先。</p>
+    <div class="cat-grid">
+      <div class="cat-card">
+        <div class="cat-face" aria-hidden="true">😺</div>
+        <h3>ヤマト</h3>
+        <p class="role">代表取締役社長</p>
+        <dl>
+          <dt>猫種</dt><dd>白黒ハチワレ</dd>
+          <dt>性別</dt><dd>オス・9歳</dd>
+          <dt>特技</dt><dd>箱への飛び込み</dd>
+        </dl>
+        <p class="motto">座右の銘「疑わしきは、入れてみる」</p>
+      </div>
+      <div class="cat-card">
+        <div class="cat-face" aria-hidden="true">🐈</div>
+        <h3>モカ</h3>
+        <p class="role">研究開発部 部長</p>
+        <dl>
+          <dt>猫種</dt><dd>三毛猫</dd>
+          <dt>性別</dt><dd>メス・6歳</dd>
+          <dt>特技</dt><dd>キーボードの上で昼寝</dd>
+        </dl>
+        <p class="motto">仕様は、私が寝た場所で決まる。</p>
+      </div>
+      <div class="cat-card">
+        <div class="cat-face" aria-hidden="true">🐈‍⬛</div>
+        <h3>ルナ</h3>
+        <p class="role">広報部 主任</p>
+        <dl>
+          <dt>猫種</dt><dd>黒猫</dd>
+          <dt>性別</dt><dd>オス・4歳</dd>
+          <dt>特技</dt><dd>会議室の良い席取り</dd>
+        </dl>
+        <p class="motto">取材対応は、昼寝のあとで。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <h2>❓ よくあるご質問（FAQ）</h2>
+    <p class="section-note">質問をクリックすると答えが開きます。</p>
+    <div class="faq-list">
+      <div class="faq-item">
+        <button type="button" class="faq-q" id="faq-q1" aria-expanded="false" aria-controls="faq-a1">
+          <span>Q1. ネコネコインダストリーは実在する会社ですか？</span><span class="faq-mark" aria-hidden="true">＋</span>
+        </button>
+        <div class="faq-a" id="faq-a1" role="region" aria-labelledby="faq-q1" hidden>
+          <p>A. いいえ、本ページは技術検証用の架空企業の紹介ページです。実在する企業・団体・製品とは一切関係ありません。</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-q" id="faq-q2" aria-expanded="false" aria-controls="faq-a2">
+          <span>Q2. 製品はどこで購入できますか？</span><span class="faq-mark" aria-hidden="true">＋</span>
+        </button>
+        <div class="faq-a" id="faq-a2" role="region" aria-labelledby="faq-q2" hidden>
+          <p>A. 申し訳ありません。本ページの製品はすべて架空のため、どこでもお買求めいただけません。カタログは夢の中で配布しております。</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-q" id="faq-q3" aria-expanded="false" aria-controls="faq-a3">
+          <span>Q3. 社員猫は出張できますか？</span><span class="faq-mark" aria-hidden="true">＋</span>
+        </button>
+        <div class="faq-a" id="faq-a3" role="region" aria-labelledby="faq-q3" hidden>
+          <p>A. 段ボール（休憩用・おやつ付き）をご用意いただければ、日帰り出張は可能です。宿泊を伴う場合は要相談です。</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-q" id="faq-q4" aria-expanded="false" aria-controls="faq-a4">
+          <span>Q4. 工場見学はできますか？</span><span class="faq-mark" aria-hidden="true">＋</span>
+        </button>
+        <div class="faq-a" id="faq-a4" role="region" aria-labelledby="faq-q4" hidden>
+          <p>A. 承ります。ただし昼寝時間（13:00〜16:00）は全社一斉におやすみのため、それ以外の時間帯でご相談ください。</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button type="button" class="faq-q" id="faq-q5" aria-expanded="false" aria-controls="faq-a5">
+          <span>Q5. このページで外部通信は行われますか？</span><span class="faq-mark" aria-hidden="true">＋</span>
+        </button>
+        <div class="faq-a" id="faq-a5" role="region" aria-labelledby="faq-q5" hidden>
+          <p>A. いいえ。本ページは画像・スクリプト・スタイルすべてを1つのHTMLファイル内に含んでおり、外部への通信は一切ありません。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="company">
+    <h2>🏢 会社概要</h2>
+    <p class="section-note">※ 以下はすべて架空の情報です。</p>
+    <table>
+      <tr><th>社名</th><td>ネコネコインダストリー株式会社（架空）</td></tr>
+      <tr><th>所在地</th><td>〒000-0000 猫の手県ニャンニャン市ミケ町3-2-1</td></tr>
+      <tr><th>設立</th><td>2018年2月22日</td></tr>
+      <tr><th>資本金</th><td>9,000万千ぼし</td></tr>
+      <tr><th>社員</th><td>猫3名（ヤマト・モカ・ルナ）</td></tr>
+      <tr><th>事業内容</th><td>猫関連製品の企画・開発・販売（すべて架空）</td></tr>
+    </table>
+  </section>
+
+</main>
 
 <footer>
-  <p>🐾 ネコネコインダストリー株式会社（架空の会社です） 🐾</p>
-  <p>青い山のふもと ネコネコビル3階 ｜ このページは社内デモ用に作成され、外部通信は行いません</p>
-  <p><small>© 猫暦ニャン八年 NekoNeko Industry. Cats Reserved.</small></p>
+  🐾 © 2026 Nekoneko Industries（架空）<br>
+  本ページは社内検証用のデモです。外部通信・外部公開は行いません。
 </footer>
 
 <script>
-  var tabs = document.querySelectorAll('.tab');
-  var cards = document.querySelectorAll('#product-list .product');
-  var status_ = document.getElementById('tab-status');
-  var catNames = {all:'ぜんぶ', toy:'おもちゃ', food:'ごはん', sleep:'おやすみ'};
-  tabs.forEach(function(tab){
-    tab.addEventListener('click', function(){
-      tabs.forEach(function(t){ t.classList.remove('active'); });
-      tab.classList.add('active');
-      var cat = tab.getAttribute('data-cat');
-      var shown = 0;
-      cards.forEach(function(card){
-        if(cat === 'all' || card.getAttribute('data-cat') === cat){
-          card.classList.remove('hidden'); shown++;
-        }else{
-          card.classList.add('hidden');
-        }
+(function () {
+  "use strict";
+  var buttons = document.querySelectorAll(".filter-btn");
+  var cards = document.querySelectorAll(".product-card");
+  var countEl = document.getElementById("product-count");
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var cat = btn.getAttribute("data-filter");
+      buttons.forEach(function (b) {
+        b.classList.remove("active");
+        b.setAttribute("aria-pressed", "false");
       });
-      status_.textContent = '表示中：' + catNames[cat] + '（' + shown + '品）';
+      btn.classList.add("active");
+      btn.setAttribute("aria-pressed", "true");
+      var shown = 0;
+      cards.forEach(function (card) {
+        var show = cat === "all" || card.getAttribute("data-category") === cat;
+        card.style.display = show ? "" : "none";
+        if (show) shown++;
+      });
+      if (countEl) countEl.textContent = "表示中: " + shown + " / " + cards.length + " 点";
     });
   });
+  document.querySelectorAll(".faq-q").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var expanded = btn.getAttribute("aria-expanded") === "true";
+      var answer = document.getElementById(btn.getAttribute("aria-controls"));
+      var mark = btn.querySelector(".faq-mark");
+      btn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      if (mark) mark.textContent = expanded ? "＋" : "−";
+      if (answer) answer.hidden = expanded;
+    });
+  });
+})();
 </script>
+
 </body>
 </html>

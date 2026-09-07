@@ -105,7 +105,7 @@ teamは管理GUIイメージを準備し、次の3体とグループを作りま
 
 ブラウザで表示URLを開き、pairのコードを入力します。「ネコネコインダストリー｜制作・検証室」を開いてください。画面を見るときは、そら／きなこ**各BotのComputer**を開きます。プレビューで画面を確認できます。OpenやTake controlを押すと人間が操作権を取り、Botのクリックが止まります。手動確認後はHand control backでBotへ返してください。グループの共有Computerパネルとは別です。このセットで確認したのは、発言者へそのBot自身のGUI操作接続を渡す動作です。
 
-![個別Computerと自動適用された壁紙](evidence/computer-panel.png)
+![個別Computerと自動適用された壁紙](evidence/official-kit-computer-panel.jpg)
 
 CLI本体とコンテナ管理socketは同じアプリにあり、GUIとworkspaceがBot別です。そらのHTMLは、きなこの保存先へ明示的にコピーして渡します。
 
