@@ -38,6 +38,16 @@ The 390px check covers the composer; the existing channel header still overflows
 at that width. A development-only createRoot warning occurred during fixture
 hot replacement; the final screenshots were taken after a full reload.
 
+Final local checks: typecheck, renderer build, lint (existing warnings), the skin
+contrast check, 27 focused tests, 8 broker tests and packaged-server smoke passed.
+The full Vitest run completed with 3,827 passed, 2 failed, 107 skipped and 1 todo.
+Both failures were Windows `symlinkSync` EPERM in `server/message-file.test.ts`
+and `server/turn-images.test.ts`; the same tests failed on unmodified `9c681f44`.
+The separate Electron suite had 138 passed, 2 failed and 6 skipped. Both AppImage
+installer failures require the missing POSIX `mv` command and also reproduced
+on unmodified `9c681f44`. These checks therefore do not claim a fully green
+Windows suite. The final fresh browser session emitted no console errors.
+
 The fixture verifies browser renderer behavior and fake-engine message handling.
 It does not establish packaged Electron, Safari, operating-system IME candidate
 windows, or real-provider delegation behavior. Mention decoration uses the current

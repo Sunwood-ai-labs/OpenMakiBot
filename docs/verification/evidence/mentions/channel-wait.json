@@ -1,63 +1,63 @@
 {
   "status": "settled",
   "targetType": "channel",
-  "targetId": "6a4ed0c3-6cdf-459d-8190-aca631076dd5",
-  "taskId": "bf896f84-2762-4240-8c40-2882b856a4d4",
+  "targetId": "542a5d72-e5bf-4df2-bf3e-14acdc4266b7",
+  "taskId": "a8039f91-6636-4f62-a12e-af69d23f2489",
   "target": {
-    "id": "6a4ed0c3-6cdf-459d-8190-aca631076dd5",
+    "id": "542a5d72-e5bf-4df2-bf3e-14acdc4266b7",
     "name": "Design review",
     "memberIds": [
-      "32f0b1b4-1068-44fb-844c-8a013a563eda",
-      "29f96972-192f-4881-bc26-0cb1d0635e23",
-      "c0a6c8fb-aa36-4d71-b090-aecf4627a161",
-      "6b20498d-bd57-487f-8a02-15d886667162"
+      "5d2e8a37-85c6-4cd9-b588-9df9e12bc1f3",
+      "a111d6ef-9f8d-4d59-af32-a4bd3a2381bb",
+      "12415ea6-aa9e-415f-a7f1-372b0abf3421",
+      "31b8da64-6548-45f1-8739-d1832e70bedc"
     ],
     "bulletin": "",
     "defaultResponder": {
       "kind": "member",
-      "botId": "32f0b1b4-1068-44fb-844c-8a013a563eda"
+      "botId": "5d2e8a37-85c6-4cd9-b588-9df9e12bc1f3"
     },
     "section": null,
     "directMessage": false,
     "working": false,
     "busyBotId": null,
-    "activeTaskId": "bf896f84-2762-4240-8c40-2882b856a4d4",
+    "activeTaskId": "a8039f91-6636-4f62-a12e-af69d23f2489",
     "tasks": [
       {
-        "taskId": "bf896f84-2762-4240-8c40-2882b856a4d4",
+        "taskId": "a8039f91-6636-4f62-a12e-af69d23f2489",
         "title": "@Juniper Please review the mention styling.",
-        "createdAt": 1788788644617,
+        "createdAt": 1788789778472,
         "active": true
       }
     ]
   },
   "messages": [
     {
-      "id": "af4d1388-4247-49a3-9e0b-da37de65def1",
-      "at": 1788788701970,
+      "id": "37263d12-f362-4dad-8e5d-67278828ae5d",
+      "at": 1788789861276,
       "role": "user",
       "kind": "text",
       "text": "@Juniper Please review the mention styling."
     },
     {
-      "id": "0ab7e906-d1ce-4c07-b622-149a9fd1ddf8",
-      "at": 1788788702215,
+      "id": "287f5e73-de23-49c5-9012-36ebbd7e38cf",
+      "at": 1788789861462,
       "role": "bot",
       "kind": "text",
       "text": "hello from fake claude",
       "from": {
-        "botId": "29f96972-192f-4881-bc26-0cb1d0635e23",
+        "botId": "a111d6ef-9f8d-4d59-af32-a4bd3a2381bb",
         "name": "Juniper",
         "color": "red"
       }
     },
     {
-      "id": "8fb3ce7e-74f7-4bfe-86ed-d1465c1a8ec1",
-      "at": 1788788702216,
+      "id": "6ca75ba8-8bc2-427a-96bb-9700592019f0",
+      "at": 1788789861464,
       "role": "bot",
       "kind": "activity",
       "from": {
-        "botId": "29f96972-192f-4881-bc26-0cb1d0635e23",
+        "botId": "a111d6ef-9f8d-4d59-af32-a4bd3a2381bb",
         "name": "Juniper",
         "color": "red"
       },
