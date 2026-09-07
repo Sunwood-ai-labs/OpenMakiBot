@@ -8,3 +8,4 @@ deploy/podman/*.sh text eol=lf
 deploy/nekoneko/*.sh text eol=lf
 ios/Sources/CompanionCore/MausBodies.swift text eol=lf
 android/app/src/main/kotlin/com/openmausbot/companion/ui/MausBodies.kt text eol=lf
+server/testing/fake-claude-cli.ts text eol=lf

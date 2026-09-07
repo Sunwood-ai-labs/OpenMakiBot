@@ -1,3 +1,15 @@
+# GUI付きBotの制作・検証を手元で再現する
+
+このブランチは、Grok BotのOSS版「OpenMausBot」で、むぎPM・そら制作・きなこ検証の3体を動かす日本語記事の再現セットです。Windows / WSL2 / Podman上に、Bot別GUI2台と専用データ領域を用意します。
+
+**[日本語のセットアップ手順はこちら →](deploy/nekoneko/README.md)**
+
+手順にはAPIキーの準備、共通設定、起動、壁紙付きGUI、承認、既存成果の再確認、HTML・PNGの取り出しまで含みます。[検証結果と確認範囲](deploy/nekoneko/VALIDATION.md)も参照してください。公式へマージされたPR #855・#856・#857の必要差分と、記事用の導入補助を組み合わせています。
+
+以下は元プロジェクトのREADMEです。
+
+---
+
 > ⚠️ **No affiliation with any cryptocurrency.** OpenMausBot has no token. Any coin using the OpenMausBot, Maus, or SupaMaus name is not created, endorsed, or affiliated with this project or its maintainer. I have received no tokens, payment, or allocation from anyone, and I will not be endorsing any token.
 
 <div align="center">

@@ -60,6 +60,12 @@ describe("group goal runs", () => {
     expect(parsed.decision).toEqual({ status: "completed", detail: "done" });
   });
 
+  it("rejects completed output whose detail quote and JSON brace are missing", () => {
+    expect(parseGroupGoalDecision(
+      `Work report\n${GROUP_GOAL_CONTROL_OPEN}{"status":"completed","detail":"Checks finished${GROUP_GOAL_CONTROL_CLOSE}`,
+    )).toEqual({ visibleText: "Work report", decision: null });
+  });
+
   it("honors an explicit active lead, then an in-room Chief", () => {
     expect(selectGroupGoalCoordinator(members, { kind: "member", botId: "scout-id" })?.id).toBe("scout-id");
     expect(selectGroupGoalCoordinator(members, { kind: "everyone" })?.id).toBe("chief-id");
@@ -110,5 +116,14 @@ describe("groupGoalCoordinatorInstructions harness note", () => {
 
   it("omits the note line entirely when there is nothing to report", () => {
     expect(groupGoalCoordinatorInstructions(base)).not.toContain("Harness note:");
+  });
+
+  it("provides a complete terminal example accepted by the actual decision parser", () => {
+    const example = groupGoalCoordinatorInstructions(base).split("\n")
+      .find(line => line.startsWith(GROUP_GOAL_CONTROL_OPEN) && line.includes('"status":"completed"'));
+    expect(example).toBeDefined();
+    expect(parseGroupGoalDecision(example!).decision).toEqual({
+      status: "completed", detail: "The deliverable and requested checks are complete.",
+    });
   });
 });

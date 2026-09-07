@@ -4,7 +4,18 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { run, inside } from './team.mjs';
+import { run, inside, syncExistingGroup } from './team.mjs';
+
+test('existing group replaces deleted bot ids and restores the current PM', async () => {
+  const manifest = { bots: { pm: { id: 'new-pm' }, sora: { id: 'new-sora' }, kinako: { id: 'kinako' } }, group: { id: 'existing', threadId: 'old-thread' } };
+  let call;
+  await syncExistingGroup(async (...args) => { call = args; return { group: { threadId: 'current-thread' } }; }, manifest);
+  assert.equal(call[0], '/api/groups/existing');
+  assert.equal(call[2], 'PATCH');
+  assert.deepEqual(call[1].memberIds, ['new-pm','new-sora','kinako']);
+  assert.deepEqual(call[1].defaultResponder, { kind: 'member', botId: 'new-pm' });
+  assert.equal(manifest.group.threadId, 'current-thread');
+});
 
 test('containment rejects sibling-prefix and traversal paths', () => {
   assert.equal(inside('/tmp/guide', '/tmp/guide/a'), true);

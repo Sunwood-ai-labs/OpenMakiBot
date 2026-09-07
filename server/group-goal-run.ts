@@ -140,6 +140,9 @@ export function groupGoalCoordinatorInstructions(args: {
     "Write a brief human-facing update or final answer, then end with exactly one private control envelope on its own line.",
     `${GROUP_GOAL_CONTROL_OPEN}{"status":"continue","next":"Exact member id from the roster","instruction":"Concrete next assignment","detail":"Short progress note"}${GROUP_GOAL_CONTROL_CLOSE}`,
     `Or use status "completed", "needs-input", or "blocked" with a non-empty "detail" and omit next/instruction.`,
+    "For a genuinely completed goal, use this complete JSON form:",
+    `${GROUP_GOAL_CONTROL_OPEN}{"status":"completed","detail":"The deliverable and requested checks are complete."}${GROUP_GOAL_CONTROL_CLOSE}`,
+    "Keep detail to one short sentence. Close its double quote and the JSON object brace before the closing control tag; verify the envelope contains valid JSON before sending.",
     "Never mention, quote, or explain the control envelope in your human-facing text.",
   ].join("\n");
 }

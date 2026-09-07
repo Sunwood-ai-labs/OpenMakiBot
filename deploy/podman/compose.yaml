@@ -26,6 +26,10 @@ services:
       OMB_WEBHOOK_PORT: ${OMB_WEBHOOK_PORT:-8800}
       OMB_PUBLIC_URL: ${OMB_PUBLIC_URL:-http://localhost:8080}
       OMB_WEBHOOK_PUBLIC_URL: ${OMB_PUBLIC_URL:-http://localhost:8080}
+      OMB_GLM_MODEL: ${OMB_GLM_MODEL:-glm-5.3}
+      OMB_ANTHROPIC_BASE_URL: ${OMB_ANTHROPIC_BASE_URL:-https://api.z.ai/api/anthropic}
+      OMB_TURN_TIMEOUT_MINUTES: ${OMB_TURN_TIMEOUT_MINUTES:-20}
+      OMB_VM_IMAGE_REPOSITORY: ${OMB_VM_IMAGE_REPOSITORY:-localhost/openmausbot-nekoneko/cua-local-vm}
     healthcheck:
       test: [CMD-SHELL, 'curl -fsS http://127.0.0.1:$$OMB_PORT/api/health | grep -q openmausbot']
       interval: 15s

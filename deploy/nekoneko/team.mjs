@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { guideSettings } from './settings.mjs';
+import { applyWallpaper } from './wallpaper.mjs';
 
 const roles = [
   ['pm', 'むぎ部長｜PM', '目的と完了条件を整理して制作と検証へ割り振り、証拠を集約する。GUI操作は担当者へ渡す。'],
@@ -23,13 +25,22 @@ async function rejectSymlinks(root, target) {
   }
 }
 
+export async function syncExistingGroup(api, manifest) {
+  const response = await api(`/api/groups/${manifest.group.id}`, {
+    memberIds: roles.map(([role]) => manifest.bots[role].id),
+    defaultResponder: { kind: 'member', botId: manifest.bots.pm.id },
+  }, 'PATCH');
+  if (response.group?.threadId) manifest.group.threadId = response.group.threadId;
+}
+
 export async function run(command, options = {}) {
+  const settings = guideSettings();
   const root = path.resolve(options.root || process.env.HOME || '');
   const marker = path.join(root, '.nekoneko-guide.json');
   const markerStat = await fs.lstat(marker).catch(() => null);
   if (!markerStat?.isFile() || markerStat.isSymbolicLink()) throw new Error('Dedicated guide environment marker is required.');
   if ((JSON.parse(await fs.readFile(marker, 'utf8'))).version !== 1) throw new Error('Unsupported guide environment marker.');
-  const url = new URL(options.url || `http://127.0.0.1:${process.env.OMB_PORT || 8799}`);
+  const url = new URL(options.url || `http://127.0.0.1:${settings.port}`);
   if (url.protocol !== 'http:' || !['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname) || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('API URL must be a loopback HTTP origin.');
   const api = async (endpoint, body, method = body === undefined ? 'GET' : 'POST') => {
     const response = await fetch(new URL(endpoint, url), { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(900_000) });
@@ -52,15 +63,15 @@ export async function run(command, options = {}) {
   if (command === 'team') {
     const state = await fleet(); requireIdle(state);
     const manifest = await readManifest().catch(error => { if (error.code !== 'ENOENT') throw error; return { version: 1, bots: {} }; });
-    await api('/api/config', { localVm: { mode: 'per-bot', maxInstances: 2 }, rooms: { turnTimeoutMinutes: 20 } }, 'PATCH');
+    await api('/api/config', { localVm: { mode: 'per-bot', maxInstances: 2 }, rooms: { turnTimeoutMinutes: settings.turnTimeout } }, 'PATCH');
     for (const [role, name, soul] of roles) {
       let bot = state.bots.find(item => item.id === manifest.bots[role]?.id);
       if (!bot && state.bots.some(item => item.name === name)) throw new Error(`Unrecorded bot named ${name} exists. Inspect this dedicated environment before retrying.`);
       if (!bot) {
-        bot = (await api('/api/bots', { name, title: role === 'pm' ? 'PM' : role === 'sora' ? '制作' : '検証', section: 'ネコネコインダストリー', modelSelection: { instanceId: 'claudeZai', model: 'glm-5.3' }, requireAvailableModel: true })).bot;
+        bot = (await api('/api/bots', { name, title: role === 'pm' ? 'PM' : role === 'sora' ? '制作' : '検証', section: 'ネコネコインダストリー', modelSelection: { instanceId: 'claudeZai', model: settings.model }, requireAvailableModel: true })).bot;
         manifest.bots[role] = { id: bot.id, name }; await save(manifest);
       }
-      await api(`/api/bots/${bot.id}`, { computer: role === 'pm' ? 'off' : 'vm', autoReview: 'enforce', modelSelection: { instanceId: 'claudeZai', model: 'glm-5.3' } }, 'PATCH');
+      await api(`/api/bots/${bot.id}`, { computer: role === 'pm' ? 'off' : 'vm', autoReview: 'enforce', modelSelection: { instanceId: 'claudeZai', model: settings.model } }, 'PATCH');
       await api(`/api/bots/${bot.id}/profile`, { soul: `${soul} 日本語で簡潔に報告する。実際の保存先・操作結果・スクリーンショット・未確認事項を示す。` }, 'PATCH');
     }
     const image = await api('/api/local-computer');
@@ -68,17 +79,19 @@ export async function run(command, options = {}) {
     for (const role of ['sora', 'kinako']) {
       const bot = manifest.bots[role];
       const before = await api(`/api/bots/${bot.id}/local-computer`);
-      if (before.container === 'stopped') {
-        if (!before.managed || !inside(root, before.workspace_path)) throw new Error('Stopped desktop is not a managed desktop in this dedicated environment.');
+      const recreate = before.container === 'stopped' || (before.container === 'running' && !before.imageMatches);
+      if (recreate) {
+        if (!before.managed || !inside(root, before.workspace_path)) throw new Error('Desktop is not managed in this dedicated environment.');
         // The public per-bot API exposes run rather than start. Recreate only
         // this recorded, managed container; its workspace bind mount persists.
         await api(`/api/bots/${bot.id}/local-computer/remove`, {});
       }
-      if (!before.ready && before.container !== 'running') await api(`/api/bots/${bot.id}/local-computer/run`, {});
+      if (recreate || (!before.ready && before.container !== 'running')) await api(`/api/bots/${bot.id}/local-computer/run`, {});
       const status = await waitReady(bot.id);
       if (!inside(root, status.workspace_path)) throw new Error('Desktop workspace is outside the dedicated root.');
       Object.assign(bot, { container: status.container_name, workspace: status.workspace_path, guestWorkspace: status.workspace_guest_path });
       await save(manifest);
+      await applyWallpaper({ container: status.container_name, role, status, root });
     }
     if (manifest.group && !state.groups?.some(group => group.id === manifest.group.id)) {
       delete manifest.group;
@@ -87,6 +100,9 @@ export async function run(command, options = {}) {
     if (!manifest.group) {
       const group = (await api('/api/groups', { name: 'ネコネコインダストリー｜制作・検証室', section: 'ネコネコインダストリー', memberIds: roles.map(([role]) => manifest.bots[role].id), setup: { bulletin: 'PMが制作と検証を割り振る。制作と検証は自分のGUIを使い、HTMLはAからBへコピーして渡す。実行結果と未確認事項を報告する。', defaultResponder: { kind: 'member', botId: manifest.bots.pm.id } } })).group;
       manifest.group = { id: group.id, threadId: group.threadId }; await save(manifest);
+    } else {
+      await syncExistingGroup(api, manifest);
+      await save(manifest);
     }
     return manifest;
   }
@@ -94,13 +110,21 @@ export async function run(command, options = {}) {
     if (error.code === 'ENOENT' && ['stop-desktops', 'status'].includes(command)) return { version: 1, bots: {} };
     throw error;
   });
-  if (command === 'start') {
+  if (command === 'start' || command === 'review') {
     requireIdle(await fleet());
     for (const role of ['sora', 'kinako']) {
       const status = await api(`/api/bots/${manifest.bots[role].id}/local-computer`);
       if (!status.ready) throw new Error('Both desktops must be ready. Run team first.');
     }
-    const text = `ネコネコインダストリーの会社紹介ページを単一HTMLで制作し、別GUIで検証してください。むぎがPM、そらが制作、きなこが検証です。外部通信や外部公開はせず、日本語の架空企業紹介、製品9点、社員猫3匹、カテゴリ切替、FAQを含めます。\nそらはHTMLを ${manifest.bots.sora.workspace}/nekoneko-demo/index.html に保存。きなこはそのHTMLだけを ${manifest.bots.kinako.workspace}/nekoneko-demo/index.html へコピーしチェックサムの一致を確認してください。必要なフォルダ作成とこの成果物のコピーを依頼します。\n各自のGUIゲストからは file:///home/cua/workspace/nekoneko-demo/index.html を開きます。HTML制作はClaude Codeのファイル操作、ブラウザ確認は必ず各Botのcomputerツールを使います。そらが制作と自GUI確認を終えた後、きなこが自GUIで表示・カテゴリ切替・FAQまでのスクロールを確認し、実スクリーンショットPNGを自workspaceのnekoneko-demo内へ保存。FAQ開閉は確認できた場合のみ成功と報告。PMは各担当の証拠と未確認事項をまとめて完了を判断してください。`;
+    const guest = role => `file://${manifest.bots[role].guestWorkspace}/nekoneko-demo/index.html`;
+    let text = `ネコネコインダストリーの会社紹介ページを単一HTMLで制作し、別GUIで検証してください。むぎがPM、そらが制作、きなこが検証です。外部通信や外部公開はせず、日本語の架空企業紹介、製品9点、社員猫3匹、カテゴリ切替、FAQを含めます。\nそらはHTMLを ${manifest.bots.sora.workspace}/nekoneko-demo/index.html に保存。きなこはそのHTMLだけを ${manifest.bots.kinako.workspace}/nekoneko-demo/index.html へコピーしチェックサムの一致を確認してください。必要なフォルダ作成とこの成果物のコピーを依頼します。\nGUIゲスト内のURLは、そら ${guest('sora')} 、きなこ ${guest('kinako')} です。HTML制作はClaude Codeのファイル操作、ブラウザ確認は必ず各Botのcomputerツールを使います。そらが制作と自GUI確認を終えた後、きなこが自GUIで表示・カテゴリ切替・FAQまでのスクロールを確認し、実スクリーンショットPNGを自workspaceのnekoneko-demo内へ保存。FAQ開閉は確認できた場合のみ成功と報告。スクリーンショットは各担当3枚程度（カテゴリ状態、FAQ開、FAQ閉）に絞り、長い実況や不要な再撮影は避けます。Firefoxの初回ダイアログや翻訳ポップアップはEsc/Cancelで閉じてから操作し、FAQはフォーカスしてEnterでも確認できます。PMは各担当の証拠と未確認事項をまとめ、短いdetailと有効なJSON形式で完了を判断してください。`;
+    if (command === 'review') {
+      for (const role of ['sora', 'kinako']) {
+        const filename = path.join(manifest.bots[role].workspace, 'nekoneko-demo', 'index.html');
+        if (!inside(root, await fs.realpath(filename))) throw new Error('Review requires both existing HTML files in the dedicated data root.');
+      }
+      text = `前回の制作・検証の成果をむぎPMが再確認するGoalです。既存HTMLを上書きせず、${manifest.bots.sora.workspace}/nekoneko-demo/index.html と ${manifest.bots.kinako.workspace}/nekoneko-demo/index.html のハッシュ、および各nekoneko-demo内の実PNG・前回の報告を照合してください。足りない検証があれば担当へ具体的に依頼し、確認済み項目と未確認項目を短く報告してください。全必須要件を満たしている場合のみcompleted、判断できなければneeds-inputまたはblockedとして、システム指定の有効なJSON形式で短いdetailを出してください。`;
+    }
     await api(`/api/groups/${manifest.group.id}/messages`, { threadId: manifest.group.threadId, sendId: randomUUID(), mode: 'goal', text });
     return { started: true, group: manifest.group };
   }
@@ -170,7 +194,7 @@ export async function run(command, options = {}) {
     await fs.writeFile(outputManifest, JSON.stringify(result, null, 2));
     return result;
   }
-  throw new Error('Commands: team, start, status, stop-desktops, export');
+  throw new Error('Commands: team, start, review, status, stop-desktops, export');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
