@@ -4,6 +4,7 @@
    textarea mirror. No padding/border/font-weight changes that shift the caret. */
 .mention-highlight {
   --mention-color: var(--color-ink-secondary);
+
   color: color-mix(in srgb, var(--mention-color) 30%, var(--color-ink));
   background: color-mix(in srgb, var(--mention-color) 24%, var(--color-inset));
   border-radius: 3px;

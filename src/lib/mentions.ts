@@ -3,7 +3,7 @@ import { MAUS_COLORS, type MausColor } from "./mascot";
 export type MentionPeer = { name: string; hidden?: boolean; color?: MausColor };
 export type MentionRange = { start: number; end: number; color?: string };
 
-/** Display the same word-start, longest-name matches as server/store.ts.
+/** Display word-start, longest-name matches without coloring Unicode prefixes.
  * Keep offsets in the original string so casing and Unicode remain intact. */
 export function mentionRanges(text: string, peers: readonly MentionPeer[], everyone = false): MentionRange[] {
   const candidates = peers.filter((p) => !p.hidden && p.name.trim())
@@ -14,8 +14,8 @@ export function mentionRanges(text: string, peers: readonly MentionPeer[], every
     if (at > 0 && !/\s/.test(text[at - 1])) continue;
     const rest = text.slice(at + 1);
     const peer = candidates.find(({ name }) => rest.slice(0, name.length).toLowerCase() === name.toLowerCase()
-      && (rest.length === name.length || !/[a-z0-9]/i.test(rest[name.length])));
-    const all = everyone && /^everyone\b/i.test(rest);
+      && !/^[\p{L}\p{N}\p{M}_]/u.test(rest.slice(name.length)));
+    const all = everyone && /^everyone(?![\p{L}\p{N}\p{M}_])/iu.test(rest);
     const length = all ? 8 : peer?.name.length;
     if (length === undefined) continue;
     // Only palette values enter CSS. @everyone has no individual bot identity.

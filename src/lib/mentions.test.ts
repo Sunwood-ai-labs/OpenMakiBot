@@ -14,9 +14,17 @@ describe("mention display ranges", () => {
   it("ignores emails, unknown/hidden bots, partial names and longer words", () => {
     expect(matches("mail me@Atlas.test @Ghost @Hidden @Atl @Atlas2 @New Bottle https://host/@Atlas")).toEqual([]);
   });
-  it("only decorates everyone in rooms and uses the room routing boundary", () => {
+  it("only decorates everyone in channels and rejects longer words", () => {
     expect(matches("@everyone @Everyone! @everyone_else @everyone2", true)).toEqual(["@everyone", "@Everyone"]);
     expect(matches("@everyone")).toEqual([]);
+  });
+  it("rejects Unicode letters, numbers, combining marks and underscores after names", () => {
+    expect(matches("@調査担当者 @everyone調査 @Atlasé @Atlas２ @Atlas𐐀 @Atlas𝟙 @Atlas\u0301 @Atlas_else", true)).toEqual([]);
+    expect(matches("@everyoneé @everyone２ @everyone𐐀 @everyone𝟙 @everyone\u0301", true)).toEqual([]);
+    expect(matches("@調査担当、 @Atlas! @everyone。 @Atlas😀", true)).toEqual(["@調査担当", "@Atlas", "@everyone", "@Atlas"]);
+    const text = "@調査担当者 @everyone調査";
+    expect(mentionRanges(text, [{ name: "調査担当" }, { name: "調査担当者" }, { name: "everyone調査" }], true))
+      .toEqual([{ start: 0, end: 6 }, { start: 7, end: 18 }]);
   });
   it("does not interpret names as regular expressions or HTML", () => {
     const text = "@A+B and @<img>";

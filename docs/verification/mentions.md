@@ -96,6 +96,49 @@ The printed server log was
 `%TEMP%/openmausbot-verification-evidence/server-1788790736762-24868.log`.
 Fresh runs must use their own printed URL and channel ID.
 
+### Review fixes and mentions authored by bots
+
+The review follow-up rejects Unicode letters, numbers, combining marks and
+underscores following a recognized name. Tests include `@調査担当者`,
+`@everyone調査`, supplementary-plane characters and exact longer roster names.
+`@everyone` is channel-only in the picker, composer, user bubbles and bot
+Markdown. The stylesheet also includes the requested declaration separator.
+
+Launch with `--bot-mentions` to configure the existing fake CLI through the
+fixture's instance endpoint. Its first reply mentions Juniper, 調査担当 and Atlas;
+subsequent replies use the default text to bound channel handoffs. Send
+`@Atlas Please ask the team to review.` through the channel composer. In the
+recorded run, Atlas's actual bot message highlighted Juniper red, 調査担当 orange
+and Atlas blue; repeated mentions retained those colors in both themes. The
+two Unicode prefixes stayed plain, and channel `@everyone` stayed neutral.
+
+The `DM renderer preview` button renders the same fixture transcript with
+`group.dm = true`, exercising real GroupView/Composer components without
+creating a bot-to-bot server conversation. In this preview, `@everyone` had no
+highlight in the bot reply or draft, and typing `@every` offered no candidate.
+This preview checks DM rendering only; no message was sent from that preview.
+
+```sh
+node --experimental-strip-types scripts/verify-mentions.ts --bot-mentions
+node --experimental-strip-types scripts/control-omb.ts channels --url http://127.0.0.1:21580
+# In the printed previewUrl, fill the channel composer with
+# @Atlas Please ask the team to review.
+# and press Enter.
+node --experimental-strip-types scripts/control-omb.ts wait --channel 2ee9e176-5270-4211-9968-af5baa0eef39 --timeout 60 --url http://127.0.0.1:21580
+node --experimental-strip-types scripts/control-omb.ts messages --channel 2ee9e176-5270-4211-9968-af5baa0eef39 --limit 20 --url http://127.0.0.1:21580
+```
+
+Recorded on 2026-09-07; printed log:
+`%TEMP%/openmausbot-verification-evidence/server-1788791336713-2520.log`.
+The channel settled. Evidence: [wait](evidence/mentions/bot-reply-wait.json),
+[transcript](evidence/mentions/bot-reply-messages.json),
+[DOM palettes](evidence/mentions/bot-reply-dom.json),
+[dark screenshot](evidence/mentions/bot-reply-dark.png) and
+[light screenshot](evidence/mentions/bot-reply-light.png).
+All 792 renderer tests (102 files), typecheck, renderer build and targeted
+oxlint passed. The full server/Electron suite was not repeated for these
+renderer and fixture changes.
+
 The fixture verifies browser renderer behavior and fake-engine message handling.
 It does not establish packaged Electron, Safari, operating-system IME candidate
 windows, or real-provider delegation behavior. Mention decoration uses the current
