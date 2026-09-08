@@ -63,11 +63,16 @@ bytes and MIME types for all four formats; local OS save completion is not claim
 - Packaged server: passed (startup with no node_modules, proxy paths, MCP stdio).
 - Locale catalogs: all 8 valid. Targeted lint and `git diff --check`: passed.
 - Full Windows Vitest run: 4,347 passed, 81 failed, 130 skipped, 1 todo.
-  See the comparison record for the unchanged-base results.
+  Unchanged base: 4,297 passed, 90 failed, 130 skipped, 1 todo, and one worker
+  error. All 81 implementation failure names also occur at the base commit;
+  no implementation-only failure was found. This comparison does not turn
+  either failed run into a passing suite. See [the comparison record](test-comparison.json).
 - Electron tests: 138 passed, 2 failed, 6 skipped. Both failures reproduced at
   the base commit: Linux AppImage updater tests require the unavailable `mv` command.
 
 Full-suite failures are not waived and a clean local `pnpm test` is not claimed.
+The full run preceded final display-name/label and import-extension fixes;
+the production build and focused checks were rerun after those fixes.
 The full logs and fixture action/result JSON are retained locally beside these
 screenshots but excluded from commits because they include machine-specific paths.
 
