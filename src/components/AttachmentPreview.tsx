@@ -31,6 +31,8 @@ import {
   type TranscriptImageAttachment,
 } from "@/lib/composer-attachments";
 import { cn } from "@/lib/cn";
+import { filePreviewKind } from "@/lib/file-preview";
+import { PreviewableFile } from "./FilePreview";
 import { t } from "@/lib/i18n";
 
 export interface PreviewImage {
@@ -739,6 +741,9 @@ export function MarkdownImagePreview({
 function AttachedFileChip({ file, message }: { file: TranscriptFileAttachment; message?: MessageAttachmentContext }) {
   const save = useLocalFileSave(file.path, file.name, message);
   const failed = save.state === "failed";
+  if (message && file.private && filePreviewKind(file.path)) {
+    return <PreviewableFile path={file.path} name={file.name} message={message} />;
+  }
   if (!message || !file.private) {
     return (
       <div title={t("attach.legacyFile", { name: file.name })} className="flex max-w-[280px] items-center gap-2 overflow-hidden rounded-lg border border-hairline/40 bg-inset/70 px-2.5 py-2 text-[12px] text-ink-secondary">
