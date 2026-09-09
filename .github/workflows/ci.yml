@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 # least privilege: CI only reads the checkout, it never writes back

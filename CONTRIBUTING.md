@@ -1,4 +1,8 @@
-# Contributing to OpenMausBot
+# Contributing to OpenMakiBot
+
+Fork workflow: read [AGENTS.md](AGENTS.md) first. Feature PRs target **Sunwood-ai-labs/OpenMakiBot:develop**; release and hotfix PRs target **main** and are merged back to develop. Upstream contributions use a separate branch based on milind-soni/OpenMausBot:main.
+
+The inherited implementation and test guidance follows. Upstream packaging instructions describe OpenMausBot; publishing OpenMakiBot binaries requires a separate, verified release configuration.
 
 Thanks for wanting to help — community PRs have already shipped in this repo, and more are welcome.
 This file tells you how to get a working dev setup, what the codebase expects from a change, and what
@@ -23,8 +27,13 @@ and logged in. macOS is the primary release platform and Ubuntu 24.04 x64 is the
 the harness server itself is portable Node and the test suite runs on macOS, Linux, and Windows.
 
 ```sh
-git clone https://github.com/milind-soni/OpenMausBot && cd OpenMausBot
-pnpm install
+git clone -o fork https://github.com/Sunwood-ai-labs/OpenMakiBot.git
+cd OpenMakiBot
+git remote add origin https://github.com/milind-soni/OpenMausBot.git
+git config remote.pushDefault fork
+git fetch origin
+git switch --track fork/develop
+pnpm install --frozen-lockfile
 
 pnpm dev:server    # harness server → 127.0.0.1:8799
 pnpm dev           # app → http://127.0.0.1:5199
