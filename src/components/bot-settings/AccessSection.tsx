@@ -5,6 +5,7 @@
 // list, webhooks list, and always-allowed list (the first read-only view of
 // standing grants) are new.
 import { useEffect, useState } from "react";
+import { browserUnavailableReason } from "@/lib/feature-flags";
 import { FolderOpen } from "lucide-react";
 
 import { api, useStore, type Bot } from "@/state/store";
@@ -124,6 +125,7 @@ export function AccessSection({
     localSelectable,
     localDisabledReason,
   } = derived;
+  const browserInstallable = state.config?.browserEngine?.installable === true;
   const [localAutoWarning, setLocalAutoWarning] = useState<string | null>(null);
   const [inventory, setInventory] = useState<ConnectorInventory | null>(null);
 
@@ -277,22 +279,22 @@ export function AccessSection({
           <div className="text-[15px] font-medium text-ink">Browser</div>
           <div className="mt-0.5 text-[13px] text-ink-secondary">
             {!desktopBrowser
-              ? browserBlockedOnWindows
-                ? "The built-in browser is temporarily unavailable on Windows while Electron's production sandbox support is being verified."
-                : "The built-in browser needs the OpenMausBot desktop app."
+              ? browserBlockedOnWindows && !browserInstallable
+                ? "Not available on this Windows machine yet: install the browser engine with `openmausbot browser install`."
+                : browserUnavailableReason(state.config)
               : !browserFeature
                 ? "The built-in browser is switched off under App Settings → Experimental."
                 : !canUseBrowser
                   ? "This bot's current engine cannot use the built-in browser."
                   : browserEnabled
-                    ? "This bot has its own browser tab in the computer panel — its own logins, watchable and takeable at any time."
+                    ? "This bot has its own browser with its own logins."
                     : "Keep the built-in browser unavailable to this bot."}
           </div>
         </div>
         <Switch
           checked={browserEnabled}
           aria-label="Give this bot a built-in browser"
-          disabled={!browserEnabled && (!desktopBrowser || !browserFeature || !canUseBrowser)}
+          disabled={!browserEnabled && ((!desktopBrowser && !browserInstallable) || !browserFeature || !canUseBrowser)}
           onClick={() => patch({ browser: !browserAllowed })}
           className="disabled:cursor-not-allowed"
         />

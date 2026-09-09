@@ -333,6 +333,25 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect((settled[0] as any).text).toBe("hello from fake claude");
   });
 
+  it("turns a signed-out CLI into a setup error, not a bot reply", async () => {
+    // issue #674: the CLI answers a signed-out turn with "Please run /login",
+    // a command this app has no terminal to run. Relaying it as assistant
+    // text left the user in a dead end; `setup: true` is what the chat reads
+    // to offer the sign-in card instead.
+    await create("not-logged-in");
+    await instance.adapter.sendTurn({ threadId: "t-auth", text: "hi" });
+    await recorder.until((e) => e.type === "turn.completed");
+
+    const failure = recorder.events.find((e: any) => e.type === "runtime.error") as any;
+    expect(failure).toMatchObject({ message: "Not logged in \u00b7 Please run /login", setup: true });
+    // the CLI's instruction must not also land as something the bot said
+    expect(recorder.events.some((e: any) => e.type === "item.completed" && e.itemType === "assistant_text")).toBe(false);
+    expect(recorder.events.some((e: any) => e.type === "content.delta")).toBe(false);
+    // the same vocabulary codex and the ACP engines settle an unauthenticated
+    // turn with — not the CLI's "stop_sequence", which says nothing
+    expect(recorder.events.at(-1)).toMatchObject({ type: "turn.completed", ok: false, stopReason: "auth_required" });
+  });
+
   it("keeps user and system prompts off argv and strips identity env vars", async () => {
     await create();
     const dump = join(scratch, "dump.json");
@@ -848,12 +867,12 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const running = await instance.adapter.sendTurn({ threadId, text: "stop this turn" });
     await recorder.until((e) => e.type === "item.completed" && e.itemType === "tool" && e.turnId === running.turnId);
     const stoppedPid = JSON.parse(readFileSync(dump, "utf8")).pid;
-    // Windows taskkill returns before the child exits. Hold that window open
-    // deterministically: the pipe remains writable until we release the kill.
+    // Hold the interrupt-before-exit window open deterministically: the pipe
+    // remains writable until we release the kill.
     const conn = await connectSocket(permissionSocketPath(threadId));
     const nextAnswer = answerQueue(conn);
     const kill = procs.killCliTree;
-    const delayedKill = vi.spyOn(procs, "killCliTree").mockImplementation(() => {});
+    const delayedKill = vi.spyOn(procs, "killCliTree").mockImplementation(async () => false);
     try {
       const pendingAnswer = nextAnswer();
       conn.write(JSON.stringify({ t: "ask", id: "before-stop", tool: "Bash", input: { command: "sleep 60" } }) + "\n");
