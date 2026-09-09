@@ -20,4 +20,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: node --test scripts/check-fork-policy.test.mjs
       - run: node scripts/check-fork-policy.mjs
