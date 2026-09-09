@@ -244,30 +244,6 @@ type SkillRecordingPayload = {
       };
       /** Two Local VM viewers embedded in one app window. URLs are accepted
        * only by main-process validation and never return over this bridge. */
-      /** The built-in browser surface; absent in a browser tab or an older shell. */
-      browser?: {
-        available(): Promise<boolean>;
-        state(botId: string): Promise<BrowserSurfaceState>;
-        layout(
-          botId: string,
-          bounds: DesktopWorkspaceBounds | null,
-          profile?: string,
-          mode?: "compact" | "expanded",
-          layoutOwner?: string,
-        ): Promise<BrowserSurfaceState>;
-        navigate(botId: string, url: string, profile?: string): Promise<{ url: string; title: string }>;
-        back(botId: string, profile?: string): Promise<{ url: string; title: string }>;
-        forward?(botId: string, profile?: string): Promise<{ url: string; title: string }>;
-        reload?(botId: string, profile?: string): Promise<{ url: string; title: string }>;
-        /** Immediately gates native browser mutations while the durable
-         * server-side human-control snapshot catches up. */
-        setHumanControl?(botId: string, held: boolean, profile?: string): Promise<boolean>;
-        /** Native page focus/input means the person has taken the wheel. */
-        onUserInteraction?(cb: (event: { botId: string; profile: string }) => void): () => void;
-        forgetProfile?(partitionId: string): Promise<{ dropped: number }>;
-        close(botId: string): Promise<boolean>;
-        onState(cb: (state: BrowserSurfaceState) => void): () => void;
-      };
       desktopWorkspace?: {
         open(input: {
           contextId: string;
@@ -295,7 +271,7 @@ type SkillRecordingPayload = {
       saveFile?(filePath: string): Promise<string | null>;
       /** Save a provider credential through Electron's OS-backed store. */
       setCredential?(
-        name: "composioApiKey" | "xaiApiKey" | "boxToken" | "opencodeGoApiKey" | "ttsKey" | "openaiImageApiKey",
+        name: "composioApiKey" | "xaiApiKey" | "boxToken" | "opencodeGoApiKey" | "ttsKey" | "openaiImageApiKey" | "customImageApiKey",
         value: string,
       ): Promise<ConfigStatus>;
       /** In-app auto-update (packaged app only; dormant in dev). onState
@@ -330,6 +306,8 @@ export interface UpdaterState {
     | "checking"
     | "available"
     | "downloading"
+    /** downloaded bytes are being staged by the native macOS updater */
+    | "preparing"
     | "downloaded"
     | "installing"
     /** the command is on the clipboard; the user finishes in a terminal */
@@ -338,6 +316,8 @@ export interface UpdaterState {
   version?: string;
   percent?: number;
   message?: string;
+  /** native work may still be running; recovery requires an app restart */
+  retryable?: boolean;
   /**
    * How the download gets applied. "restart" quits and installs in place;
    * "handoff" copies the install command and opens a terminal so the user

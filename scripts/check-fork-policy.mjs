@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(process.argv[2] || fileURLToPath(new URL('..', import.meta.url)));
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8').replaceAll('\r\n', '\n');
-const upstreamOnly = ['release.yml', 'prepare-release.yml', 'npm-package.yml', 'sync-published-release.yml'];
+const upstreamOnly = ['release.yml', 'prepare-release.yml', 'npm-package.yml', 'sync-published-release.yml', 'contributors.yml'];
 const guard = "github.repository == 'milind-soni/OpenMausBot'";
 
 // Intentionally requires the repository's simple block-style job declarations.
@@ -18,7 +18,9 @@ function jobs(file) {
   return entries.map(([, name, body]) => ({ name, body }));
 }
 function guarded(file, job) {
-  const condition = job.body.match(/^    if: (.+)$/m)?.[1];
+  const conditions = [...job.body.matchAll(/^    if: (.+)$/gm)];
+  assert.equal(conditions.length, 1, `${file}/${job.name}: expected exactly one job condition`);
+  const condition = conditions[0][1];
   assert(condition === guard || condition?.startsWith(`${guard} && `), `${file}/${job.name}: missing upstream publishing guard`);
   assert(!condition.includes('||'), `${file}/${job.name}: guard must not be bypassed with OR`);
 }

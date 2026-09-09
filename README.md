@@ -57,4 +57,5 @@ OpenMakiBot 独自のインストーラーと自動更新フィードはまだ�
 ## 🤝 派生元とライセンス
 
 [OpenMausBot](https://github.com/milind-soni/OpenMausBot) と、その作者・貢献者に感謝します。
-OpenMakiBot は独立した派生プロジェクトです。元の著作権表示と [Apache-2.0 LICENSE](LICENSE) を維持します。
+OpenMakiBot は独立した派生プロジェクトです。元の著作権表示、[LICENSE](LICENSE)、[NOTICE](NOTICE) を維持します。
+本家更新に含まれる `enterprise/` は Apache-2.0 の対象外です。[LICENSING.md](LICENSING.md) と [enterprise/LICENSE](enterprise/LICENSE) を参照してください。

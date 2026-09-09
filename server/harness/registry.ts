@@ -10,6 +10,7 @@ import type {
   InstanceConfigMap,
   InstanceId,
   ProviderAuthenticationStart,
+  ProviderAuthenticationStatus,
   ProviderInstance,
   ProviderSnapshot,
 } from "../contracts.ts";
@@ -60,6 +61,8 @@ export class ProviderRegistry {
 
   async load(configs: InstanceConfigMap) {
     for (const [instanceId, entry] of Object.entries(configs)) {
+      // Account edits replace only their own process/session state.
+      await this.dispose(instanceId);
       const driver = this.driversByKind.get(entry.driver);
       if (!driver) {
         this.byId.set(instanceId, {
@@ -150,6 +153,11 @@ export class ProviderRegistry {
     return instance?.startAuthentication ? instance.startAuthentication() : null;
   }
 
+  async getAuthentication(instanceId: InstanceId, flowId: string): Promise<ProviderAuthenticationStatus | null> {
+    const instance = this.get(instanceId);
+    return instance?.getAuthentication ? instance.getAuthentication(flowId) : null;
+  }
+
   async completeAuthentication(instanceId: InstanceId, flowId: string, callbackUrl: string): Promise<boolean> {
     const instance = this.get(instanceId);
     if (!instance?.completeAuthentication) return false;
@@ -226,6 +234,17 @@ export class ProviderRegistry {
           },
           access: driver?.metadata.access ?? "subscription",
           install: driver?.install,
+          authentication: inst.startAuthentication
+            ? {
+                method: inst.getAuthentication && inst.completeAuthentication
+                  ? "paste-code" as const // a link to open, then a code pasted back (Claude)
+                  : inst.getAuthentication
+                    ? "device-code" as const // a code to enter at the provider's page (Codex)
+                    : "browser" as const, // a link and a callback URL (managed engines)
+                // the browser may remove the stored sign-in to switch accounts
+                signOut: inst.signOut !== undefined,
+              }
+            : undefined,
           cli: this.cliByInstance.get(inst.instanceId),
           cliDefault: cliDefaultOf(driver),
           // every copy of the driver's default binary on the augmented PATH —
@@ -241,5 +260,12 @@ export class ProviderRegistry {
     await Promise.allSettled(this.instances().map((i) => i.dispose()));
     this.byId.clear();
     this.cliByInstance.clear();
+  }
+
+  async dispose(instanceId: InstanceId) {
+    const entry = this.byId.get(instanceId);
+    this.byId.delete(instanceId);
+    this.cliByInstance.delete(instanceId);
+    await entry?.live?.dispose();
   }
 }

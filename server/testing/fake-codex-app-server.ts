@@ -7,8 +7,10 @@
 //   FAKE_CODEX_MODE   happy (default) | approval | resume | stream | windows-command |
 //                     mcp-elicitation | mcp-app-approval | mcp-form | permissions-approval | config-profile |
 //                     config-profile-unsupported | config-read-error | image |
-//                     logged-in-stdout | logged-out | unauthorized
-//   FAKE_CODEX_DUMP   path to write {argv, env, calls, decision} as JSON
+//                     logged-in-stdout | logged-out | unauthorized | late-request
+//   FAKE_CODEX_DUMP   path to write {pid, argv, env, calls, decision} as JSON
+//   FAKE_CODEX_ACCOUNT_EMAIL  synthetic ChatGPT identity (default ada@example.test)
+//   FAKE_CODEX_ACCOUNT_MODE   chatgpt (default) | api-key | none | unsupported | error | hang
 //
 // Keep this file dependency-free — it runs as a bare `node` subprocess.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -41,7 +43,7 @@ const dump = () => {
   if (process.env.FAKE_CODEX_DUMP) {
     writeFileSync(
       process.env.FAKE_CODEX_DUMP,
-      JSON.stringify({ argv: process.argv.slice(2), env: process.env, calls, decision }, null, 2),
+      JSON.stringify({ pid: process.pid, argv: process.argv.slice(2), env: process.env, calls, decision }, null, 2),
     );
   }
 };
@@ -69,7 +71,12 @@ const finishTurn = () => {
   notify("item/completed", { item: { id: "m1", type: "agentMessage", text: "done from fake codex" } });
   notify("thread/tokenUsage/updated", { tokenUsage: { total: { inputTokens: 7, cachedInputTokens: 4, outputTokens: 3 } } });
   dump();
+  if (mode === "late-request") process.stdout.cork();
   notify("turn/completed", { turn: { status: "completed" } });
+  if (mode === "late-request") {
+    out({ jsonrpc: "2.0", id: 100, method: "execCommandApproval", params: { command: "echo too late" } });
+    process.stdout.uncork();
+  }
 };
 
 let buf = "";
@@ -101,6 +108,23 @@ process.stdin.on("data", (chunk) => {
         experimentalApi = msg.params?.capabilities?.experimentalApi === true;
         out({ jsonrpc: "2.0", id: msg.id, result: { ok: true } });
         break;
+      case "account/read": {
+        dump();
+        const accountMode = process.env.FAKE_CODEX_ACCOUNT_MODE;
+        if (accountMode === "hang") break;
+        if (accountMode === "unsupported" || accountMode === "error") {
+          out({ jsonrpc: "2.0", id: msg.id, error: {
+            code: accountMode === "unsupported" ? -32601 : -32000,
+            message: "Offline fixture account read unavailable",
+          } });
+          break;
+        }
+        const account = accountMode === "none" || mode === "logged-out" ? null
+          : accountMode === "api-key" ? { type: "apiKey" }
+          : { type: "chatgpt", email: process.env.FAKE_CODEX_ACCOUNT_EMAIL ?? "ada@example.test", planType: "pro" };
+        out({ jsonrpc: "2.0", id: msg.id, result: { account, requiresOpenaiAuth: true } });
+        break;
+      }
       case "model/list":
         if (msg.params?.cursor === "page-2") {
           out({
@@ -133,6 +157,7 @@ process.stdin.on("data", (chunk) => {
         break;
       case "config/read":
         if (mode === "config-read-error") {
+          dump();
           out({ jsonrpc: "2.0", id: msg.id, error: { code: -32000, message: "config unavailable" } });
           break;
         }
@@ -140,7 +165,8 @@ process.stdin.on("data", (chunk) => {
           jsonrpc: "2.0",
           id: msg.id,
           result: {
-            config: mode === "config-profile" || mode === "config-profile-unsupported"
+            config: {
+              ...(mode === "config-profile" || mode === "config-profile-unsupported"
               ? {
                   default_permissions: "private-operator-profile",
                   permissions: {
@@ -158,7 +184,9 @@ process.stdin.on("data", (chunk) => {
                   mcp_servers: {
                     harmless_name: { env: { DISPLAY_LABEL: "innocuous-config-secret-7a9c" } },
                   },
-                },
+                }),
+              developer_instructions: process.env.FAKE_CODEX_INSTRUCTIONS ?? null,
+            },
             origins: {},
           },
         });
@@ -166,11 +194,19 @@ process.stdin.on("data", (chunk) => {
       case "thread/resume":
         if (msg.params?.permissions && (!experimentalApi || mode === "config-profile-unsupported")) {
           out({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "experimental API required for permissions" } });
-        } else if (mode === "resume" || mode === "config-profile" || mode === "config-profile-unsupported") {
+        } else if (mode === "resume" || mode === "instructions-unsupported" || mode === "config-profile" || mode === "config-profile-unsupported") {
           out({ jsonrpc: "2.0", id: msg.id, result: { thread: { id: msg.params?.threadId } } });
         } else {
           out({ jsonrpc: "2.0", id: msg.id, error: { code: -1, message: "no such thread" } });
         }
+        break;
+      case "thread/inject_items":
+        if (mode === "instructions-unsupported") {
+          dump();
+          out({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "method not found" } });
+          break;
+        }
+        out({ jsonrpc: "2.0", id: msg.id, result: {} });
         break;
       case "thread/start":
         if (msg.params?.permissions && (!experimentalApi || mode === "config-profile-unsupported")) {
