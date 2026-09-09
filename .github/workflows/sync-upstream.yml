@@ -6,7 +6,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
 
 concurrency:
   group: openmakibot-upstream-sync
@@ -25,11 +24,6 @@ jobs:
         with:
           ref: develop
           fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
-      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Merge upstream into an isolated sync branch
         id: merge
         shell: bash
@@ -59,11 +53,11 @@ jobs:
             echo 'Merge conflict: resolve in a local sync worktree; no branch was pushed.' >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          node scripts/check-fork-policy.mjs
+          # Do not execute code or policy scripts from the unreviewed merge.
           git push origin "HEAD:refs/heads/$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo 'changed=true' >> "$GITHUB_OUTPUT"
-      - name: Open sync PR and start verification
+      - name: Open a draft sync PR for inspection
         if: steps.merge.outputs.changed == 'true'
         env:
           SYNC_BRANCH: ${{ steps.merge.outputs.branch }}
@@ -75,9 +69,8 @@ jobs:
 
           Verify fork branding, agent instructions, publishing boundaries, data compatibility and application CI before merging. This PR does not release main.
 
-          The workflow explicitly dispatches checks because PRs created with GITHUB_TOKEN do not trigger normal PR workflows.
+          No code or workflow from the merged branch has been executed. Inspect workflow and script changes, publishing permissions and secret usage before running checks.
+
+          PRs created with GITHUB_TOKEN do not trigger normal PR workflows. After inspection, explicitly dispatch ci.yml, fork-policy.yml, docker.yml and docs.yml on this branch, then mark the PR ready once verification passes. See AGENTS.md.
           BODY
-          gh pr create --base develop --head "$SYNC_BRANCH" --title '🔄 Sync upstream OpenMausBot' --body-file "$RUNNER_TEMP/sync-pr.md"
-          for workflow in ci.yml fork-policy.yml docker.yml docs.yml; do
-            gh workflow run "$workflow" --ref "$SYNC_BRANCH"
-          done
+          gh pr create --draft --base develop --head "$SYNC_BRANCH" --title '🔄 Sync upstream OpenMausBot' --body-file "$RUNNER_TEMP/sync-pr.md"
