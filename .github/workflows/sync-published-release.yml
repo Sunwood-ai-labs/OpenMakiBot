@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   mirror:
+    if: github.repository == 'milind-soni/OpenMausBot'
     name: Preserve legacy updater compatibility
     runs-on: ubuntu-24.04
     timeout-minutes: 30
