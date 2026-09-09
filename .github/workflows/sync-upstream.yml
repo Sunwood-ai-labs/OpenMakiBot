@@ -1,0 +1,78 @@
+name: Sync upstream
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: openmakibot-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'Sunwood-ai-labs/OpenMakiBot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Merge upstream into an isolated sync branch
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          # checkout calls the fork origin; this runner does not use local remote names.
+          git remote add upstream https://github.com/milind-soni/OpenMausBot.git
+          git fetch --no-tags upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo 'Upstream is already included.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          existing=$(gh pr list --base develop --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("codex/sync/"))] | length')
+          if [ "$existing" != 0 ]; then
+            echo 'An upstream sync PR is already open. Finish it before starting another.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branch="codex/sync/upstream-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git merge --no-ff upstream/main -m '🔄 Merge upstream OpenMausBot into OpenMakiBot develop'; then
+            git diff --name-only --diff-filter=U
+            git merge --abort
+            echo 'Merge conflict: resolve in a local sync worktree; no branch was pushed.' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          node scripts/check-fork-policy.mjs
+          git push origin "HEAD:refs/heads/$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+      - name: Open sync PR and start verification
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          SYNC_BRANCH: ${{ steps.merge.outputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/sync-pr.md" <<'BODY'
+          Integrates the current upstream OpenMausBot main into OpenMakiBot develop.
+
+          Verify fork branding, agent instructions, publishing boundaries, data compatibility and application CI before merging. This PR does not release main.
+
+          The workflow explicitly dispatches checks because PRs created with GITHUB_TOKEN do not trigger normal PR workflows.
+          BODY
+          gh pr create --base develop --head "$SYNC_BRANCH" --title '🔄 Sync upstream OpenMausBot' --body-file "$RUNNER_TEMP/sync-pr.md"
+          for workflow in ci.yml fork-policy.yml docker.yml docs.yml; do
+            gh workflow run "$workflow" --ref "$SYNC_BRANCH"
+          done
