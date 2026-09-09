@@ -33,7 +33,7 @@ export function validateWorkflow(file, source) {
       assert.equal(name, 'sync', 'unexpected upstream sync job');
       guarded(file, name, job.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot'");
       assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'], 'upstream sync must remain manual');
-      assert.deepEqual(job.permissions ?? workflow.permissions, { contents: 'write', 'pull-requests': 'write', actions: 'write' });
+      assert.deepEqual(job.permissions ?? workflow.permissions, { contents: 'write', 'pull-requests': 'write' });
     } else if (privileged || upstreamOnly.includes(file) || (file === 'docker.yml' && name === 'publish')) {
       guarded(file, name, job.if);
     }

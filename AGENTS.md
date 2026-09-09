@@ -60,8 +60,9 @@ OpenMakiBot は OpenMausBot の独自開発フォーク。本家の更新を取�
 - `codex/sync/<slug>` を `fork/develop` から作り、`origin/main` を merge する。
 - 競合は両方の意図を確認して解消する。特に AGENTS.md、README、CI、公開先、依存関係、保存形式は独自版の方針を再確認する。
 - 分離環境で必要なテスト・UI 確認を行い、フォーク develop に同期 PR を出す。main に直接取り込まない。
-- Actions の **Sync upstream** も手動実行できる。競合時は停止してブランチを公開しない。ログを確認して専用 worktree で解消する。
-- Actions の標準トークンで作った PR は通常の PR イベント CI が起動しないため、同期ワークフローは CI / fork policy / Docker / Docs を明示 dispatch する。
+- Actions の **Sync upstream** は手動実行でドラフト PR を作る。競合時は停止してブランチを公開しない。ログを確認して専用 worktree で解消する。
+- 同期 Actions 内では、未レビューのマージ結果に含まれるスクリプト・ワークフローを実行しない。検査スクリプトも実行対象に含む。
+- Actions の標準トークンで作った PR は通常の PR イベント CI が起動しない。まずエージェントがワークフロー・スクリプト・公開先・secret 参照を含む差分を確認する。その後、対象ブランチに `gh workflow run <workflow> --repo Sunwood-ai-labs/OpenMakiBot --ref <sync-branch>` を使い、`ci.yml` / `fork-policy.yml` / `docker.yml` / `docs.yml` を起動する。必要な検証を済ませて PR を ready にする。
 - 本家に入った独自パッチは差分を照合する。squash・rebase・レビュー修正で SHA が異なる場合がある。SHA だけで削除・再適用を判断しない。
 
 ## 本家へ PR を出す
@@ -94,5 +95,6 @@ isolated fixture; never verify mutations against the user's live app or data.
 - OpenMakiBot のバイナリ配布は、独自のアプリ識別子・署名・配布先・更新フィードの検証を済ませてから構築する。本家のダウンロードを独自版として案内しない。
 - Docker の公開も独自配布の確認が済むまでフォークでは無効。ビルド検証は維持する。
 - 本家同期時に新規公開ワークフローや旧 URL が入ったら、再度公開先を点検する。
+- Actions のリポジトリ既定トークン権限は `read` を維持する。公開権限の検査はこの設定を前提とするため、設定変更時は検査方針も見直す。
 
 More specific `AGENTS.md` files override this note within their directories.
