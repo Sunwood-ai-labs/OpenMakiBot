@@ -1,3 +1,5 @@
+<!-- OpenMakiBot: feature/sync PRs target develop. Release/hotfix PRs target main, with a back-merge to develop. Upstream PRs must use a clean upstream-based branch. See AGENTS.md. -->
+
 <!--
 Please read CONTRIBUTING.md first — it's short. One concern per PR;
 big changes should have an issue agreeing on the approach before code.
