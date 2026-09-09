@@ -38,6 +38,7 @@ Use only mapped, tested commands:
 - [Chat turns](chat-turns.md)
 - [Channels](channels.md)
 - [Engines and Doctor](engines.md)
+- [Qwen model route selection](qwen-models.md)
 - [Team backups](team-backups.md)
 
 Renderer-only behavior—Settings, sidebar drag-and-drop, the VM modal, the
@@ -51,8 +52,25 @@ against an isolated server for image decoding, loading, and recovery UI checks.
 The [file preview fixture](file-preview.md) checks Web PDF, video, workbook, and
 slide previews against message-authorized downloads on an isolated fake engine.
 
+The [live browser fixture](browser-live.md) mounts the real Browser panel with
+an explicitly selected native engine and Chrome in a disposable home, covering
+watching, takeover, input, and profile switching.
+
 The [bot settings fixture](bot-settings.md) checks profile saves, standing
 instructions, history restore, skill/memory refresh, and stale-response isolation.
+
+The [avatar provider fixture](avatar-providers.md) checks image-provider settings,
+keyless local generation, saved-key handling, and safe errors with a local fake API.
+
+The [independent threads fixture](threads.md) checks nested sidebar navigation,
+per-thread models, simultaneous direct conversations and thread-scoped Stop.
+
+The [right-to-left fixture](bidi.md) checks per-block direction in bot replies
+and per-line direction in sent turns, with code pinned left-to-right.
+
+The [routines fixture](routines.md) checks confirmed proposals, manual and
+scheduled runs, central run logs, List/Calendar views, and bot-scoped routines
+using the real renderer and an isolated fake-engine server.
 
 The [server settings recipe](server-settings.md) checks browser provider sign-in
 with an offline CLI and custom-domain validation without touching live accounts.

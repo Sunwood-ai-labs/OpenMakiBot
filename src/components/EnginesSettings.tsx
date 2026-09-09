@@ -14,6 +14,8 @@ import { splitEngineRail } from "@/lib/engine-rail";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { EngineSetup, needsCli, needsSignIn } from "./EngineSetup";
+import { AddClaudeAccount, ClaudeAccountSettings } from "./ClaudeAccountSettings";
+import { CodexAccountSettings } from "./CodexAccountSettings";
 
 interface ProbeResult {
   ok: boolean;
@@ -251,7 +253,7 @@ function EngineRow({ instance }: { instance: InstanceInfo }) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 text-[13px]">
+      <div className="flex flex-wrap items-center gap-2 text-[13px]">
         <span className={cn("size-1.5 shrink-0 rounded-full", instance.cli ? "bg-accent" : "bg-raised-hover")} />
         <ProviderMark driverKind={instance.driverKind} size={14} />
         <span className="shrink-0 text-ink">{instance.displayName}</span>
@@ -306,10 +308,20 @@ function EngineRow({ instance }: { instance: InstanceInfo }) {
         <div role="status" className="mt-1 text-[12px] text-success">{t("engines.claudeUpdated", { version: updatedVersion })}</div>
       )}
       {error && <div role="alert" className="mt-1 text-[12px] text-danger">{error}</div>}
-      {instance.authentication?.method === "device-code" && (
+      {instance.claudeAccount && <ClaudeAccountSettings instance={instance} />}
+      {(instance.authentication?.method === "device-code" || instance.authentication?.method === "paste-code") && (
         needsCli(instance) || needsSignIn(instance)
           ? <EngineSetup instance={instance} className="mt-3" />
-          : instance.snapshot.authenticated && <p className="mt-2 flex items-center gap-1.5 text-[12px] text-success"><Check size={13} />{t("engineSetup.device.connectedAccount")}</p>
+          : instance.snapshot.authenticated && (
+            instance.authentication.method === "device-code"
+              ? <CodexAccountSettings instance={instance} />
+              : (
+                <p className="mt-2 flex items-center gap-1.5 text-[12px] text-success">
+                  <Check size={13} />
+                  {t("engineSetup.claude.connectedAccount")}
+                </p>
+              )
+          )
       )}
       {open && (
         <CustomPicker
@@ -343,6 +355,7 @@ export function EnginesSettings() {
             {subscription.map((i) => (
               <EngineRow key={i.instanceId} instance={i} />
             ))}
+            <AddClaudeAccount />
             {custom.length > 0 && <EngineGroupLabel className="pt-1">{t("engines.local")}</EngineGroupLabel>}
             {custom.map((i) => (
               <EngineRow key={i.instanceId} instance={i} />

@@ -10,7 +10,7 @@ import { previewPresentation, previewSpreadsheet } from './testing/preview-offic
 const root = fileURLToPath(new URL('..', import.meta.url));
 const evidence = join(root, 'docs/verification/evidence/file-preview');
 mkdirSync(evidence, { recursive: true });
-const fixture = await launchVerificationServer(process.env, undefined, undefined, [
+const fixture = await launchVerificationServer(process.env, undefined, undefined, undefined, [
   'The project files are ready to review:\n\n[Project notes](<Project field notes.pdf>) · [Workbook](<Project overview.xlsx>) · [Slides](<Project review.pptx>) · [Video](<Project motion.mp4>)',
 ]);
 let ui: Awaited<ReturnType<typeof createServer>> | undefined;

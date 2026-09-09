@@ -8,7 +8,7 @@ import { previewPresentation, previewSpreadsheet } from '../scripts/testing/prev
 
 describe('web file previews use message-authorized downloads', () => {
   let fixture: VerificationServer;
-  beforeAll(async () => { fixture = await launchVerificationServer(process.env, undefined, undefined, ['[Movie](sample.mp4)']); }, 30_000);
+  beforeAll(async () => { fixture = await launchVerificationServer(process.env, undefined, undefined, undefined, ['[Movie](sample.mp4)']); }, 30_000);
   afterAll(async () => { await fixture?.close(); });
 
   it('downloads PDF, workbook, slides and video only for their stored message', async () => {
