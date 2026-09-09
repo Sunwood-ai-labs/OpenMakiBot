@@ -15,6 +15,8 @@
   -webkit-box-decoration-break: clone;
 }
 .mention-editor-mirror {
+  /* Match the native textarea's direction independently for each paragraph. */
+  unicode-bidi: plaintext;
   padding: 4px;
   font-size: 15px;
   line-height: 24px;

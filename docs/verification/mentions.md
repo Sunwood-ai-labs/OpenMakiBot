@@ -30,6 +30,52 @@ stops the fixture servers and removes their temporary data directory.
 
 ## Recorded run
 
+### Current-main RTL integration (2026-09-09)
+
+Rebased all six original commits onto upstream `922715f0` (0.1.69), preserving
+the newer translated composer labels, BotAvatar rendering, Markdown code-block
+controls, thread controls and per-block/per-line bidi behavior. Each original
+commit now has its author's Signed-off-by trailer.
+
+Before the fix, an Arabic-first draft had an LTR/isolate mirror but an
+RTL/plaintext native textarea. Forwarding `dir` to the mirror and applying
+`unicode-bidi: plaintext` makes each paragraph follow the native input. Arabic
+and Hebrew lines align right while an English line between them aligns left.
+Both nodes measured 540px wide and 80px high for the three-line draft; changing
+the first line from Arabic to English switched both computed directions
+together. Known Bot colors and Unicode-negative matches were also checked.
+
+The actual composer send settled, with the mixed-script text preserved in the
+user bubble and colored mentions in the fake-engine reply. Evidence:
+[before](evidence/mentions/rtl-before.png),
+[after](evidence/mentions/rtl-after.png),
+[sent/light](evidence/mentions/rtl-sent-light.png),
+[DOM](evidence/mentions/rtl-dom.json),
+[wait](evidence/mentions/rtl-wait.json), and
+[transcript](evidence/mentions/rtl-messages.json).
+
+```sh
+node --experimental-strip-types scripts/verify-mentions.ts --bot-mentions
+# Open the printed previewUrl, fill the real composer with these three lines:
+# مرحبا @Atlas راجع هذا
+# English @Juniper review this
+# שלום @調査担当 תודה
+# Capture before/after and press Enter to send.
+node --experimental-strip-types scripts/control-omb.ts channels --url http://127.0.0.1:20657
+node --experimental-strip-types scripts/control-omb.ts wait --channel 18b5bfe7-deb0-4962-b3b4-414e9ab90492 --timeout 60 --url http://127.0.0.1:20657
+node --experimental-strip-types scripts/control-omb.ts messages --channel 18b5bfe7-deb0-4962-b3b4-414e9ab90492 --limit 20 --url http://127.0.0.1:20657
+```
+
+Printed log:
+`%TEMP%/openmausbot-verification-evidence/server-1788957885515-22688.log`.
+As always, fresh runs must use their own printed URL and returned channel ID.
+The 65 focused tests (including direction forwarding, existing bidi controls,
+mention rendering and cloudflared retries), typecheck, production renderer
+build and targeted oxlint passed. The two Windows symlink EPERM tests were
+rechecked on unmodified `922715f0` and both still fail there.
+
+### Earlier verification on 0.1.61
+
 Verified on Windows in Chromium on 2026-09-07 against upstream `9c681f44`
 (0.1.61) and the mention-highlight change. Both channel and direct-chat `wait`
 results were `settled`; bounded transcripts are in `evidence/mentions/`.
