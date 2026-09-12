@@ -33,6 +33,7 @@ import {
 import { cn } from "@/lib/cn";
 import { filePreviewKind } from "@/lib/file-preview";
 import { PreviewableFile } from "./FilePreview";
+import { FileExtensionBadge } from "./FileExtensionBadge";
 
 export interface PreviewImage {
   src: string;
@@ -595,6 +596,7 @@ function Thumbnail({
           </span>
         </span>
       )}
+      <FileExtensionBadge filename={image.downloadName || image.name} />
     </span>
   );
 }
