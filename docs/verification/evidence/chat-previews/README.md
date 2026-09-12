@@ -65,6 +65,9 @@ Neither the new full player nor the other attachment video autoplayed.
   of fetch failures. The other failures are the real Electron fixture and
   Windows symlink EPERM. Counts alone do not prove absence of regressions;
   required remote CI remains a separate integration gate.
+- After both full runs completed, `pnpm exec vitest run server/index.test.ts`
+  passed independently: **198 passed, 1 skipped** in 192.87 seconds. This resolves
+  the server-specific recheck; it does not make either earlier full run green.
 
 Raw command logs, server paths, fixture identities, and video source frames stay
 local under `.gitignore`. The sanitized comparison records counts/failure names
