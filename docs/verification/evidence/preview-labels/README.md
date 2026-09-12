@@ -20,3 +20,8 @@ Inline video played (`paused=false`, `currentTime=0.231359`), the PDF dialog
 opened and closed, and the 390px viewport had a 390px document scroll width.
 Raw build/test logs remain local. No additional tests were introduced for this
 display-only change; full platform CI remains the integration gate.
+
+Review follow-up: image badges now carry the source filename separately from
+the accessible description. Two regression cases prove that both descriptive
+alt text and misleading `.pdf` alt text still show PNG for `/photo.png?download=.pdf`.
+The focused suites now pass 34 tests; the sample screenshot appearance is unchanged.
