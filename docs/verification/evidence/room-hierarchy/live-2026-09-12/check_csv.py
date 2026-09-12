@@ -21,6 +21,6 @@ checks={
  'no_embedded_commas_quotes_or_newlines':all(not any(c in value for c in ',"\r\n') for r in rows for value in r),
 }
 result={'sourceMessageId':msg['id'],'sourceAuthor':'ヒナ','checks':checks,'allPassed':all(checks.values()),'limits':['Checks apply to extracted chat text, not a bot-created file.','Chat block has no BOM; UTF-8 BOM file output is not verified.','Date interval follows the assignment; cross-team agreement is assessed separately.']}
-(root/'csv-checks.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8')
+(root/'csv-checks.json').write_text(json.dumps(result,ensure_ascii=False,indent=2),encoding='utf-8',newline='\n')
 print(json.dumps(result,ensure_ascii=False,indent=2))
 assert result['allPassed']
