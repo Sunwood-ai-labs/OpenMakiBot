@@ -384,7 +384,7 @@ const TOOLS = [
     inputSchema: { type: "object", additionalProperties: false, properties: {
       group_id: { type: "string", description: "Destination group ID." },
       bot_id: { type: "string", description: "Addressed member ID in that group." },
-      message: { type: "string", description: "Self-contained task, at most 4000 characters. Only this text is forwarded." },
+      message: { type: "string", maxLength: 4000, description: "Self-contained task, at most 4000 characters. Only this text is forwarded." },
       request_key: { type: "string", description: "Unique assignment key using letters, digits, underscores or hyphens. Reuse for identical retries." },
       rework: { type: "boolean", description: "Set true only for concrete additional work required from an agent who already completed your assignment. Never use for acknowledgements, approvals or reporting results; finish your reply instead." },
     }, required: ["group_id", "bot_id", "message", "request_key"] },

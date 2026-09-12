@@ -25,7 +25,7 @@ export interface RoomHandoffHooks {
   busy(node: RoomHandoff): boolean;
   run(node: RoomHandoff, resumed: boolean, signal: AbortSignal): Promise<{ ok: boolean; text: string }>;
   report(child: RoomHandoff, parent: RoomHandoff): void;
-  changed(): void;
+  changed(groupIds: ReadonlySet<string>): void;
 }
 
 /** A bounded tree of addressed room turns. Waiting for children never holds a
@@ -58,7 +58,10 @@ export class RoomHandoffs {
   }
 
   private save() { writeFileAtomic(this.file, JSON.stringify([...this.nodes.values()]), { mode: 0o600 }); }
-  private publish() { this.save(); this.hooks.changed(); }
+  private publish(...nodes: RoomHandoff[]) {
+    this.save();
+    this.hooks.changed(new Set(nodes.map(node => node.groupId)));
+  }
   children(id: string) { return [...this.nodes.values()].filter(n => n.parentId === id); }
   root(n: RoomHandoff) { return this.nodes.get(n.rootId)!; }
   path(n: RoomHandoff): RoomHandoff[] {
@@ -99,6 +102,8 @@ export class RoomHandoffs {
     }
     const path = this.path(parent);
     if (kind === "work" && path.some(n => n.groupId === target.groupId)) throw new Error("A room request cannot return to an ancestor room; results are returned automatically");
+    // The path includes the source root, so its work-node count is the
+    // proposed edge depth: four edges are allowed; the fifth is refused.
     if (kind === "work" && path.filter(n => n.kind === "work").length > ROOM_HANDOFF_LIMITS.depth) throw new Error("Room handoff depth limit reached");
     const root = fresh ? parent : this.root(parent);
     const count = [...this.nodes.values()].filter(n => n.rootId === parent!.rootId && n.parentId).length;
@@ -119,7 +124,7 @@ export class RoomHandoffs {
     if (problem) throw new Error(problem);
     if (fresh) this.nodes.set(parent.id, parent);
     this.nodes.set(node.id, node);
-    try { this.publish(); } catch (e) { this.nodes.delete(node.id); if (fresh) this.nodes.delete(parent.id); throw e; }
+    try { this.publish(node, parent); } catch (e) { this.nodes.delete(node.id); if (fresh) this.nodes.delete(parent.id); throw e; }
     return { node, duplicate: false };
   }
 
@@ -127,7 +132,7 @@ export class RoomHandoffs {
     const node = this.nodes.get(generation);
     if (!node || node.status !== "source") return;
     if (!ok) this.cancelTree(node, "The originating room turn did not finish", "failed");
-    else { node.status = "waiting"; this.publish(); }
+    else { node.status = "waiting"; this.publish(node); }
   }
 
   cancelTree(node: RoomHandoff, reason: string, status: "failed" | "cancelled" = "cancelled") {
@@ -136,7 +141,7 @@ export class RoomHandoffs {
       node.status = status; node.result = reason;
       this.controllers.get(node.id)?.abort();
     }
-    this.publish();
+    this.publish(node);
   }
   cancelRoom(groupId: string, threadId?: string) {
     for (const n of this.nodes.values()) {
@@ -155,11 +160,11 @@ export class RoomHandoffs {
         }
       }
       if (terminal(n) && parent && !n.reported) {
-        this.hooks.report(n, parent); n.reported = true; this.publish();
+        this.hooks.report(n, parent); n.reported = true; this.publish(n, parent);
       }
       if (n.status === "waiting") {
         const children = this.children(n.id);
-        if (children.length && children.every(c => terminal(c) && c.reported)) { n.status = "resume"; this.publish(); }
+        if (children.length && children.every(c => terminal(c) && c.reported)) { n.status = "resume"; this.publish(n); }
       }
       if (n.status !== "queued" && n.status !== "resume") continue;
       // A newly queued child starts only after its author has settled.
@@ -172,7 +177,7 @@ export class RoomHandoffs {
       const resumed = n.status === "resume";
       const childCount = this.children(n.id).length;
       root.executions += executionCost; n.status = "running";
-      this.publish();
+      this.publish(n, root);
       const controller = new AbortController();
       this.controllers.set(n.id, controller);
       void this.hooks.run(n, resumed, controller.signal).then(result => {
@@ -181,7 +186,7 @@ export class RoomHandoffs {
         if (!result.ok) this.cancelTree(n, n.result || "Room agent failed", "failed");
         else if (this.children(n.id).length > childCount) n.status = "waiting";
         else n.status = "completed";
-        this.publish();
+        this.publish(n);
       }).catch(e => { this.cancelTree(n, String(e).slice(0, 1000), "failed"); })
         .finally(() => this.controllers.delete(n.id));
     }

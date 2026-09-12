@@ -17,8 +17,12 @@ In the destination group's **Incoming work** panel, select the source groups
 allowed to send work. Existing groups accept no cross-room work by default.
 Routes are directional; enabling Planning -> Engineering does not enable the
 reverse direction. The automatic result return does not require a reverse route.
-Routes can cross sidebar sections, without changing ordinary peer permissions.
-The sender's peer allow-list and peer-approval setting still apply.
+Routes stay within a section, the existing Bot communication boundary. Every
+member of both rooms must belong to that section, including silent readers.
+Use one company section with separate groups for organizational layers. Route
+opt-in does not grant cross-section access. The sender's peer allow-list and
+peer-approval setting still apply, and section changes revoke queued work and
+withhold results from an incompatible return destination.
 
 From a source group, ask its agent, for example:
 
@@ -79,7 +83,7 @@ engine, runs the real injected agents MCP proxy, captures `wait` and `messages`
 JSON plus provider input and the request tree, then stops its exact child and
 removes its temporary data. The server log and evidence JSON remain available.
 
-The scenario has **disjoint membership and sections**:
+The scenario has **disjoint group membership within one company section**:
 
 ```text
 経営会議: ミナト

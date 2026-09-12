@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { launchVerificationServer, runControlOmb } from "./control-omb.ts";
@@ -21,6 +21,8 @@ const organization = [
 ];
 
 export async function verifyRoomPyramid(output: string, live = false, preview = false) {
+  // Clear only a previous run's signal, before this run can accept a stop.
+  if (preview) rmSync(`${output}.stop`, { force: true });
   let realEngine: { cli: string; environment: Record<string, string> } | undefined;
   if (live) {
     const configPath = process.env.OMB_VERIFY_CC_CONFIG;
@@ -47,7 +49,7 @@ export async function verifyRoomPyramid(output: string, live = false, preview = 
     for (const group of organization) {
       const members: any[] = [];
       for (const [name, role] of group.members) {
-        const bot = (await control("new-bot", "--name", name, "--title", `${group.name}の${role}`, "--section", group.name)).bot;
+        const bot = (await control("new-bot", "--name", name, "--title", `${group.name}の${role}`, "--section", "検証会社")).bot;
         if (live) await tool("set_bot_model", { bot_id: bot.id, instance_id: "claude", model: "glm-5.3", effort: "low" });
         members.push(bot);
       }

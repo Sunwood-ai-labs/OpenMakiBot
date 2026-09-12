@@ -298,7 +298,7 @@ export const TOOLS: McpToolDefinition[] = [
       type: "object",
       properties: {
         channel_id: { type: "string", description: "The ID of the channel." },
-        incoming_group_ids: { type: "array", items: { type: "string" }, maxItems: 100, uniqueItems: true, description: "Groups allowed to send addressed work here. Empty disables incoming requests." },
+        incoming_group_ids: { type: "array", items: { type: "string" }, maxItems: 100, description: "Groups allowed to send addressed work here. Duplicates are normalized. Empty disables incoming requests." },
         require_room_discussion: { type: "boolean", description: "Require member discussion before cross-room delegation or concluding incoming work." },
         name: { type: "string" },
         member_ids: { type: "array", items: { type: "string" }, minItems: 1, uniqueItems: true },

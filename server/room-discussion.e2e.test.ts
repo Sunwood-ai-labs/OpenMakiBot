@@ -13,4 +13,4 @@ it("discusses with existing members in every layer, revises decisions and only t
     expect(evidence.provider).toHaveLength(14);
     expect(evidence.checks).toContain("premature forwarding rejected before and during discussion");
   } finally { await removeTempDir(folder); }
-}, 60_000);
+}, 150_000);

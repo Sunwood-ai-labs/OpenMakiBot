@@ -16,6 +16,25 @@ async function fixture(test: (engine: RoomHandoffs, hooks: RoomHandoffHooks, fil
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
 describe("addressed room request tree", () => {
+  it("publishes only changed groups, including their final idle and cancelled states", () => fixture(async (engine, hooks) => {
+    const updates: Array<{ id: string; active: boolean }[]> = [];
+    hooks.changed = ids => updates.push([...ids].map(id => ({ id, active: [...engine.nodes.values()]
+      .some(n => n.groupId === id && !["completed", "failed", "cancelled"].includes(n.status)) })));
+    engine.enqueue(addr("Old"), "old", undefined, addr("History"), "work", "old work");
+    engine.cancelRoom("Old");
+    updates.length = 0;
+    engine.enqueue(addr("A"), "turn", undefined, addr("B"), "work", "build");
+    // Settle retained history reports before observing the new tree alone.
+    engine.tick(); updates.length = 0;
+    engine.sourceSettled("turn", true);
+    for (let i = 0; i < 5; i++) { engine.tick(); await flush(); }
+    expect(updates.flat().every(update => ["A", "B"].includes(update.id))).toBe(true);
+    expect(updates.flat()).toContainEqual({ id: "A", active: false });
+    expect(updates.flat()).toContainEqual({ id: "B", active: false });
+    engine.enqueue(addr("C"), "cancel", undefined, addr("D"), "work", "cancel work");
+    updates.length = 0; engine.cancelRoom("C");
+    expect(updates.flat()).toEqual([{ id: "D", active: false }, { id: "C", active: false }]);
+  }));
   it("splits responsibility between existing members who send their own downstream work and return to the chair", () => fixture(async (engine, hooks) => {
     const member = (id: string) => ({ ...addr("A"), botId: id });
     const order: string[] = [];

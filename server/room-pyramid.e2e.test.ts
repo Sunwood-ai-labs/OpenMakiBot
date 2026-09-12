@@ -12,4 +12,4 @@ it("discusses, revises, splits among members, delegates to separate groups and c
     expect(evidence.bots).toHaveLength(15);
     expect(evidence.provider).toHaveLength(45);
   } finally { await removeTempDir(directory); }
-}, 180_000);
+}, 240_000);

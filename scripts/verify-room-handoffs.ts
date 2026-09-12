@@ -14,7 +14,7 @@ export async function verifyRoomHandoffs(outputPath?: string, preview = false) {
   const env = { OPENMAUSBOT_URL: session.info.url };
   const control = async (...args: string[]) => {
     const result = await runControlOmb(args, { env });
-    commands.push({ command: ["control-omb", ...args, "--url", session.info.url], result });
+    commands.push({ command: ["control-omb", ...args], env, result });
     return result as any;
   };
   const fetcher = (path: string, options: RequestInit = {}) => request(path, options, session.info.url);
@@ -23,12 +23,12 @@ export async function verifyRoomHandoffs(outputPath?: string, preview = false) {
   };
   try {
     assert.equal((await control("doctor")).ok, true);
-    const createBot = async (name: string, section: string) => (await control("new-bot", "--name", name, "--section", section)).bot;
-    const ceo = await createBot("ミナト", "経営");
-    const director = await createBot("レン", "開発");
-    const deptBystander = await createBot("リツ", "開発");
-    const engineer = await createBot("ソラ", "実装");
-    const leafBystander = await createBot("ヒナ", "実装");
+    const createBot = async (name: string) => (await control("new-bot", "--name", name, "--section", "検証会社")).bot;
+    const ceo = await createBot("ミナト");
+    const director = await createBot("レン");
+    const deptBystander = await createBot("リツ");
+    const engineer = await createBot("ソラ");
+    const leafBystander = await createBot("ヒナ");
     const room = async (name: string, members: string[], bulletin: string) => (await tool("create_channel", {
       name, member_ids: members, bulletin, default_responder: { kind: "everyone" },
     })).channel;
@@ -82,7 +82,7 @@ export async function verifyRoomHandoffs(outputPath?: string, preview = false) {
     assert(!leafTurn.system.includes("DEVELOPMENT_CONTEXT"));
     assert(provider.filter(p => p.resumed).every(p => p.system.includes("Room") || p.system.includes("room")));
     const evidence = { ok: true, verifiedAt: new Date().toISOString(), fixture: session.info,
-      checks: ["three disjoint rooms and sections", "only addressed agents start", "destination context", "no source bulletin leak",
+      checks: ["three disjoint rooms in one company section", "only addressed agents start", "destination context", "no source bulletin leak",
         "duplicate suppressed", "non-member rejected", "ancestor loop rejected", "legacy peer tools unavailable on delegated turns",
         "leaf result -> director continuation -> CEO continuation"],
       commands, nodes, transcripts, provider };

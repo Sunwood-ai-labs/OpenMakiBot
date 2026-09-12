@@ -30,6 +30,10 @@ layers. There are five rooms and fifteen members across three organizational
 layers: Executive → Development/Sales → Implementation/QA. Membership stays fixed.
 Results return through the requesting member, then to the chair.
 
+All fifteen bots share the `検証会社` section. Sections are communication
+boundaries; the three organizational layers are separate groups inside that
+boundary. Incoming routes do not override section isolation.
+
 ## Reproduce
 
 ```sh

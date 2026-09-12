@@ -5861,11 +5861,19 @@ function roomHandoffProblem(node: Pick<RoomHandoff, "groupId" | "threadId" | "bo
   const bot = store.bot(node.botId);
   if (!group || group.dm || !store.groupTaskByThread(group.id, node.threadId)) return "Destination room task no longer exists";
   if (!bot || bot.hidden || !group.memberIds.includes(bot.id)) return "The addressed agent is no longer a member of this room";
+  // Group membership and route opt-in do not override the existing section
+  // boundary. Every reader matters, including members not addressed to speak.
+  const outsideSection = (room: GroupRecord) => room.memberIds.some(id => {
+    const member = store.bot(id);
+    return member && sectionKey(member.section) !== sectionKey(bot.section);
+  });
+  if (outsideSection(group)) return "Destination room includes a member outside the agent's section";
   if (roomSetupPending(group)) return "Destination room setup is unfinished";
   if (parent) {
     const from = store.bot(parent.botId);
     const source = store.group(parent.groupId);
     if (!source || !from || from.hidden || !source.memberIds.includes(from.id) || !store.groupTaskByThread(source.id, parent.threadId)) return "Source room membership or task was removed";
+    if (sectionKey(from.section) !== sectionKey(bot.section) || outsideSection(source)) return "Room work cannot cross the sender's section boundary";
     if (node.kind === "discussion") {
       if (source.id !== group.id || parent.threadId !== node.threadId || parent.botId !== node.botId) return "Discussion belongs to another conversation";
       if (!node.participants?.length || node.participants.some(id => id === parent.botId || !group.memberIds.includes(id) || !store.bot(id) || store.bot(id)?.hidden || !peerAllowed(from, id))) return "A discussion participant is no longer an allowed member";
@@ -5883,8 +5891,11 @@ const roomHandoffs = new RoomHandoffs(join(DATA_DIR, "room-handoffs.json"), {
   validate: (node, parent) => roomHandoffProblem(node, parent) ??
     (parent && store.bot(parent.botId)?.approvePeerComms && !node.approvalGranted ? "Sender now requires peer approval; submit a new approved request" : undefined),
   busy: n => Boolean(store.bot(n.botId)?.busy || n.participants.some(id => store.bot(id)?.busy) || (store.group(n.groupId) && groupIsWorking(store.group(n.groupId)!))),
-  changed: () => {
-    for (const group of store.groups) broadcast({ kind: "group", group: publicGroupState(group) });
+  changed: groupIds => {
+    for (const id of groupIds) {
+      const group = store.group(id);
+      if (group) broadcast({ kind: "group", group: publicGroupState(group) });
+    }
   },
   report: (child, parent) => {
     // Discussion replies already appear in this exact conversation.
@@ -6693,6 +6704,7 @@ async function runGroupMemberTurn(
   // chained mentions: a member's reply can summon teammates — one hop only
   if (
     (orchestration?.followMentions ?? true) &&
+    !orchestration?.roomHandoffId &&
     !roomHandoffs.nodes.has(internalGeneration) &&
     !isCancelled?.() &&
     hop < MAX_GROUP_HOPS &&
@@ -9698,6 +9710,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (!source || source.dm || !source.memberIds.includes(internalSender.id)) return json(res, 403, { error: "Discussion requires membership in the current group" });
         const members = parsed.data.memberIds;
         if (new Set(members).size !== members.length || members.some(id => id === internalSender.id || !source.memberIds.includes(id) || !store.bot(id) || store.bot(id)?.hidden || !peerAllowed(internalSender, id))) return json(res, 403, { error: "Select 1-4 distinct allowed members other than yourself" });
+        const address = { groupId: source.id, threadId: internalCapability.threadId, botId: internalSender.id };
+        const problem = roomHandoffProblem({ ...address, kind: "discussion", participants: members }, address);
+        if (problem) return json(res, 403, { error: problem });
         let approvalGranted = false;
         if (internalSender.approvePeerComms) {
           for (const id of members) {
@@ -9709,7 +9724,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         }
         try {
           requireActiveInternalCapability();
-          const address = { groupId: source.id, threadId: internalCapability.threadId, botId: internalSender.id };
           const { node, duplicate } = roomHandoffs.enqueue(address, internalCapability.generation, internalCapability.roomHandoffId,
             address, parsed.data.requestKey, parsed.data.topic, approvalGranted, members);
           return json(res, 200, { requestId: node.id, duplicate, status: node.status,
@@ -9719,14 +9733,17 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       if (method === "GET" && path === "/api/internal/room-targets") {
         const source = store.groupByThread(internalCapability.threadId);
         if (!source || source.dm || !source.memberIds.includes(internalSender.id)) return json(res, 403, { error: "send_room_message must originate in a group conversation" });
+        const address = { groupId: source.id, threadId: internalCapability.threadId, botId: internalSender.id };
+        const problem = roomHandoffProblem(address);
+        if (problem) return json(res, 403, { error: problem });
         const rooms = store.groups.filter(g => !g.dm && g.id !== source.id && !roomSetupPending(g) && g.incomingGroupIds?.includes(source.id));
         return json(res, 200, { currentRoom: { id: source.id, name: source.name, discussionRequired: source.requireRoomDiscussion ?? false,
           members: source.memberIds.filter(id => id !== internalSender.id && store.bot(id) && !store.bot(id)?.hidden && peerAllowed(internalSender, id))
             .map(id => ({ id, name: store.bot(id)!.name, title: store.bot(id)!.title })),
         }, rooms: rooms.map(g => ({ id: g.id, name: g.name,
-          members: g.memberIds.map(id => store.bot(id)).filter(b => b && !b.hidden && peerAllowed(internalSender, b.id))
+          members: g.memberIds.map(id => store.bot(id)).filter(b => b && !roomHandoffProblem({ groupId: g.id, threadId: g.threadId, botId: b.id }, address))
             .map(b => ({ id: b!.id, name: b!.name, title: b!.title, busy: b!.busy })),
-        })) });
+        })).filter(g => g.members.length > 0) });
       }
       if (method === "POST" && path === "/api/internal/send-room-message") {
         const body = await readInternalBody();

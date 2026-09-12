@@ -367,6 +367,8 @@ describe("agents-proxy MCP surface", () => {
       "skill_manage",
     ]);
     const ask = list.result.tools.find((tool: { name: string }) => tool.name === "ask_bot");
+    const roomWork = list.result.tools.find((tool: { name: string }) => tool.name === "send_room_message");
+    expect(roomWork.inputSchema.properties.message).toMatchObject({ type: "string", maxLength: 4000 });
     const delegate = list.result.tools.find((tool: { name: string }) => tool.name === "delegate_bot");
     const wait = list.result.tools.find((tool: { name: string }) => tool.name === "wait_delegation");
     const credential = list.result.tools.find((tool: { name: string }) => tool.name === "request_credential");
