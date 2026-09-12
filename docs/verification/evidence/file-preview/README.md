@@ -1,5 +1,8 @@
 # File preview evidence
 
+Historical upstream-proposal evidence. For the current OpenMakiBot feature,
+see [chat preview verification](../chat-previews/README.md).
+
 Captured on Windows in the Codex in-app Chromium browser, September 9, 2026.
 Every conversation and file came from disposable fake-engine fixtures. The
 comparison base is upstream commit `32fa0d070832f4706e051da889561b13813ced54`.
