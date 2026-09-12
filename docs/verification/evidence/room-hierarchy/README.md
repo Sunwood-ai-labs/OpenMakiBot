@@ -3,6 +3,11 @@
 Upstream comparison base: `2f91c462926bee70242c42a4e3443b19d0a13a0c`.
 Proposal: [#1124](https://github.com/milind-soni/OpenMausBot/issues/1124).
 
+A subsequent [live Claude Code / GLM-5.3 run](live-2026-09-12/README.md) on this
+same upstream base completed all five groups and records the real discussions,
+generated artifacts, screenshots and unresolved acceptance findings. The record
+below remains the earlier deterministic scripted run.
+
 The run uses an isolated `launchVerificationServer` fixture, the real server,
 the real injected agents MCP proxy, and scripted provider responses. The React
 screenshots show the resulting persisted conversations. No live application data
