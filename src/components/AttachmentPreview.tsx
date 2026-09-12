@@ -31,6 +31,8 @@ import {
   type TranscriptImageAttachment,
 } from "@/lib/composer-attachments";
 import { cn } from "@/lib/cn";
+import { filePreviewKind } from "@/lib/file-preview";
+import { PreviewableFile } from "./FilePreview";
 
 export interface PreviewImage {
   src: string;
@@ -71,7 +73,7 @@ export function previewKeyAction(key: string, count: number): PreviewKeyAction {
 }
 
 export function imageGalleryLayout(count: number): string {
-  if (count <= 1) return "w-[min(32rem,70vw)] grid-cols-1";
+  if (count <= 1) return "w-[min(20rem,70vw)] grid-cols-1";
   if (count === 2) return "w-[min(36rem,70vw)] grid-cols-2";
   return "w-[min(38rem,70vw)] grid-cols-2 sm:grid-cols-3";
 }
@@ -584,7 +586,7 @@ function Thumbnail({
             onLoad={() => setState("ready")}
             onError={() => setState("failed")}
             className={cn(
-              "block size-full object-cover transition duration-200 group-hover/image:scale-[1.015]",
+              "block size-full object-contain transition duration-200 group-hover/image:scale-[1.015]",
               state === "ready" ? "opacity-100" : "opacity-0",
             )}
           />
@@ -736,6 +738,9 @@ export function MarkdownImagePreview({
 function AttachedFileChip({ file, message }: { file: TranscriptFileAttachment; message?: MessageAttachmentContext }) {
   const save = useLocalFileSave(file.path, file.name, message);
   const failed = save.state === "failed";
+  if (message && file.private && filePreviewKind(file.path)) {
+    return <PreviewableFile path={file.path} name={file.name} message={message} />;
+  }
   if (!message || !file.private) {
     return (
       <div title={`${file.name} — unavailable legacy attachment`} className="flex max-w-[280px] items-center gap-2 overflow-hidden rounded-lg border border-hairline/40 bg-inset/70 px-2.5 py-2 text-[12px] text-ink-secondary">
