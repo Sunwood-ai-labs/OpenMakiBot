@@ -260,6 +260,7 @@ export interface VerificationServer {
 export async function launchVerificationServer(
   parentEnv: NodeJS.ProcessEnv = process.env,
   signal?: AbortSignal,
+  fakeReplies?: readonly string[],
 ): Promise<VerificationServer> {
   const port = await freePortBlock([0, 1]);
   if (signal?.aborted) throw new ControlOmbError("verification launch cancelled");
@@ -305,6 +306,7 @@ export async function launchVerificationServer(
     OMB_WEBHOOK_PORT: String(port + 1),
     FAKE_CLAUDE_MODE: "happy",
     FAKE_CLAUDE_DUMP: fixtureDumpPath,
+    ...(fakeReplies ? { FAKE_CLAUDE_REPLIES: JSON.stringify(fakeReplies) } : {}),
     // Keep the environment hermetic while allowing POSIX to resolve the
     // fake CLI's `#!/usr/bin/env node` shebang. Windows resolves that same
     // fixture through spawnCli without a shell.

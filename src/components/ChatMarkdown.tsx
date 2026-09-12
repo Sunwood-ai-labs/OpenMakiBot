@@ -13,6 +13,8 @@ import remarkGfm from "remark-gfm";
 import { Check, Copy, Download, LoaderCircle, RotateCcw } from "lucide-react";
 
 import { MarkdownImagePreview, useLocalFileSave, type MessageAttachmentContext } from "./AttachmentPreview";
+import { filePreviewKind } from "@/lib/file-preview";
+import { PreviewableFile } from "./FilePreview";
 
 // tiny highlight cache so revisiting a thread doesn't re-tokenize settled
 // blocks; keys are content-hashed and capped. Streamed partials may land here
@@ -184,6 +186,9 @@ function CodeBlock({ code, lang, streaming }: { code: string; lang: string; stre
 // process' containment check.
 function LocalFileLink({ filePath, children, message }: { filePath: string; children?: ReactNode; message?: MessageAttachmentContext }) {
   const save = useLocalFileSave(filePath, undefined, message);
+  if (message && filePreviewKind(filePath)) {
+    return <PreviewableFile path={filePath} message={message} compact>{children}</PreviewableFile>;
+  }
   if (!message) {
     return <span title="Unavailable legacy file reference" className="break-words text-ink-secondary">{children}</span>;
   }
