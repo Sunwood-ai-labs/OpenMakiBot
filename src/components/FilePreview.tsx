@@ -61,7 +61,7 @@ export function PreviewableFile({ path, name, message, children, compact = false
   }, []);
   const resource = usePreviewFile(path, label, message, kind, open || visible);
   return <span ref={container} className="inline-flex max-w-full align-top">
-    <InlineFileCard key={path} kind={kind} label={label} caption={compact ? children : undefined}
+    <InlineFileCard key={path} kind={kind} path={path} label={label} caption={compact ? children : undefined}
       file={resource.file} error={resource.error} visible={visible} expanded={open} onExpand={() => setOpen(true)} />
     {open && <FilePreviewDialog key={path} path={path} name={label} message={message} resource={resource} onClose={() => setOpen(false)} />}
   </span>;
