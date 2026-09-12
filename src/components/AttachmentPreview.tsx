@@ -39,6 +39,8 @@ import { FileExtensionBadge } from "./FileExtensionBadge";
 export interface PreviewImage {
   src: string;
   name: string;
+  /** Source filename for the badge, independent of the accessible description. */
+  badgeFilename?: string;
   /** Same-origin images can be downloaded directly. */
   downloadUrl?: string;
   /** A portable filename chosen independently from the visible label. */
@@ -55,6 +57,7 @@ export function previewImage(path: string, name = attachmentBasename(path)): Pre
   return {
     src,
     name,
+    badgeFilename: path,
     downloadUrl: src,
     downloadName: canonicalDownloadFilename({ fallback: name, source: path }),
   };
@@ -600,7 +603,7 @@ function Thumbnail({
           </span>
         </span>
       )}
-      <FileExtensionBadge filename={image.downloadName || image.name} />
+      <FileExtensionBadge filename={image.badgeFilename || ""} />
     </span>
   );
 }
@@ -703,6 +706,7 @@ export function MarkdownImagePreview({
   const image: PreviewImage = {
     src: visibleSource ?? "",
     name,
+    badgeFilename: filePath || src.split(/[?#]/, 1)[0],
     openUrl,
     downloadUrl: localMessageImage ? visibleSource ?? undefined : undefined,
     downloadName: localMessageImage

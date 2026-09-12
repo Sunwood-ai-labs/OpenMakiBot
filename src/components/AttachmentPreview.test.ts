@@ -116,6 +116,15 @@ describe("attachment preview surfaces", () => {
     expect(html).toContain("fetchPriority=\"high\"");
   });
 
+  it.each(["Quarterly.pdf", "Quarterly report"])("labels a Markdown image from its source, not %s", (name) => {
+    const html = renderToStaticMarkup(createElement(MarkdownImagePreview, {
+      src: "/photo.png?download=.pdf", name,
+    }));
+    expect(html).toContain(">PNG</span>");
+    expect(html).not.toContain(">PDF</span>");
+    expect(html).toContain(`alt="${name}"`);
+  });
+
   it("keeps remote Markdown images private until explicitly loaded", () => {
     const html = renderToStaticMarkup(createElement(MarkdownImagePreview, {
       src: "https://assets.example/preview.png?signature=abc",

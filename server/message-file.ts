@@ -351,6 +351,8 @@ function mimeFor(path: string): string {
     case ".jpeg": return "image/jpeg";
     case ".gif": return "image/gif";
     case ".webp": return "image/webp";
+    case ".avif": return "image/avif";
+    case ".bmp": return "image/bmp";
     case ".doc": return "application/msword";
     case ".docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     case ".xls": return "application/vnd.ms-excel";
