@@ -42,3 +42,5 @@ result = {
 (root / 'csv-checks.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
 print(json.dumps(result, ensure_ascii=False, indent=2))
 assert result['draftChecksPassed']
+# This historical run must reproduce the recorded final-contract failure too.
+assert not result['finalAcceptance']['passesFinalColumnContract']
