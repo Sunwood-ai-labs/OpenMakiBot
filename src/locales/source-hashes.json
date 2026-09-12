@@ -6966,7 +6966,12 @@
       "remote.signInAccess.empty": "7166fa8f2d9ef4f4fbbbe7da946c67814553260b89fa71481e6e03a533284a86",
       "remote.signInAccess.invalid": "f7571753e84241b531638ab312bb1b704d261eebae3a05d27f24c02a5ba5061e",
       "remote.signInAccess.note": "ce9c15dc3fe23bbed92cb66d4cd54b8fdf0498f52f6bd2250067134b1ac65783",
-      "remote.signInAccess.error": "71a471a7b15e8647dda8cab60737a1b41901bdcbe3be10f477a9163b723f4e1d"
+      "remote.signInAccess.error": "71a471a7b15e8647dda8cab60737a1b41901bdcbe3be10f477a9163b723f4e1d",
+      "filePreview.thumbnailFailed": "e01b34b8a993bdc3adf5098a47ceb15645f7237ab4ae60ebc1fc9e659e645e38",
+      "filePreview.playInline": "6b4bff8500ad148272e3a71d3af2ca009709a3d6b7eb87052a46d86a2b68a7a4",
+      "filePreview.coverSlide": "532f488066333b0284b9f4a363786c59f1ad29f2578123f79265a12aac68d5f1",
+      "filePreview.coverPage": "acbd93eaf4e7088ff12083ae9a3edafe7dfd0bfee12c4326c3de98ead70c41be",
+      "filePreview.coverSheet": "cd3835efee08578dd697e8a3057edb9fc6cff0dd561aa17e0fd80117051d46a5"
     },
     "pt-br": {
       "noEngines.title": "af88855a5f80377de709995229ba3907df9e8fb3b940fbf7c0d9cbe6eea54afe",

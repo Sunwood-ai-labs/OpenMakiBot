@@ -35,6 +35,18 @@ describe('file preview boundaries', () => {
     expect(result.slides[0].svg).not.toContain('<script');
   });
 
+  it('limits automatic thumbnails to the first slide and a small first-sheet grid', async () => {
+    const slides = await parseOfficePreview(await previewPresentation(), 'presentation', true);
+    if (slides.kind !== 'presentation') throw new Error('wrong preview');
+    expect(slides.slides).toHaveLength(1);
+    expect(slides.slides[0].text).toContain('Project field notes');
+    const workbook = await parseOfficePreview(previewSpreadsheet(), 'spreadsheet', true);
+    if (workbook.kind !== 'spreadsheet') throw new Error('wrong preview');
+    expect(workbook.sheets).toHaveLength(1);
+    expect(workbook.sheets[0].rows.length).toBeLessThanOrEqual(6);
+    expect(workbook.sheets[0].rows.every(row => row.length <= 4)).toBe(true);
+  });
+
   it('bounds a wide and tall sheet and reports truncation', async () => {
     const book = utils.book_new();
     const sheet = utils.aoa_to_sheet([['First']]);
