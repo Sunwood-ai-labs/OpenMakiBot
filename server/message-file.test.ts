@@ -30,7 +30,7 @@ beforeEach(() => {
 afterAll(() => rmSync(suite, { recursive: true, force: true }));
 
 describe("message-linked files", () => {
-  it.each([['mp4', 'video/mp4'], ['webm', 'video/webm'], ['mov', 'video/quicktime']])('serves %s downloads with their browser media type', async (extension, mime) => {
+  it.each([['mp4', 'video/mp4'], ['webm', 'video/webm'], ['mov', 'video/quicktime'], ['avif', 'image/avif'], ['bmp', 'image/bmp']])('serves %s downloads with their browser media type', async (extension, mime) => {
     const path = join(workspace, `sample.${extension}`);
     writeFileSync(path, 'fixture media');
     const file = await openMessageFile(path, [workspace]);

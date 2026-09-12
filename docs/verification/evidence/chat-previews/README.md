@@ -53,6 +53,10 @@ Neither the new full player nor the other attachment video autoplayed.
 - Eight focused preview/attachment/authorization test files: **113 passed**.
   The command is listed in [the verification recipe](../../file-preview.md).
 - `pnpm i18n:check` and targeted Oxlint: passed.
+- Follow-up AVIF/BMP MIME routing check: 5 media-type cases passed; final
+  `pnpm typecheck` passed. `pnpm check:electron` syntax-checked 113 modules.
+- Fixture shutdown recheck: with its browser tab still open, entering `stop`
+  returned exit 0 and `cleaned=true`; the built server closes active connections.
 - `pnpm broker:test`: 7 passed; `pnpm test:packaged-server`: passed.
 - `pnpm test:electron`: 131 passed, 1 failed, 5 skipped. The failed AppImage
   installer test invokes POSIX `mv`, unavailable here; the unchanged baseline

@@ -67,7 +67,13 @@ try {
   process.stdin.pause();
 } finally {
   await ui?.close();
-  await new Promise<void>((resolve, reject) => { if (!builtUi) resolve(); else builtUi.httpServer.close((error) => error ? reject(error) : resolve()); });
-  await fixture.close();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      if (!builtUi) { resolve(); return; }
+      builtUi.httpServer.close((error) => error ? reject(error) : resolve());
+      // EventSource keeps a connection open while the preview tab is visible.
+      builtUi.httpServer.closeAllConnections();
+    });
+  } finally { await fixture.close(); }
   console.log(JSON.stringify({ cleaned: !existsSync(fixture.info.dataDir) }));
 }
