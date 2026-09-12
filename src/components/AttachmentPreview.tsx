@@ -73,7 +73,7 @@ export function previewKeyAction(key: string, count: number): PreviewKeyAction {
 }
 
 export function imageGalleryLayout(count: number): string {
-  if (count <= 1) return "w-[min(32rem,70vw)] grid-cols-1";
+  if (count <= 1) return "w-[min(20rem,70vw)] grid-cols-1";
   if (count === 2) return "w-[min(36rem,70vw)] grid-cols-2";
   return "w-[min(38rem,70vw)] grid-cols-2 sm:grid-cols-3";
 }
@@ -586,7 +586,7 @@ function Thumbnail({
             onLoad={() => setState("ready")}
             onError={() => setState("failed")}
             className={cn(
-              "block size-full object-cover transition duration-200 group-hover/image:scale-[1.015]",
+              "block size-full object-contain transition duration-200 group-hover/image:scale-[1.015]",
               state === "ready" ? "opacity-100" : "opacity-0",
             )}
           />

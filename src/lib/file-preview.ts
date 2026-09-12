@@ -1,5 +1,5 @@
 /** Match the actual path, never a model-supplied display label. */
-export type FilePreviewKind = 'pdf' | 'video' | 'spreadsheet' | 'presentation';
+export type FilePreviewKind = 'image' | 'pdf' | 'video' | 'spreadsheet' | 'presentation';
 
 export function previewDisplayName(path: string): string {
   const basename = path.split(/[\\/]/).at(-1) || 'file';
@@ -7,6 +7,7 @@ export function previewDisplayName(path: string): string {
 }
 
 export function filePreviewKind(path: string): FilePreviewKind | null {
+  if (/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(path)) return 'image';
   if (/\.pdf$/i.test(path)) return 'pdf';
   if (/\.(mp4|webm|mov)$/i.test(path)) return 'video';
   if (/\.(xlsx|xls|csv|tsv|ods)$/i.test(path)) return 'spreadsheet';
@@ -16,6 +17,7 @@ export function filePreviewKind(path: string): FilePreviewKind | null {
 
 export function previewMimeAllowed(kind: FilePreviewKind, mime: string): boolean {
   const type = mime.split(';', 1)[0].trim().toLowerCase();
+  if (kind === 'image') return ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'].includes(type);
   if (kind === 'pdf') return type === 'application/pdf';
   if (kind === 'video') return ['video/mp4', 'video/webm', 'video/quicktime'].includes(type);
   if (kind === 'presentation') return type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';

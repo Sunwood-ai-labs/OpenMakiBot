@@ -31,5 +31,10 @@
   "filePreview.slidesLimited": "先頭100スライドまで表示しています。",
   "filePreview.sheet": "シート",
   "filePreview.sheetNote": "値のプレビューです。数式は保存済みの結果を表示し、再計算しません。グラフと書式は表示されません。",
-  "filePreview.sheetLimited": "最大500行・100列を表示しています。長いセルの値は省略する場合があります。"
+  "filePreview.sheetLimited": "最大500行・100列を表示しています。長いセルの値は省略する場合があります。",
+  "filePreview.thumbnailFailed": "プレビューを表示できません · ファイルを開く",
+  "filePreview.playInline": "{name} をチャット内で再生",
+  "filePreview.coverSlide": "先頭スライド · 開く",
+  "filePreview.coverPage": "1ページ目 · 開く",
+  "filePreview.coverSheet": "先頭シート · 開く"
 }

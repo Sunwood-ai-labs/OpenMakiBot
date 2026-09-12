@@ -31,5 +31,10 @@
   "filePreview.slidesLimited": "Showing the first 100 slides.",
   "filePreview.sheet": "Sheet",
   "filePreview.sheetNote": "Values preview. Saved formula results are shown; formulas are not recalculated. Charts and formatting are not shown.",
-  "filePreview.sheetLimited": "Showing up to 500 rows and 100 columns. Long cell values may be shortened."
+  "filePreview.sheetLimited": "Showing up to 500 rows and 100 columns. Long cell values may be shortened.",
+  "filePreview.thumbnailFailed": "Preview unavailable · Open file",
+  "filePreview.playInline": "Play {name} in chat",
+  "filePreview.coverSlide": "First slide · Open",
+  "filePreview.coverPage": "Page 1 · Open",
+  "filePreview.coverSheet": "First sheet · Open"
 }

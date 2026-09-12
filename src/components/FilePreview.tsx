@@ -1,35 +1,80 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, Eye, FileText, LoaderCircle, RotateCcw, X } from 'lucide-react';
-import { filePreviewKind, fileRequestUrl, previewDisplayName, previewMimeAllowed } from '@/lib/file-preview';
+import { Download, FileText, LoaderCircle, RotateCcw, X } from 'lucide-react';
+import { filePreviewKind, previewDisplayName, type FilePreviewKind } from '@/lib/file-preview';
+import { loadFilePreview } from '@/lib/load-file-preview';
 import { t } from '@/lib/i18n';
+import { InlineFileCard } from './InlineFileCard';
+import { acquirePreviewSlot } from '@/lib/preview-queue';
 import { canonicalDownloadFilename, useLocalFileSave, type MessageAttachmentContext } from './AttachmentPreview';
 
 const PdfPreview = lazy(() => import('./PdfPreview'));
 const OfficePreview = lazy(() => import('./OfficePreview'));
+
+interface LoadedPreview { data: Uint8Array; url: string; name: string }
+
+function usePreviewFile(path: string, name: string, message: MessageAttachmentContext, kind: FilePreviewKind, enabled: boolean) {
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{ key: string; file?: LoadedPreview; error?: string } | null>(null);
+  const key = JSON.stringify([path, name, message.threadId, message.messageId, kind, attempt]);
+  useEffect(() => {
+    if (!enabled) { setResult(null); return; }
+    const controller = new AbortController();
+    let objectUrl: string | undefined;
+    setResult(null);
+    void (async () => {
+      const release = await acquirePreviewSlot(controller.signal);
+      let timedOut = false;
+      const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 30_000);
+      try {
+        const { blob, disposition } = await loadFilePreview(message, path, kind, controller.signal);
+        const data = new Uint8Array(await blob.arrayBuffer());
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setResult({ key, file: { data, url: objectUrl, name: canonicalDownloadFilename({ contentDisposition: disposition, fallback: name, mime: blob.type }) } });
+      } catch (reason) {
+        if (!controller.signal.aborted || timedOut) setResult({ key, error: timedOut ? t('filePreview.fetchFailed') : reason instanceof Error ? reason.message : t('filePreview.fetchFailed') });
+      } finally { clearTimeout(timeout); release(); }
+    })().catch(() => {});
+    return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [path, name, message.threadId, message.messageId, kind, enabled, key]);
+  return {
+    file: enabled && result?.key === key ? result.file : undefined,
+    error: enabled && result?.key === key ? result.error : undefined,
+    retry: () => setAttempt((value) => value + 1),
+  };
+}
 
 export function PreviewableFile({ path, name, message, children, compact = false }: {
   path: string; name?: string; message: MessageAttachmentContext; children?: ReactNode; compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const label = name || previewDisplayName(path);
-  return <>
-    <button type="button" onClick={() => setOpen(true)} aria-label={t('filePreview.open', { name: label })}
-      className={compact ? 'inline-flex items-center gap-1 break-words text-left text-accent underline decoration-accent/40 hover:decoration-accent' : 'flex max-w-[320px] items-center gap-3 rounded-xl border border-hairline/50 bg-inset/70 px-3 py-2.5 text-left hover:bg-raised/70'}>
-      {compact ? <Eye size={14} aria-hidden="true" /> : <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"><FileText size={19} /></span>}
-      {compact ? children || label : <span className="min-w-0"><span className="block truncate text-[12px] font-medium text-ink">{label}</span><span className="mt-0.5 block text-[10.5px] text-ink-secondary">{t('filePreview.hint')}</span></span>}
-    </button>
-    {open && <FilePreviewDialog key={`${message.threadId}:${message.messageId}:${path}`} path={path} name={label} message={message} onClose={() => setOpen(false)} />}
-  </>;
+  const kind = filePreviewKind(path)!;
+  const container = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!container.current) return;
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: '160px' });
+    observer.observe(container.current);
+    return () => observer.disconnect();
+  }, []);
+  const resource = usePreviewFile(path, label, message, kind, open || visible);
+  return <span ref={container} className="inline-flex max-w-full align-top">
+    <InlineFileCard key={path} kind={kind} label={label} caption={compact ? children : undefined}
+      file={resource.file} error={resource.error} visible={visible} expanded={open} onExpand={() => setOpen(true)} />
+    {open && <FilePreviewDialog key={path} path={path} name={label} message={message} resource={resource} onClose={() => setOpen(false)} />}
+  </span>;
 }
 
-function FilePreviewDialog({ path, name, message, onClose }: { path: string; name: string; message: MessageAttachmentContext; onClose: () => void }) {
+function FilePreviewDialog({ path, name, message, resource, onClose }: { path: string; name: string; message: MessageAttachmentContext; resource: ReturnType<typeof usePreviewFile>; onClose: () => void }) {
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
-  const [attempt, setAttempt] = useState(0);
-  const [file, setFile] = useState<{ data: Uint8Array; url: string; name: string } | null>(null);
-  const [error, setError] = useState('');
+  const { file } = resource;
+  const [renderError, setError] = useState('');
+  const error = resource.error || renderError;
+  const retry = () => { setError(''); resource.retry(); };
   const save = useLocalFileSave(path, name, message);
   const kind = filePreviewKind(path)!;
 
@@ -59,29 +104,6 @@ function FilePreviewDialog({ path, name, message, onClose }: { path: string; nam
     };
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let objectUrl: string | undefined;
-    setFile(null);
-    setError('');
-    void (async () => {
-      try {
-        const response = await fetch(fileRequestUrl(message), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }), signal: controller.signal });
-        if (!response.ok) throw new Error(t('filePreview.fetchFailed'));
-        if (!previewMimeAllowed(kind, response.headers.get('content-type') || '')) throw new Error(t('filePreview.invalidFile'));
-        const blob = await response.blob();
-        if (blob.size > 25 * 1024 * 1024) throw new Error(t('filePreview.tooLarge'));
-        const data = new Uint8Array(await blob.arrayBuffer());
-        if (controller.signal.aborted) return;
-        objectUrl = URL.createObjectURL(blob);
-        setFile({ data, url: objectUrl, name: canonicalDownloadFilename({ contentDisposition: response.headers.get('content-disposition'), fallback: name }) });
-      } catch (reason) {
-        if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : t('filePreview.fetchFailed'));
-      }
-    })();
-    return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [path, name, message.threadId, message.messageId, attempt, kind]);
-
   return createPortal(<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-2 backdrop-blur-sm sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div ref={dialog} role="dialog" aria-modal="true" aria-label={t('filePreview.open', { name })} tabIndex={-1} className="flex h-full max-h-[1100px] w-full max-w-[1280px] flex-col overflow-hidden rounded-2xl border border-hairline bg-card text-ink shadow-2xl outline-none">
       <header className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-3">
@@ -90,7 +112,7 @@ function FilePreviewDialog({ path, name, message, onClose }: { path: string; nam
         {file ? <a href={file.url} download={file.name} aria-label={t('filePreview.download')} title={t('filePreview.download')} className="rounded-lg p-2 hover:bg-raised"><Download size={18} /></a> : <button type="button" onClick={() => void save.save()} disabled={save.state === 'saving'} aria-label={t('filePreview.download')} className="rounded-lg p-2 hover:bg-raised"><Download size={18} /></button>}
         <button type="button" onClick={onClose} aria-label={t('filePreview.close')} className="rounded-lg p-2 hover:bg-raised"><X size={20} /></button>
       </header>
-      {error ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><FileText size={36} className="text-ink-secondary" /><p>{error}</p><button type="button" onClick={() => setAttempt((value) => value + 1)} className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2"><RotateCcw size={15} />{t('filePreview.retry')}</button></div> : file ? kind === 'video' ? <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4"><video src={file.url} tabIndex={0} controls playsInline preload="metadata" aria-label={file.name} onError={() => setError(t('filePreview.videoFailed'))} className="max-h-full max-w-full" /></div> : <PreviewBoundary onError={setError}><Suspense fallback={<PreviewLoading />}>{kind === 'pdf' ? <PdfPreview data={file.data} onError={setError} /> : <OfficePreview data={file.data} kind={kind} onError={setError} />}</Suspense></PreviewBoundary> : <PreviewLoading />}
+      {error ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><FileText size={36} className="text-ink-secondary" /><p>{error}</p><button type="button" onClick={retry} className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2"><RotateCcw size={15} />{t('filePreview.retry')}</button></div> : file ? kind === 'video' ? <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4"><video src={file.url} tabIndex={0} controls playsInline preload="metadata" aria-label={file.name} onError={() => setError(t('filePreview.videoFailed'))} className="max-h-full max-w-full" /></div> : kind === 'image' ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-inset p-4"><img src={file.url} alt={file.name} onError={() => setError(t('filePreview.invalidFile'))} className="max-h-full max-w-full object-contain" /></div> : <PreviewBoundary onError={setError}><Suspense fallback={<PreviewLoading />}>{kind === 'pdf' ? <PdfPreview data={file.data} onError={setError} /> : <OfficePreview data={file.data} kind={kind} onError={setError} />}</Suspense></PreviewBoundary> : <PreviewLoading />}
       {save.state === 'failed' && <p role="alert" className="p-3 text-sm text-danger">{save.reason}</p>}
     </div>
   </div>, document.body);
