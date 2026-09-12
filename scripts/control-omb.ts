@@ -392,7 +392,6 @@ export async function launchVerificationServer(
     // server. Nothing else from the parent shell reaches the fixture.
     FAKE_CLAUDE_MODE: parentEnv.FAKE_CLAUDE_MODE || "happy",
     FAKE_CLAUDE_DUMP: fixtureDumpPath,
-    ...(fakeReplies ? { FAKE_CLAUDE_REPLIES: JSON.stringify(fakeReplies) } : {}),
     // Keep the environment hermetic while allowing POSIX to resolve the
     // fake CLI's `#!/usr/bin/env node` shebang. Windows resolves that same
     // fixture through spawnCli without a shell.
@@ -404,6 +403,7 @@ export async function launchVerificationServer(
     // FAKE_CLAUDE_DUMP stays the launcher's: assertions read fixtureDumpPath.
     if (key.startsWith("FAKE_CLAUDE_") && key !== "FAKE_CLAUDE_DUMP" && value) childEnv[key] = value;
   }
+  if (fakeReplies) childEnv.FAKE_CLAUDE_REPLIES = JSON.stringify(fakeReplies);
   // Opt-in live Local VM fixture: keep the temporary home and fake engine,
   // granting only the explicitly selected machine connection and static UI.
   if (localVm) Object.assign(childEnv, {

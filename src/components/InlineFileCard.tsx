@@ -45,6 +45,7 @@ export function InlineFileCard({ kind, path, label, caption, file, error, visibl
               tabIndex={started ? 0 : -1} onError={() => setFailedUrl(file.url)}
               onLoadedMetadata={(event) => {
                 const element = event.currentTarget;
+                setReadyUrl(file.url);
                 const seconds = Math.floor(element.duration);
                 setDuration(Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '');
                 if (element.duration > 0.1 && !started) element.currentTime = 0.1;

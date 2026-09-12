@@ -8,7 +8,7 @@ export default function DocumentThumbnail({ data, kind, onReady, onError }: {
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const callbacks = useRef({ onReady, onError });
-  callbacks.current = { onReady, onError };
+  useEffect(() => { callbacks.current = { onReady, onError }; }, [onReady, onError]);
   const [result, setResult] = useState<{ svgUrl?: string; rows?: string[][] } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
