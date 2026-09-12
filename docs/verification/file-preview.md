@@ -1,8 +1,12 @@
 # Web file previews
 
-The Web chat opens PDF, video, spreadsheet, and PPTX files in a modal. Both
-uploaded file cards and bot-authored local file links use the existing
-message-authorized POST download route. Images retain their existing gallery.
+The Web chat embeds image and video cards, with first-page PDF, first-slide
+PPTX, and compact spreadsheet thumbnails. Clicking opens a larger preview;
+videos can also play inside the conversation. Both uploaded file cards and
+bot-authored local file links use the existing message-authorized POST download
+route. Uploaded images retain their gallery, with smaller uncropped thumbnails.
+Each preview shows its source extension in the top-left corner, independently
+of the accessible description or link label.
 
 ## Run an isolated fixture
 
@@ -20,16 +24,18 @@ links them in a scripted reply. No real model or user data is needed. Omit
 
 The launcher writes its URL, owning PID, data directory, persistent log path,
 uploaded files, and `send`, `wait`, and `messages` results to
-`evidence/file-preview/fixture.json`. These machine-specific records remain
+`evidence/chat-previews/fixture.json`. These machine-specific records remain
 local and are excluded from commits. Stop the foreground launcher with Ctrl-C
 to stop its owned server and remove its temporary data.
 
 ## Verify in the browser
 
-1. Open each uploaded card. Check PDF page 2, the workbook's Checks sheet,
+1. Check the inline image/video and PDF/PPTX/XLSX thumbnails and their top-left
+   extension badges. Open each uploaded card. Check PDF page 2, the workbook's Checks sheet,
    and presentation slide 2. Close each modal and repeat using the bot links.
-2. Play the video and confirm its playback time advances. Pause it, close the
-   modal, and confirm the chat remains usable.
+2. Confirm the video stays paused until clicked, then play it in the chat and
+   confirm playback time advances. Expand it and check the inline player pauses.
+   Close the modal and confirm the chat remains usable.
 3. Download a copy from a preview. The original file remains downloadable even
    when its preview cannot render.
 4. Attach `scripts/testing/file-preview/japanese.pdf` through the composer,
@@ -47,7 +53,7 @@ uploads are skipped there. Do not copy production changes into the baseline.
 ## Focused automated checks
 
 ```sh
-pnpm exec vitest run src/lib/file-preview.test.ts src/components/AttachmentPreview.test.ts src/components/ChatMarkdown.test.ts server/attachments.test.ts server/message-file.test.ts server/file-preview.e2e.test.ts server/control-omb.test.ts
+pnpm exec vitest run src/lib/file-preview.test.ts src/lib/load-file-preview.test.ts src/lib/preview-queue.test.ts src/components/AttachmentPreview.test.ts src/components/ChatMarkdown.test.ts server/attachments.test.ts server/message-file.test.ts server/file-preview.e2e.test.ts server/control-omb.test.ts
 pnpm typecheck
 pnpm i18n:check
 ```
@@ -83,6 +89,10 @@ locally. Office parsing and rendering are also local. No third-party document
 viewer receives the uploaded bytes. SVG slides are displayed as image documents,
 never inserted as HTML. URLs and workers are released when the modal closes.
 
+Inline previews load near the viewport, with at most two thumbnail jobs running
+at once. Leaving the viewport cancels queued work and releases preview bytes.
+The streaming loader enforces the file-size limit even without Content-Length.
+
 ## Fixture provenance
 
 `preview-pdf.ts` writes the small English PDF directly; `preview-office.ts`
@@ -97,4 +107,5 @@ The Japanese PDF was generated with ReportLab's `UnicodeCIDFont` using
 `HeiseiKakuGo-W5`, exercising a CMap-backed Japanese font. The corrupt fixture
 contains plain text instead of a PDF. All samples are synthetic.
 
-See [recorded verification and screenshots](evidence/file-preview/README.md).
+See [current upstream verification and screenshots](evidence/chat-previews/README.md)
+and the [earlier modal verification](evidence/file-preview/README.md).
