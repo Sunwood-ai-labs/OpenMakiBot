@@ -49,6 +49,14 @@ containment test: Windows rejects symlink creation with EPERM. Running
 `server/message-file.test.ts` on unmodified `2f91c462` reproduces the same failure
 (15 passed, one failed). The security assertion is retained.
 
+`pnpm broker:test` passes eight tests. `pnpm test:packaged-server` boots the
+packaged harness without node_modules, checks all 12 proxy paths, and verifies
+the MCP stdio handshake. `pnpm test:electron` reports 162 passed, two failed,
+10 skipped: both failures require POSIX `mv` in the AppImage updater tests.
+The unchanged baseline's updater file reproduces both failures (seven passed,
+two failed, one skipped). No Electron implementation files are changed here.
+Both browser fixture launchers reported `cleaned: true` after being stopped.
+
 The full `pnpm test` run and current CI results are recorded in the PR; this
 focused result is not a claim that the full suite passes. Machine-specific
 fixture transcripts and logs stay local. See the earlier
