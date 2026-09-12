@@ -1,8 +1,8 @@
 import type { OfficePreviewResult } from './file-preview';
-import { checkOfficeArchive } from './office-preview-limits';
+import { prepareOfficeArchive } from './office-preview-limits';
 
 export async function parseOfficePreview(data: Uint8Array, kind: 'presentation' | 'spreadsheet', thumbnail = false): Promise<OfficePreviewResult> {
-    checkOfficeArchive(data);
+    data = prepareOfficeArchive(data);
     let result: OfficePreviewResult;
     if (kind === 'presentation') {
       const { loadPresentation, getSlides, getSlideText } = await import('@office-kit/pptx');

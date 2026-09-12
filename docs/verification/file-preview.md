@@ -81,7 +81,11 @@ Preview files are limited to 25 MiB. Spreadsheet output is bounded to 50 sheets,
 500 rows, 100 columns, 4,000 characters per cell, and two million characters in
 total; truncated cells and ranges are labeled. Presentations show at most 100
 slides. Office parsing runs in a disposable worker with a 30-second timeout,
-ZIP directory size checks, and output limits. These bounds reduce resource use;
+ZIP directory size checks, and output limits. ZIP entries are inflated in small
+input chunks with actual byte accounting (25 MiB per part, 100 MiB total).
+Output exceeding either the declared size or the budgets is rejected. The
+Office parsers receive a rebuilt, stored-only ZIP of the validated parts, so
+they never inflate the original archive themselves. These bounds reduce resource use;
 they are not a general archive validation service.
 
 PDF.js and its worker, CMaps, standard fonts, and WASM resources are bundled
