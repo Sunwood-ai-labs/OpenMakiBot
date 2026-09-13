@@ -139,3 +139,10 @@ Validation after integration:
 parser budgets, cancellation, and queue release obligations. CodeRabbit must
 recompute coverage after push; the prior 31.11% warning is not yet cleared.
 The final integrated head still requires fresh cross-platform CI and review.
+
+
+The shared IPC repair `c96581b8` was incorporated as `90aee291`. The previously
+failing OpenRouter UI case then passed alone (33.80 seconds), including clean
+exit zero and fixture-data removal. The other case was excluded by the test-name
+filter; it passed in the preceding run. New canvas/shared-computers fixture
+verification is coordinated with the shared test-repair task.
