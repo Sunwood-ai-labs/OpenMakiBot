@@ -28,9 +28,14 @@ afterAll(async () => {
   child.stderr!.on("data", chunk => { stderr += String(chunk); });
   let fixture: { ui: string; url: string; botId: string; logPath: string; dataDir: string };
   await expect.poll(() => {
-    if (child!.exitCode !== null) throw new Error(stderr);
+    // Polling retries thrown errors; stop on launcher exit so startup failures
+    // report their stderr immediately instead of waiting the whole deadline.
+    if (child!.exitCode !== null || child!.signalCode !== null) return true;
     try { fixture = JSON.parse(output); return Boolean(fixture.ui); } catch { return false; }
   }, { timeout: 600_000 }).toBe(true);
+  expect(child.exitCode, stderr).toBeNull();
+  expect(child.signalCode, stderr).toBeNull();
+  expect(fixture!.ui, stderr).toBeTruthy();
   fixtureDataDir = fixture!.dataDir;
   const ui = (verb: string, ...args: string[]) => runControlOmb(["ui", verb, "--ui", fixture.ui, ...args]) as Promise<Record<string, any>>;
   const evaluate = async (js: string) => (await ui("eval", "--js", js)).result;
