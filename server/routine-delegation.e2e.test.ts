@@ -156,7 +156,7 @@ describe("routine delegation through the isolated harness", () => {
     evidence.push({ busyRetriesPreservedWakeBudget: true, capacity, resume, runId: run.id, transcript: await messages(run.threadId) });
   }, 60_000);
 
-  it("resumes a new user's delegation on a completed routine's execution thread", async () => {
+  it("coordinates a new user request on a completed routine's thread without changing its recorded result", async () => {
     const run = await start();
     finish(run.threadId);
     await expect.poll(async () => (await runState(run.id))?.status, { timeout: 15_000 }).toBe("completed");
@@ -182,9 +182,10 @@ describe("routine delegation through the isolated harness", () => {
     await dump(recipient.threadId);
     finish(recipient.threadId);
     await expect.poll(async () => (await messages(run.threadId)).some(
-      message => message.roomRequest?.id === requestId && message.roomRequest.phase === "result" && message.tool?.ok,
+      message => message.from?.botId === peer.id && message.roomRequest?.id === requestId && message.roomRequest.phase === "result" && message.tool?.ok,
     ), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => nodes().find(node => !node.parentId && node.threadId === run.threadId)?.status, { timeout: 20_000 }).toBe("completed");
+    expect(nodes().find(node => node.id === requestId).status).toBe("completed");
     expect((await dump(run.threadId)).systemPrompt).toContain("Your downstream room requests have settled");
     expect(await runState(run.id)).toMatchObject({ status: "completed", finishedAt: finished.finishedAt, output: finished.output });
     evidence.push({ reusedCompletedExecution: true, transcript: await messages(run.threadId) });
