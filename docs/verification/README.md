@@ -16,6 +16,13 @@ node --experimental-strip-types scripts/control-omb.ts launch
 Run the foreground launcher directly rather than through `pnpm`; this ensures
 it receives Ctrl-C and can stop its child before removing the temporary data.
 
+Automated parents can spawn `launch` or `ui launch` with a Node IPC channel
+(`stdio: ["ignore", "pipe", "pipe", "ipc"]`) and send `"control-omb:stop"`.
+That requests the same cleanup on every OS, including Windows where
+`child.kill("SIGINT")` forcibly terminates the launcher. Disconnecting the
+parent's IPC channel also requests cleanup. Wait for the launcher's exit
+before checking that its temporary data has been removed.
+
 It gives the child a temporary data directory and home, chooses a free
 harness/webhook port pair, installs only the repository's fake engine, prints
 the URL, PID, data directory, and persistent log path, then stays attached to

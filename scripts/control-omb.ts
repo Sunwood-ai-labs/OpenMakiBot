@@ -489,7 +489,7 @@ function requireForegroundTerminal(command: string): void {
   }
 }
 
-async function main() {
+async function runMain() {
   const command = process.argv[2] ?? "help";
   if (command === "ui" && process.argv[3] === "launch") {
     requireForegroundTerminal("ui launch");
@@ -536,6 +536,26 @@ async function main() {
   const result = await runControlOmb(process.argv.slice(2));
   process.stdout.write(typeof result === "string" ? `${result}\n` : `${JSON.stringify(result, null, 2)}\n`);
   if (!controlResultSucceeded(command, result)) process.exitCode = 1;
+}
+
+/** IPC lets test parents request the same cleanup on Windows as terminal Ctrl-C. */
+async function main() {
+  const ownsFixture = process.argv[2] === "launch"
+    || (process.argv[2] === "ui" && process.argv[3] === "launch");
+  if (!ownsFixture || !process.connected) return runMain();
+  const stop = () => { process.emit("SIGINT"); };
+  const onMessage = (message: unknown) => {
+    if (message === "control-omb:stop") stop();
+  };
+  process.on("message", onMessage);
+  process.once("disconnect", stop);
+  try {
+    await runMain();
+  } finally {
+    process.removeListener("message", onMessage);
+    process.removeListener("disconnect", stop);
+    if (process.connected) process.disconnect?.();
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
