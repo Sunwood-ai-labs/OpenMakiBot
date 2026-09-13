@@ -1,0 +1,255 @@
+{
+  "passed": true,
+  "model": "CC GLM-5.3",
+  "a": {
+    "id": "0fc7d153-ea3e-4139-9db3-9066bdeaed85",
+    "threadId": "eb64942d-5828-45cd-9ef5-db9fc2781237",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "glm-5.3",
+      "effort": "low"
+    },
+    "createdAt": 1789276595423,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "eb64942d-5828-45cd-9ef5-db9fc2781237",
+        "title": "New thread",
+        "createdAt": 1789276595423,
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "unread": false,
+        "activity": "idle",
+        "busy": false
+      }
+    ],
+    "messages": [
+      {
+        "id": "75e5d1fb-6be4-4fc1-8bed-a741584b6e09",
+        "at": 1789276595440,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "75e5d1fb-6be4-4fc1-8bed-a741584b6e09"
+  },
+  "b": {
+    "id": "f277d07a-7661-4002-bf5a-1c44e9251130",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "glm-5.3",
+      "effort": "low"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "afd61703-b3fa-4c9a-917e-9d046bfd6b23",
+    "tasks": [
+      {
+        "taskId": "afd61703-b3fa-4c9a-917e-9d046bfd6b23",
+        "title": "New thread",
+        "createdAt": 1789276596061,
+        "busy": false,
+        "activity": "idle",
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "active": true
+      }
+    ]
+  },
+  "room": {
+    "id": "ce5058a7-1167-4549-bc9f-54bae25fb48b",
+    "name": "API・MCP会議実験",
+    "memberIds": [
+      "0fc7d153-ea3e-4139-9db3-9066bdeaed85",
+      "f277d07a-7661-4002-bf5a-1c44e9251130"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "0fc7d153-ea3e-4139-9db3-9066bdeaed85"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "13eaf2e4-b0dd-4f6e-8be7-d5c50500f075",
+    "tasks": [
+      {
+        "taskId": "13eaf2e4-b0dd-4f6e-8be7-d5c50500f075",
+        "title": "New task",
+        "createdAt": 1789276596085,
+        "active": true
+      }
+    ],
+    "threadId": "13eaf2e4-b0dd-4f6e-8be7-d5c50500f075"
+  },
+  "dm": {
+    "bot": {
+      "id": "0fc7d153-ea3e-4139-9db3-9066bdeaed85",
+      "name": "API検証Bot",
+      "title": "",
+      "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+      "section": null,
+      "chiefOfStaff": false,
+      "modelSelection": {
+        "instanceId": "claude",
+        "model": "glm-5.3",
+        "effort": "low"
+      },
+      "busy": false,
+      "activity": "idle",
+      "unread": true,
+      "activeTaskId": "eb64942d-5828-45cd-9ef5-db9fc2781237",
+      "tasks": [
+        {
+          "taskId": "eb64942d-5828-45cd-9ef5-db9fc2781237",
+          "title": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…",
+          "createdAt": 1789276595423,
+          "busy": false,
+          "activity": "idle",
+          "modelSelection": {
+            "instanceId": "claude",
+            "model": "glm-5.3",
+            "effort": "low"
+          },
+          "active": true,
+          "usage": {
+            "input": 58591,
+            "output": 19,
+            "cachedInput": 46336,
+            "costUsd": 0.084918,
+            "turns": 2
+          }
+        }
+      ]
+    },
+    "taskId": "eb64942d-5828-45cd-9ef5-db9fc2781237",
+    "messages": [
+      {
+        "id": "75e5d1fb-6be4-4fc1-8bed-a741584b6e09",
+        "at": 1789276595440,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      },
+      {
+        "id": "9d5acffe-89ee-42c2-9dd6-2490f224a2cd",
+        "at": 1789276597348,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。"
+      },
+      {
+        "id": "f3cab17a-4727-4131-ae47-8151e752f126",
+        "at": 1789276602853,
+        "role": "bot",
+        "kind": "text",
+        "text": "423です。"
+      },
+      {
+        "id": "39906a1e-b214-49bb-a22f-d74246b7ef7e",
+        "at": 1789276603033,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。"
+      },
+      {
+        "id": "086c4880-400c-486e-9b02-369cc9e30cdb",
+        "at": 1789276609016,
+        "role": "bot",
+        "kind": "text",
+        "text": "846です。"
+      }
+    ],
+    "hasMore": false
+  },
+  "group": {
+    "channel": {
+      "id": "ce5058a7-1167-4549-bc9f-54bae25fb48b",
+      "name": "API・MCP会議実験",
+      "memberIds": [
+        "0fc7d153-ea3e-4139-9db3-9066bdeaed85",
+        "f277d07a-7661-4002-bf5a-1c44e9251130"
+      ],
+      "bulletin": "",
+      "defaultResponder": {
+        "kind": "member",
+        "botId": "0fc7d153-ea3e-4139-9db3-9066bdeaed85"
+      },
+      "section": null,
+      "directMessage": false,
+      "working": false,
+      "busyBotId": null,
+      "activeTaskId": "13eaf2e4-b0dd-4f6e-8be7-d5c50500f075",
+      "tasks": [
+        {
+          "taskId": "13eaf2e4-b0dd-4f6e-8be7-d5c50500f075",
+          "title": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…",
+          "createdAt": 1789276596085,
+          "active": true
+        }
+      ]
+    },
+    "taskId": "13eaf2e4-b0dd-4f6e-8be7-d5c50500f075",
+    "messages": [
+      {
+        "id": "bce7412d-06a4-44f9-ada1-a511886b67bd",
+        "at": 1789276609219,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。"
+      },
+      {
+        "id": "4c8f2183-9172-4396-a168-45237a65d7d4",
+        "at": 1789276614780,
+        "role": "bot",
+        "kind": "text",
+        "text": "一人4,000円です（12000 ÷ 3 = 4000）。",
+        "from": {
+          "botId": "0fc7d153-ea3e-4139-9db3-9066bdeaed85",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "6483702f-75fd-43a7-b64e-6154e73251fe",
+        "at": 1789276614905,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。"
+      },
+      {
+        "id": "34df4a96-e4bf-4f3e-8464-3d9658016674",
+        "at": 1789276621061,
+        "role": "bot",
+        "kind": "text",
+        "text": "一人5,000円です（15000 ÷ 3 = 5000）。",
+        "from": {
+          "botId": "f277d07a-7661-4002-bf5a-1c44e9251130",
+          "name": "MCP検証Bot",
+          "color": "red"
+        }
+      }
+    ],
+    "hasMore": false
+  }
+}
