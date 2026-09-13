@@ -220,7 +220,7 @@ from command/module execution:
 [Original Windows probe](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/34767172079).
 The repair retains `PSModulePath` in the Windows shell environment; the allowlist
 continues to exclude provider credentials and startup-injection variables.
-Production and MCP timeouts remain unchanged.
+At the repair commit, production and MCP timeouts remained unchanged.
 
 [Repaired Windows probe](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/34767370035)
 completed the actual repaired `sharedCommand` at 4,073ms on a fresh runner and
@@ -262,3 +262,54 @@ with one existing skip in 311.81 seconds, without unhandled errors. That runtime
 was downloaded from nodejs.org and checked against its published SHA-256.
 This comparison does not claim to identify the underlying Node 24.15.0 native
 crash; no application assertion was relaxed to absorb it.
+
+### Upstream v0.1.77, sharing gate, and diagnostic review
+
+The next integration takes upstream `e586c224` (#1165, #1167 and the Preferences
+menu). Its shared-computer feature stays disabled by default; fixture opt-ins,
+local/remote withdrawal cancellation, protected-folder filesystem identities,
+and the newly refreshed Ukrainian translations are preserved. The Windows
+`PSModulePath` fix and the real-writer `0600` assertions remain intact.
+
+Upstream #1165 independently changed the MCP test deadline to 40 seconds to
+allow a legitimate 30-second command plus transport. This merge accepts that
+contract while retaining diagnostics that exclude credentials, command text
+and file content. It is separate from the earlier PowerShell repair, which was
+already verified inside the original 15-second deadline on a Windows runner.
+CI retains the complete suite and 45-minute Windows / 35-minute other-OS job
+budgets; no test is removed, skipped or weakened by this integration.
+
+On Node 24.20.0, nine targeted Vitest files finished with 215 passing cases and
+one failure: the existing registry-symlink case could not create a file symlink
+on this local Windows account (`EPERM`). All other cases, including the six
+shared-computer end-to-end cases and the real-writer permission assertion,
+passed. The symlink assertion is unchanged and still runs in CI. Shared-access
+and preload Node suites passed 19 cases with one existing filesystem-dependent
+Unicode-normalization skip. Production build (including typecheck), lint and
+all ten locale catalogs passed.
+
+The full API suite on the v0.1.77 integration passed 208 cases with one existing
+skip in 308.31 seconds on Node 24.20.0, without unhandled errors. This run began
+before the following diagnostic-listener-only review edit; its focused lifecycle
+check and typecheck/lint were repeated after that edit.
+
+CodeRabbit review `5191359077` correctly noted that the API fixture's diagnostic
+must wait for piped stderr to close. The listener now uses `close` rather than
+`exit`, preserving the nonzero-exit and SIGTERM/SIGINT filters and message.
+The focused API lifecycle run passed its selected routine case (208 other
+cases filtered by the command, not disabled in source).
+
+Commands for this integration (using the verified Node 24.20.0 binary first
+on PATH):
+
+```sh
+node node_modules/vitest/vitest.mjs run server/shared-computers.e2e.test.ts server/shared-computers.gate.test.ts server/config.test.ts server/environment.test.ts server/remote-sessions.test.ts server/team-computers.test.ts server/drivers/agents-proxy.test.ts src/lib/feature-flags.test.ts electron/menu.test.mjs
+node --test electron/shared-computer-access.node-test.mjs electron/preload.node-test.mjs
+node node_modules/vitest/vitest.mjs run server/index.test.ts
+node node_modules/vitest/vitest.mjs run server/index.test.ts -t 'reports a failed routine'
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm i18n:check
+git diff --check
+```

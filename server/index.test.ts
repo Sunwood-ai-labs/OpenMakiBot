@@ -880,7 +880,7 @@ beforeAll(async () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stderr!.on("data", (c) => (stderr += c));
-  child.on("exit", (code, signal) => {
+  child.on("close", (code, signal) => {
     if (code !== 0 && signal !== "SIGTERM" && signal !== "SIGINT") {
       console.error(`Isolated API fixture exited (code=${code}, signal=${signal}):\n${stderr}`);
     }
