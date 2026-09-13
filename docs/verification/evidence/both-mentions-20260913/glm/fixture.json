@@ -1,0 +1,11 @@
+{
+  "url": "http://127.0.0.1:21301",
+  "pid": 34220,
+  "dataDir": "C:\\Users\\makim\\AppData\\Local\\Temp\\openmausbot-verify-data-fMSnsC",
+  "logPath": "C:\\Users\\makim\\AppData\\Local\\Temp\\openmausbot-verification-evidence\\server-1789281237086-28932.log",
+  "driver": "claudeAgent",
+  "cli": "C:/Users/makim/.local/bin/claude.exe",
+  "version": "2.1.251 (Claude Code)",
+  "model": "glm-5.3",
+  "providerOrigin": "https://api.z.ai"
+}

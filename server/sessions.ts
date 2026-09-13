@@ -4,14 +4,15 @@
 //
 // A pairing code is 12 characters from a 32-symbol alphabet with no 0/O/1/I
 // (60 bits), single use, five minutes. Exchanging it yields an opaque
-// session token (`omb_sess_…`, 256 bits) that lives 30 days; only its sha256
-// is stored. A stream ticket is a 5-minute single-use credential for the SSE
+// session token (`omb_sess_…`, 256 bits) that lives 30 days, renewed on use
+// up to 180 days from pairing (`renew`); only its sha256 is stored. A stream ticket is a 5-minute single-use credential for the SSE
 // endpoint, because EventSource cannot set headers. Failed exchanges are
 // counted per source: five in a minute lock that source out for ten.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, unlinkSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
+import { writeFileAtomic } from "./atomic.ts";
 
 export type Scope = "admin" | "client";
 export const SCOPES: readonly Scope[] = ["admin", "client"];
@@ -19,7 +20,32 @@ export const SCOPES: readonly Scope[] = ["admin", "client"];
 export const PAIRING_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 export const PAIRING_CODE_LENGTH = 12;
 export const PAIRING_CODE_TTL_MS = 5 * 60_000;
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
+/** A whole number of days from an environment variable, as milliseconds.
+ * Anything that is not a whole number of days between 1 and 3650 falls back
+ * to the default rather than being clamped, so a typo is not silently
+ * turned into a policy. */
+export function daysMs(value: string | undefined, fallbackDays: number): number {
+  const days = Number(value);
+  const ok = Number.isInteger(days) && days >= 1 && days <= 3650;
+  return (ok ? days : fallbackDays) * 24 * 60 * 60_000;
+}
+/** How long a session lives after its last renewal. A session used with half
+ * the term or less left is renewed for the full term again (see `renew`), so
+ * a device in regular use keeps working; one that goes quiet lapses.
+ * OMB_SESSION_TTL_DAYS overrides the 30-day default. */
+export const SESSION_TTL_MS = daysMs(process.env.OMB_SESSION_TTL_DAYS, 30);
+/** The most a session may live from the day it was paired, however often it
+ * is used. Renewal never pushes a session past this, so a stolen cookie has a
+ * bounded life and every device re-pairs occasionally. OMB_SESSION_MAX_DAYS
+ * overrides the 180-day default. */
+export const SESSION_MAX_AGE_MS = daysMs(process.env.OMB_SESSION_MAX_DAYS, 180);
+/** Renewal is due once half the term or less is left. */
+export const SESSION_RENEW_WHEN_LEFT_MS = SESSION_TTL_MS / 2;
+
+/** Max-Age for a cookie that should die with its session: whole seconds, at least one. */
+export function cookieMaxAgeSeconds(session: { expiresAt: number }, now = Date.now()): number {
+  return Math.max(1, Math.floor((session.expiresAt - now) / 1000));
+}
 export const STREAM_TICKET_TTL_MS = 5 * 60_000;
 /** Per-source slow-down only. A 60-bit code cannot be guessed online in
  * five minutes whatever the rate, so the lock exists to make noise visible,
@@ -47,6 +73,11 @@ const sessionSchema = z.object({
   createdAt: z.number(),
   lastSeenAt: z.number(),
   expiresAt: z.number(),
+  /** Set when the session came from an account sign-in rather than a code. */
+  userId: z.string().max(256).optional(),
+  email: z.string().max(320).optional(),
+  /** Set only by the internal verified-portal issuance path, never by email or pairing input. */
+  membershipAuthority: z.literal("portal").optional(),
 });
 
 const fileSchema = z.object({ version: z.literal(1), sessions: z.array(sessionSchema) });
@@ -61,6 +92,8 @@ export interface PublicSession {
   createdAt: number;
   lastSeenAt: number;
   expiresAt: number;
+  /** The account that signed in, when it was an account and not a code. */
+  email?: string;
 }
 
 export interface PairingCode {
@@ -121,7 +154,7 @@ export function formatPairingCode(code: string): string {
 }
 
 function publicSession(record: SessionRecord): PublicSession {
-  return {
+  const view: PublicSession = {
     id: record.id,
     label: record.label,
     scopes: [...record.scopes],
@@ -129,6 +162,18 @@ function publicSession(record: SessionRecord): PublicSession {
     lastSeenAt: record.lastSeenAt,
     expiresAt: record.expiresAt,
   };
+  if (record.email) view.email = record.email;
+  return view;
+}
+
+export type EmailScopesResolver = (email: string) => readonly Scope[] | null;
+export interface SessionStoreOptions {
+  file: string;
+  now?: () => number;
+  emailScopes?: EmailScopesResolver;
+  /** One membership snapshot per revalidation pass, not per session. */
+  emailScopesSnapshot?: () => EmailScopesResolver;
+  portalMembership?: boolean;
 }
 
 export class SessionRegistry {
@@ -140,17 +185,31 @@ export class SessionRegistry {
   private readonly onRevoked = new Set<(sessionId: string) => void>();
   private lastSeenWrites = new Map<string, number>();
   private readonly now: () => number;
-  private readonly options: { file: string; now?: () => number };
+  private readonly options: SessionStoreOptions;
+  private readonly openMarker: string;
+  private closed = false;
 
   // No parameter properties: the server runs this file under Node's
   // strip-only TypeScript mode, which only erases types.
-  constructor(options: { file: string; now?: () => number }) {
+  constructor(options: SessionStoreOptions) {
     this.options = options;
     this.now = options.now ?? Date.now;
-    this.load();
+    this.openMarker = `${options.file}.open`;
+    const unclean = existsSync(this.openMarker);
+    try {
+      mkdirSync(dirname(options.file), { recursive: true, mode: 0o700 });
+      // Establish the guard before accepting any persisted bearer. Even if
+      // every subsequent write fails, an unclean restart will see this marker.
+      writeFileAtomic(this.openMarker, "Session registry is open.\n", { mode: 0o600 });
+      this.syncDirectory();
+    } catch {
+      throw new Error("Could not establish safe session storage.");
+    }
+    this.load(!unclean);
+    this.revalidateEmailSessions();
   }
 
-  private load(): void {
+  private load(restoreAccounts: boolean): void {
     if (!existsSync(this.options.file)) return;
     let raw: unknown;
     try {
@@ -159,20 +218,45 @@ export class SessionRegistry {
       return; // unreadable: start empty rather than refuse to boot; pairing again is cheap
     }
     const parsed = fileSchema.safeParse(raw);
-    if (parsed.success) this.sessions = parsed.data.sessions;
+    if (parsed.success) this.sessions = parsed.data.sessions.filter(session => restoreAccounts || (session.email === undefined && session.userId === undefined));
+  }
+
+  private syncDirectory(): void {
+    // Windows does not expose directory fsync. The open marker still guards
+    // normal process crashes; no stronger power-loss guarantee is claimed.
+    if (process.platform === "win32") return;
+    const fd = openSync(dirname(this.options.file), "r");
+    try { fsyncSync(fd); } finally { closeSync(fd); }
   }
 
   /** Atomic write, owner-only, directory owner-only. */
   private persist(): void {
+    if (this.closed) throw new Error("Session registry is closed.");
     const dir = dirname(this.options.file);
     mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const tmp = `${this.options.file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ version: 1, sessions: this.sessions }, null, 2) + "\n", { mode: 0o600 });
-    chmodSync(tmp, 0o600);
-    renameSync(tmp, this.options.file);
+    writeFileAtomic(this.options.file, JSON.stringify({ version: 1, sessions: this.sessions }, null, 2) + "\n", { mode: 0o600 });
+    this.syncDirectory();
+  }
+
+  /** Call after HTTP/stream shutdown. A failed close leaves the open marker,
+   * so account sessions require fresh sign-in after restart. Paired devices
+   * remain durable. Never remove the marker before the reduced set is saved. */
+  close(): void {
+    if (this.closed) return;
+    try {
+      this.revalidateEmailSessions();
+      this.persist();
+      unlinkSync(this.openMarker);
+      this.closed = true;
+      // A marker deletion lost on power failure causes extra sign-in only;
+      // the session file and its rename were fsynced before removal.
+    } catch {
+      throw new Error("Could not safely close session storage.");
+    }
   }
 
   private prune(): void {
+    this.revalidateEmailSessions();
     const now = this.now();
     this.pairings = this.pairings.filter((p) => p.expiresAt > now);
     this.replays = this.replays.filter((r) => r.expiresAt > now);
@@ -293,7 +377,9 @@ export class SessionRegistry {
       scopes: [...pairing.scopes],
       createdAt: now,
       lastSeenAt: now,
-      expiresAt: now + SESSION_TTL_MS,
+      // The absolute cap applies from the first term, so a TTL configured
+      // longer than the cap does not hand out a session the cap forbids.
+      expiresAt: now + Math.min(SESSION_TTL_MS, SESSION_MAX_AGE_MS),
     };
     this.sessions.push(record);
     this.lastSeenWrites.set(record.id, now); // the exchange itself was the first sighting
@@ -303,10 +389,96 @@ export class SessionRegistry {
     return result;
   }
 
+  /** A session from a verified account sign-in (server/account-signin.ts)
+   * rather than a pairing code: same token, same term, same gates. */
+  issue(input: { label: string; scopes: Scope[]; userId?: string; email?: string }): { token: string; session: PublicSession } {
+    return this.issueAccount(input);
+  }
+
+  /** Internal hosted-bridge seam: call only after consuming a verified,
+   * workspace-bound PKCE grant. No HTTP route accepts this marker as input. */
+  issuePortal(input: { email: string; grant: string; scopes: Scope[] }): { token: string; session: PublicSession } {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(input.grant) || !input.email) throw new Error("A verified portal identity is required");
+    return this.issueAccount({ label: "Hosted workspace", email: input.email, userId: `portal:${input.grant}`, scopes: input.scopes }, "portal");
+  }
+
+  private issueAccount(input: { label: string; scopes: Scope[]; userId?: string; email?: string }, membershipAuthority?: "portal"): { token: string; session: PublicSession } {
+    this.prune();
+    const now = this.now();
+    const token = `omb_sess_${randomBytes(32).toString("base64url")}`;
+    const record: SessionRecord = {
+      id: randomUUID(),
+      tokenHash: sha256(token),
+      label: (input.label.trim() || "Unnamed device").slice(0, 80),
+      scopes: [...new Set(input.scopes)],
+      createdAt: now,
+      lastSeenAt: now,
+      expiresAt: now + Math.min(SESSION_TTL_MS, SESSION_MAX_AGE_MS),
+    };
+    if (input.userId) record.userId = input.userId;
+    if (input.email) record.email = input.email;
+    if (membershipAuthority) record.membershipAuthority = membershipAuthority;
+    this.sessions.push(record);
+    this.lastSeenWrites.set(record.id, now);
+    this.persist();
+    return { token, session: publicSession(record) };
+  }
+
+  /** The pairing lockout, for other code-like exchanges on the same source. */
+  attemptAllowed(source: string): { ok: true } | { ok: false; retryAfterMs: number } {
+    const lock = this.lockState(source);
+    return lock.locked ? { ok: false, retryAfterMs: lock.retryAfterMs } : { ok: true };
+  }
+
+  noteFailure(source: string): void {
+    this.recordFailure(source);
+  }
+
+  clearFailures(source: string): void {
+    this.failures.delete(source);
+  }
+
   // ── sessions ───────────────────────────────────────────────────────────
+
+  /** Email membership is live, not a thirty-day grant. Losing any issued
+   * scope revokes the token and its streams; signing in again obtains the
+   * new role. Promotions never widen existing credentials. Pairing sessions
+   * have no email and remain independent of the hosted sign-in list. */
+  revalidateEmailSessions(): void {
+    if (this.closed) throw new Error("Session registry is closed.");
+    const eligible = this.sessions.filter(session => session.email !== undefined && !(this.options.portalMembership && session.membershipAuthority === "portal"));
+    if (!eligible.length) return;
+    let resolveScopes = this.options.emailScopes;
+    try {
+      if (this.options.emailScopesSnapshot) resolveScopes = this.options.emailScopesSnapshot();
+    } catch {
+      resolveScopes = undefined; // Never fall back to stale membership after a failed snapshot.
+    }
+    const revoked = eligible.filter((session) => {
+      try {
+        const allowed = resolveScopes?.(session.email!);
+        return !allowed || session.scopes.some((scope) => !allowed.includes(scope));
+      } catch {
+        return true; // missing or unreadable membership must fail closed
+      }
+    });
+    if (!revoked.length) return;
+    const ids = new Set(revoked.map((session) => session.id));
+    this.sessions = this.sessions.filter((session) => !ids.has(session.id));
+    for (const session of revoked) this.forget(session.id);
+    try {
+      this.persist();
+    } catch {
+      // Revocation stays effective in memory and streams close. The boot
+      // marker prevents old account bearers from reviving after an unclean
+      // restart, even if membership is later restored and all writes failed.
+      console.error("Could not persist email session revocation.");
+    }
+  }
 
   authenticate(token: string | undefined): SessionRecord | null {
     if (!token) return null;
+    this.revalidateEmailSessions();
     const hash = sha256(token);
     const now = this.now();
     const record = this.sessions.find((s) => sameDigest(s.tokenHash, hash));
@@ -318,6 +490,27 @@ export class SessionRegistry {
       this.persist();
     }
     return record;
+  }
+
+  /** Sliding expiry. Called by the request gate once a request has passed
+   * the origin and scope checks (so a rejected request never extends
+   * anything): a still-valid session with half its term or less left is
+   * renewed for the full term, capped at SESSION_MAX_AGE_MS from pairing.
+   * Nothing expired is revived. Writes at most once per half-term, so it
+   * adds nothing to the last-seen traffic. Returns whether it renewed. */
+  renew(sessionId: string): boolean {
+    this.revalidateEmailSessions();
+    const record = this.sessions.find((s) => s.id === sessionId);
+    const now = this.now();
+    if (!record || record.expiresAt <= now) return false;
+    if (record.expiresAt - now > SESSION_RENEW_WHEN_LEFT_MS) return false;
+    const next = Math.min(now + SESSION_TTL_MS, record.createdAt + SESSION_MAX_AGE_MS);
+    if (next <= record.expiresAt) return false; // already at the absolute cap
+    record.expiresAt = next;
+    record.lastSeenAt = now;
+    this.lastSeenWrites.set(record.id, now);
+    this.persist();
+    return true;
   }
 
   /** Still valid right now (prunes expiry first). */

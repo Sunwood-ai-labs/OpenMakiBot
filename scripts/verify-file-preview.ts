@@ -11,10 +11,10 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const evidence = join(root, 'docs/verification/evidence/chat-previews');
 mkdirSync(evidence, { recursive: true });
 const mediaOnly = process.argv.includes('--media');
-const fixture = await launchVerificationServer(process.env, undefined, [
+const fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_REPLIES: JSON.stringify([
   mediaOnly ? 'Here are the image and video:\n\n[Project image](<Project image.png>) [Project video](<Project motion.mp4>)'
     : 'The project files are ready to review:\n\n[Project notes](<Project field notes.pdf>) · [Workbook](<Project overview.xlsx>) · [Slides](<Project review.pptx>) \n\n[Image](<Project image.png>) [Video](<Project motion.mp4>)',
-]);
+]) });
 let ui: Awaited<ReturnType<typeof createServer>> | undefined;
 let builtUi: Awaited<ReturnType<typeof preview>> | undefined;
 try {

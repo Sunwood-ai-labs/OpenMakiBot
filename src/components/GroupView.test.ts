@@ -32,9 +32,31 @@ describe("RoomToolChip", () => {
     expect(markup).toContain('title="Open Standup"');
   });
 
+  it("turns an opened-thread receipt into a button that opens that thread", () => {
+    const markup = render(chip({
+      tool: { name: "Opened thread #QA PR 245 on Scout", ok: true },
+      threadRef: { botId: "scout", threadId: "qa-245", title: "QA PR 245" },
+    }));
+    expect(markup).toContain("<button");
+    expect(markup).toContain("Opened thread #QA PR 245 on Scout");
+    expect(markup).toContain('title="Open #QA PR 245"');
+  });
+
   it("leaves an ordinary step as a plain pill", () => {
     const markup = render(chip());
     expect(markup).not.toContain("<button");
     expect(markup).toContain("Posted in Standup");
+  });
+
+  it("shows a same-room teammate avatar without adding a navigation button", () => {
+    const message = chip({
+      tool: { name: "Sent to Eli", ok: true },
+      comm: { groupId: "here", withBotId: "eli", withName: "Eli", withColor: "green" },
+    });
+    const markup = renderToStaticMarkup(createElement(StoreProvider, null,
+      createElement(RoomToolChip, { message, roomId: "here" })));
+    expect(markup).toContain("Sent to Eli");
+    expect(markup).toContain('aria-label="Eli"');
+    expect(markup).not.toContain("<button");
   });
 });

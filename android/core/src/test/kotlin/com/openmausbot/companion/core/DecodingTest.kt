@@ -443,4 +443,89 @@ class DecodingTest {
         assertTrue(overview.does.isNotEmpty())
         assertTrue(overview.wont.isNotEmpty())
     }
+
+    @Test
+    fun decodesAThreadOpenedByABotAndOneOpenedByThePerson() {
+        // Newer computers say which bot opened a thread on itself or a
+        // teammate. The captured fixtures predate that, so every thread in
+        // them was opened by the person — and must still decode as such.
+        val opened = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t2","title":"Ship it","createdAt":1,
+               "openedBy":{"botId":"scout","name":"Scout","delegationId":"d1","at":2}}""",
+        )
+        assertEquals(ThreadOpener("scout", "Scout", "d1", 2.0), opened.openedBy)
+
+        val minimal = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t1","title":"","createdAt":1,"openedBy":{"botId":"scout","name":"Scout","at":2}}""",
+        )
+        assertNull(minimal.openedBy?.delegationId)
+
+        val byThePerson = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t1","title":"","createdAt":1}""",
+        )
+        assertNull(byThePerson.openedBy)
+        decodeFixture<Fleet>("bots-paged").bots.flatMap { it.tasks.orEmpty() }.forEach { task ->
+            assertNull(task.openedBy, task.threadId)
+        }
+    }
+
+    @Test
+    fun decodesAThreadABotClosedAndOneStillOpen() {
+        // close_thread stamps who closed a thread; an open thread — and every
+        // thread from an older computer — has no stamp and decodes as open.
+        val closed = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t2","title":"Ship it","createdAt":1,
+               "openedBy":{"botId":"pm","name":"Parker","at":2},
+               "closedBy":{"botId":"pm","name":"Parker","at":9}}""",
+        )
+        assertEquals(ThreadCloser("pm", "Parker", 9.0), closed.closedBy)
+        assertTrue(closed.isClosed)
+        assertEquals("closed by Parker", closed.bylineLabel)
+
+        val open = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t1","title":"","createdAt":1,"openedBy":{"botId":"pm","name":"Parker","at":2}}""",
+        )
+        assertNull(open.closedBy)
+        assertFalse(open.isClosed)
+        assertEquals("opened by Parker", open.bylineLabel)
+        assertNull(CompanionJson.decodeFromString<BotTask>("""{"threadId":"t1","title":"","createdAt":1}""").bylineLabel)
+        decodeFixture<Fleet>("bots-paged").bots.flatMap { it.tasks.orEmpty() }.forEach { task ->
+            assertFalse(task.isClosed, task.threadId)
+        }
+    }
+
+    @Test
+    fun aThreadOpenedByABotSaysSoInTheList() {
+        // Same words as the desktop's thread list, so a person reading both
+        // screens reads one sentence.
+        val opened = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t2","title":"Ship it","createdAt":1,"openedBy":{"botId":"scout","name":"Scout","at":2}}""",
+        )
+        assertEquals("opened by Scout", opened.openedByLabel)
+
+        val byThePerson = CompanionJson.decodeFromString<BotTask>(
+            """{"threadId":"t1","title":"","createdAt":1}""",
+        )
+        assertNull(byThePerson.openedByLabel)
+    }
+
+    @Test
+    fun decodesAThreadRefOnAnActivityChipAndItsAbsence() {
+        val chip = CompanionJson.decodeFromString<Message>(
+            """{"id":"m3","role":"bot","kind":"activity","at":1,
+               "tool":{"name":"Opened thread #Ship it on Scout","ok":true},
+               "threadRef":{"botId":"scout","threadId":"t2","title":"Ship it"}}""",
+        )
+        assertEquals(Message.Kind.ACTIVITY, chip.kind)
+        assertEquals("Opened thread #Ship it on Scout", chip.tool?.name)
+        assertEquals(ThreadRef("scout", "t2", "Ship it"), chip.threadRef)
+
+        val receipt = CompanionJson.decodeFromString<Message>(
+            """{"id":"m4","role":"bot","kind":"activity","at":1,"tool":{"name":"Read","ok":true}}""",
+        )
+        assertNull(receipt.threadRef)
+        decodeFixture<ThreadPage>("thread-page").messages.forEach { message ->
+            assertNull(message.threadRef, message.id)
+        }
+    }
 }

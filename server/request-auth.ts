@@ -345,7 +345,18 @@ export function resolveRequestAuth(req: IncomingMessage, options: ResolveOptions
     if (!session.scopes.includes(needed)) {
       return deny(403, `forbidden: this session lacks the ${needed} scope`);
     }
+    // Only a request that passed both checks counts as use of the session,
+    // and only a request the client made itself: redeeming a stream ticket
+    // is the tail of an API call that already counted, and a stream left
+    // open unattended must not keep a session alive on its own.
+    if (via !== "ticket") options.sessions.renew(session.id);
     return { auth: { kind: "session", session, via, scopes: session.scopes }, status: 401, error: "" };
+  }
+
+  // A removed email member must not become the loopback owner merely because
+  // their now-invalid cookie or bearer was presented to a local address.
+  if (via) {
+    return deny(401, "unauthorized: this session has expired or was revoked; pair this device again");
   }
 
   const proxied = isProxied(req);
@@ -371,9 +382,6 @@ export function resolveRequestAuth(req: IncomingMessage, options: ResolveOptions
     return { auth: { kind: "loopback", scopes: LOOPBACK_SCOPES }, status: 401, error: "" };
   }
 
-  if (via) {
-    return deny(401, "unauthorized: this session has expired or was revoked; pair this device again");
-  }
   if (proxied) {
     return deny(403, "forbidden: this request came through a proxy (pair this device to use the server remotely)");
   }

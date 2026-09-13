@@ -341,7 +341,7 @@ describe("peer comms from a room turn", () => {
 });
 
 describe("a room turn and the teammates outside the room", () => {
-  it("tells the bot who its @mentions cannot reach, and shows a mention that missed", async () => {
+  it("routes room work through target discovery, keeps mentions local, and shows a mention that missed", async () => {
     const speaker = await makeBot("Room Speaker", "Reach", "mentioner");
     const inside = await makeBot("Room Inside", "Reach");
     const outside = await makeBot(OUTSIDE_BOT, "Reach");
@@ -358,11 +358,13 @@ describe("a room turn and the teammates outside the room", () => {
     // that shape fails the assertions below rather than the parse.
     const dump = JSON.parse(readFileSync(mentionerDump, "utf8")) as { systemPrompt?: string };
     const system = String(dump.systemPrompt ?? "");
-    // the room turn is told who an @mention cannot reach, and how to reach them
-    expect(system).toContain("An @mention only reaches the members of this room");
-    expect(system).toContain(`- ${OUTSIDE_BOT} — General assistant (available)`);
-    expect(system).toContain("ask_bot");
-    // room members are the @mention roster, not this one; other sections stay unseen
+    // Ordinary rooms have one coordination path. Discovery supplies eligible
+    // room IDs; a plain mention still cannot silently summon an outside bot.
+    expect(system).toContain("Plain @mentions are only for conversational replies in this room");
+    expect(system).toContain("list_room_targets");
+    expect(system).toContain("coordinate_bots");
+    expect(system).not.toContain("ask_bot");
+    // Do not duplicate the peer catalog in the prompt; other sections stay unseen.
     expect(system).not.toContain("- Room Inside — General assistant");
     expect(system).not.toContain("Elsewhere Bot");
 
@@ -743,8 +745,8 @@ describe("post_to_room", () => {
     expect(attendedPost.peerPost).toBeTruthy();
     expect(attendedPost.peerPost?.unattended).toBeUndefined();
 
-    // a webhook turn is the harness's definition of "nobody is watching",
-    // and the mark rides the bot from there
+    // A webhook creates an independent unattended thread. Its mark must
+    // follow that thread, without contaminating the bot's attended sibling.
     const hook = await api("POST", "/api/webhooks", {
       name: "Nightly",
       prompt: "Handle the incoming event",
@@ -758,15 +760,23 @@ describe("post_to_room", () => {
       body: JSON.stringify({ status: "failed" }),
     });
     expect(delivered.status).toBe(202);
+    const { runId } = await delivered.json() as { runId: string };
+    let automatedThreadId = "";
     await expect.poll(async () => {
-      const bots = field((await api("GET", "/api/bots")).body, "bots");
-      const record = Array.isArray(bots)
-        ? bots.find((bot) => str(field(bot as Record<string, unknown>, "id")) === automated.id)
+      const runs = field((await api("GET", "/api/routines")).body, "runs");
+      const record = Array.isArray(runs)
+        ? runs.find((run) => str(field(run as Record<string, unknown>, "id")) === runId)
         : undefined;
-      return field(record as Record<string, unknown>, "busy") === false;
-    }, { timeout: 30_000 }).toBe(true);
+      automatedThreadId = str(field(record as Record<string, unknown>, "threadId"));
+      return field(record as Record<string, unknown>, "status");
+    }, { timeout: 30_000 }).toBe("completed");
+    expect(automatedThreadId).toBeTruthy();
+    expect(automatedThreadId).not.toBe(automated.threadId);
 
-    const posted = await post(automated.id, automated.threadId, automatedRoom.id, "the nightly build failed");
+    expect((await post(automated.id, automated.threadId, attendedRoom.id, "the attended sibling is independent")).status).toBe(201);
+    expect((await messagesOf(attendedRoom.threadId)).at(-1)?.peerPost?.unattended).toBeUndefined();
+
+    const posted = await post(automated.id, automatedThreadId, automatedRoom.id, "the nightly build failed");
     expect(posted.status, JSON.stringify(posted.body)).toBe(201);
     const automatedPost = (await messagesOf(automatedRoom.threadId))[0];
     expect(automatedPost.peerPost?.unattended, "the unattended mark did not reach the post").toBe(true);

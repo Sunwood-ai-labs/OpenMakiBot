@@ -76,9 +76,27 @@ data class OptionCard(
     val allowKey: String? = null,
     /** Learned skills require a complete, hash-bound review before approval. */
     val skillRequest: SkillRequestCardData? = null,
+    /**
+     * The model's own questions and options (Claude's `AskUserQuestion`).
+     * Present only on a structured ask; every other card leaves it null.
+     */
+    val questionRequest: QuestionRequestCardData? = null,
+    /**
+     * What an answered question was answered WITH. `answered` only records the
+     * behavior once the harness settles a live ask, so without this a settled
+     * question card would read "answer" instead of the reply.
+     */
+    val answeredText: String? = null,
 ) {
     val isPending: Boolean get() = requestId != null && answered == null && dismissed != true
     val isPermission: Boolean get() = tool != null
+
+    /**
+     * A structured ask draws its own card: the model posed real questions with
+     * real options, and a flat row of buttons cannot say which question a tap
+     * answered.
+     */
+    val questions: List<AskQuestion> get() = questionRequest?.questions.orEmpty()
 
     fun responseBehavior(choice: String): String = responseBehavior(choice, isPermission)
 
@@ -123,6 +141,18 @@ data class ToolActivity(
     val setup: Boolean? = null,
 )
 
+/**
+ * The thread an activity chip opened — "Opened thread #Title on Scout" — so
+ * the phone can go there. Newer computers only; a chip without one is just a
+ * receipt.
+ */
+@Serializable
+data class ThreadRef(
+    val botId: String,
+    val threadId: String,
+    val title: String,
+)
+
 @Serializable
 data class Sender(
     val botId: String,
@@ -150,6 +180,7 @@ data class Message(
     val text: String? = null,
     val card: OptionCard? = null,
     val tool: ToolActivity? = null,
+    val threadRef: ThreadRef? = null,
     val parentId: String? = null,
     val from: Sender? = null,
     val reactions: List<Reaction>? = null,
@@ -218,8 +249,68 @@ data class ModelSelection(
     val effort: String? = null,
 )
 
+/**
+ * The bot that opened a thread, on itself or on a teammate. Absent — which is
+ * every thread from an older computer — means the person opened it.
+ */
 @Serializable
-data class BotTask(val threadId: String, val title: String, val createdAt: Double)
+data class ThreadOpener(
+    val botId: String,
+    val name: String,
+    val delegationId: String? = null,
+    val at: Double,
+)
+
+/**
+ * The bot that closed a thread with close_thread, once its result was read.
+ * Absent means the thread is open; the computer clears it the moment a new
+ * turn starts there, so a reopened thread simply loses the stamp.
+ */
+@Serializable
+data class ThreadCloser(
+    val botId: String,
+    val name: String,
+    val at: Double,
+)
+
+/** A folder within one bot, in the order saved on the computer. */
+@Serializable
+data class BotProject(val id: String, val name: String, val emoji: String? = null)
+
+@Serializable
+data class BotTask(
+    val threadId: String,
+    val title: String,
+    val createdAt: Double,
+    val modelSelection: ModelSelection? = null,
+    val activity: String? = null,
+    val busy: Boolean? = null,
+    val unread: Boolean? = null,
+    val approvalMode: String? = null,
+    val autoApprove: Boolean? = null,
+    val alwaysAllow: List<String>? = null,
+    val projectId: String? = null,
+    val openedBy: ThreadOpener? = null,
+    val closedBy: ThreadCloser? = null,
+    /** Bot-only internal execution. Keep it addressable, but out of thread pickers. */
+    val routineRunId: String? = null,
+)
+
+/** The thread list's quiet second line, worded as the desktop words it. */
+val BotTask.openedByLabel: String?
+    get() = openedBy?.let { "opened by ${it.name}" }
+
+/** A bot closed this thread and nothing has happened there since. */
+val BotTask.isClosed: Boolean
+    get() = closedBy != null
+
+/**
+ * The one line under a title: who closed it once a bot has, otherwise who
+ * opened it, otherwise nothing. Closed wins because it is the newer fact and
+ * the reason the row is dimmed.
+ */
+val BotTask.bylineLabel: String?
+    get() = closedBy?.let { "closed by ${it.name}" } ?: openedByLabel
 
 @Serializable
 data class Bot(
@@ -236,6 +327,7 @@ data class Bot(
     val avatarUrl: String? = null,
     val avatarCrop: AvatarCrop? = null,
     val busy: Boolean? = null,
+    val activity: String? = null,
     val pinned: Boolean? = null,
     val hidden: Boolean? = null,
     /** Desktop sidebar section. Missing or blank means the built-in Bots area. */
@@ -259,7 +351,28 @@ data class Bot(
     val messages: List<Message>? = null,
     val activeLeafId: String? = null,
     val hasMore: Boolean? = null,
+    val projects: List<BotProject>? = null,
 )
+
+/** Project only task-local controls; the original fleet record stays profile-global. */
+fun Bot.forTask(requestedThreadId: String): Bot? {
+    val task = tasks?.firstOrNull { it.threadId == requestedThreadId }
+    if (task == null) return takeIf { threadId == requestedThreadId }
+    val selected = threadId == requestedThreadId
+    return copy(
+        threadId = requestedThreadId,
+        modelSelection = task.modelSelection ?: modelSelection,
+        busy = task.busy ?: if (selected) busy else false,
+        activity = task.activity ?: if (selected) activity else null,
+        unread = task.unread ?: if (selected) unread else false,
+        approvalMode = task.approvalMode ?: task.autoApprove?.let { if (it) "auto" else "ask" } ?: approvalMode,
+        autoApprove = task.autoApprove ?: autoApprove,
+        alwaysAllow = task.alwaysAllow ?: alwaysAllow,
+        messages = if (selected) messages else null,
+        activeLeafId = if (selected) activeLeafId else null,
+        hasMore = if (selected) hasMore else null,
+    )
+}
 
 @Serializable(with = AvatarCropSerializer::class)
 enum class AvatarCrop { MASCOT, CIRCLE, ROUNDED, SQUARE }
@@ -337,7 +450,7 @@ object FleetSerializer : KSerializer<Fleet> {
 }
 
 @Serializable
-data class ThreadPage(val messages: List<Message>, val hasMore: Boolean? = null)
+data class ThreadPage(val messages: List<Message>, val hasMore: Boolean? = null, val activeLeafId: String? = null)
 
 @Serializable
 data class SearchHit(

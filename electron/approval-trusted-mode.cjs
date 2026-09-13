@@ -2,13 +2,13 @@
 
 const BOT_ID = /^[A-Za-z0-9_-]{1,120}$/;
 const REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const APPROVAL_MODES = new Set(["ask", "auto", "full", "custom"]);
+const APPROVAL_MODES = new Set(["ask", "edits", "auto", "full", "custom"]);
 
 function plainObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
 }
 
-function trustedApprovalModeRequest(requestId, botId, mode, acknowledgeLocalAuto = false) {
+function trustedApprovalModeRequest(requestId, botId, mode, acknowledgeLocalAuto = false, threadId, modelSelection, updateBotDefault) {
   if (typeof requestId !== "string" || !REQUEST_ID.test(requestId)) {
     throw new Error("invalid trusted approval-mode request id");
   }
@@ -19,12 +19,23 @@ function trustedApprovalModeRequest(requestId, botId, mode, acknowledgeLocalAuto
   if (typeof acknowledgeLocalAuto !== "boolean") {
     throw new Error("invalid local Auto acknowledgement");
   }
+  if (modelSelection !== undefined && (mode !== "ask" || !plainObject(modelSelection) ||
+    typeof modelSelection.instanceId !== "string" || typeof modelSelection.model !== "string" ||
+    typeof updateBotDefault !== "boolean" || threadId === undefined)) {
+    throw new Error("invalid confirmed model switch");
+  }
+  if (threadId !== undefined && (typeof threadId !== "string" || !BOT_ID.test(threadId) ||
+    (mode !== "full" && mode !== "custom" && modelSelection === undefined))) {
+    throw new Error("invalid thread for trusted approval mode");
+  }
   return {
     type: "approval-trusted-mode-set",
     requestId,
     botId,
     mode,
     ...(acknowledgeLocalAuto ? { acknowledgeLocalAuto: true } : {}),
+    ...(threadId !== undefined ? { threadId } : {}),
+    ...(modelSelection !== undefined ? { modelSelection, updateBotDefault } : {}),
   };
 }
 
@@ -104,8 +115,8 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000 } =
   const usedRequestIds = new Set();
   const latestRequestByBot = new Map();
 
-  function nextMessage(botId, mode, acknowledgeLocalAuto = false) {
-    const message = trustedApprovalModeRequest(randomId(), botId, mode, acknowledgeLocalAuto);
+  function nextMessage(botId, mode, acknowledgeLocalAuto = false, threadId, modelSelection, updateBotDefault) {
+    const message = trustedApprovalModeRequest(randomId(), botId, mode, acknowledgeLocalAuto, threadId, modelSelection, updateBotDefault);
     if (usedRequestIds.has(message.requestId)) {
       throw new Error("Trusted approval-mode request id was reused");
     }
@@ -128,7 +139,7 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000 } =
     }
     let message;
     try {
-      message = nextMessage(botId, mode, options.acknowledgeLocalAuto ?? false);
+      message = nextMessage(botId, mode, options.acknowledgeLocalAuto ?? false, options.threadId, options.modelSelection, options.updateBotDefault);
     } catch (error) {
       return Promise.reject(error);
     }
@@ -148,6 +159,7 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000 } =
         proc,
         botId: message.botId,
         mode: message.mode,
+        modelThreadId: message.modelSelection ? message.threadId : undefined,
         resolve,
         reject,
         timer,
@@ -286,7 +298,10 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000 } =
       settle(result.requestId, ({ reject }) => reject(new Error(result.error)));
       return true;
     }
-    if (result.bot.id !== waiting.botId || result.bot.approvalMode !== waiting.mode) {
+    const resultMode = waiting.modelThreadId
+      ? result.bot.tasks?.find((task) => task.threadId === waiting.modelThreadId)?.approvalMode
+      : result.bot.approvalMode;
+    if (result.bot.id !== waiting.botId || resultMode !== waiting.mode) {
       failAmbiguously(result.requestId, new Error("Approval-mode result did not match the request"));
       return true;
     }
