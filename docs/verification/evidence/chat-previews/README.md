@@ -203,3 +203,30 @@ diagnostic instrumentation, not a claimed root-cause fix. A local run including
 shared-computer unit/end-to-end tests and team-setup tests passed all 32 tests
 in 22.80 seconds. The independently reproduced team-setup starter-name
 collision repair was imported from `5bf7667c` with its existing-bot protections.
+
+The diagnostic CI run `34765229040` subsequently identified `run_command` as the
+pending action; the connector remained connected and its lease calls returned
+HTTP 200 every second. A disposable Windows runner isolated PowerShell startup
+from command/module execution:
+
+| Windows probe | Observed result |
+| --- | --- |
+| Original production `sharedCommand` | Still pending at the 12-second probe deadline |
+| Original environment with script-entry marker | Entered at 220ms, stalled at `echo` |
+| Direct .NET console output (no cmdlet) | Completed at 219ms |
+| Adding only `WINDIR` or only `COMSPEC` | Still pending at each 10-second deadline |
+| Adding only `PSModulePath` | `echo` and process exit completed at 570ms |
+
+[Original Windows probe](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/34767172079).
+The repair retains `PSModulePath` in the Windows shell environment; the allowlist
+continues to exclude provider credentials and startup-injection variables.
+Production and MCP timeouts remain unchanged.
+
+[Repaired Windows probe](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/34767370035)
+completed the actual repaired `sharedCommand` at 4,073ms on a fresh runner and
+passed all eight shared-access Node tests, including real terminal cancellation
+and environment-boundary assertions. Its unchanged raw baseline still stalled,
+while adding `PSModulePath` completed at 265ms. Local validation passed the same
+eight Node tests plus nine shared-computer unit/end-to-end tests, typecheck and
+lint. The separate diagnostic branch/workflow stays out of the upstream PR.
+The full three-OS PR CI still needs to confirm the repair in the entire suite.
