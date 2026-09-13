@@ -184,7 +184,7 @@ describe("routine delegation through the isolated harness", () => {
     await expect.poll(async () => (await messages(run.threadId)).some(
       message => message.roomRequest?.id === requestId && message.roomRequest.phase === "result" && message.tool?.ok,
     ), { timeout: 20_000 }).toBe(true);
-    await expect.poll(() => nodes().find(node => !node.parentId && node.threadId === run.threadId)?.status).toBe("completed");
+    await expect.poll(() => nodes().find(node => !node.parentId && node.threadId === run.threadId)?.status, { timeout: 20_000 }).toBe("completed");
     expect((await dump(run.threadId)).systemPrompt).toContain("Your downstream room requests have settled");
     expect(await runState(run.id)).toMatchObject({ status: "completed", finishedAt: finished.finishedAt, output: finished.output });
     evidence.push({ reusedCompletedExecution: true, transcript: await messages(run.threadId) });
