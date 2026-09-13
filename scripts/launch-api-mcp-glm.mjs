@@ -26,7 +26,7 @@ for(const [key,value]of Object.entries(process.env))if(['SYSTEMROOT','WINDIR','C
 Object.assign(env,{HOME:home,USERPROFILE:home,APPDATA:join(home,'AppData','Roaming'),LOCALAPPDATA:join(home,'AppData','Local'),XDG_CONFIG_HOME:join(home,'.config'),XDG_CACHE_HOME:join(home,'.cache'),XDG_DATA_HOME:join(home,'.local','share'),TEMP:join(home,'tmp'),TMP:join(home,'tmp'),TMPDIR:join(home,'tmp'),HERMES_HOME:join(home,'.hermes'),OMB_DATA_DIR:home,OMB_PORT:new URL(fixture.info.url).port,OMB_WEBHOOK_PORT:String(Number(new URL(fixture.info.url).port)+1),PATH:dirname(process.execPath)});
 const log=openSync(fixture.info.logPath,'a');
 const child=spawn(process.execPath,['--experimental-strip-types','server/index.ts'],{cwd:resolve('.'),env,stdio:['ignore',log,log],windowsHide:true});closeSync(log);
-const out=resolve('docs/verification/evidence/upstream-sync-20260913/glm');mkdirSync(out,{recursive:true});
+const out=resolve(process.env.OMB_EVIDENCE_DIR || 'docs/verification/evidence/upstream-sync-20260913/glm');mkdirSync(out,{recursive:true});
 writeFileSync(join(out,'fixture.json'),JSON.stringify({...fixture.info,pid:child.pid,driver:'claudeAgent',cli,version:execFileSync(cli,['--version'],{encoding:'utf8',windowsHide:true}).trim(),model:'glm-5.3',providerOrigin:new URL(provider.ANTHROPIC_BASE_URL).origin},null,2));
 function proof(){
  const models=[];
@@ -38,3 +38,4 @@ async function close(){if(closing)return;closing=true;proof();await waitForExit(
 process.on('SIGINT',close);process.on('SIGTERM',close);
 createInterface({input:process.stdin}).on('line',line=>{if(line.trim()==='stop')void close();if(line.trim()==='proof')proof();});
 console.log(JSON.stringify({...fixture.info,pid:child.pid,model:'CC GLM-5.3'}));
+

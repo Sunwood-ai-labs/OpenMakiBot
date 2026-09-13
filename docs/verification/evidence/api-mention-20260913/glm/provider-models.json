@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "model": "glm-5.3",
+      "role": "assistant",
+      "sessionId": "4933054e-500b-4c0d-b62b-7ab892459afa"
+    },
+    {
+      "model": "glm-5.3",
+      "role": "assistant",
+      "sessionId": "bcc67410-4570-489b-b293-60ce8e33e544"
+    },
+    {
+      "model": "glm-5.3",
+      "role": "assistant",
+      "sessionId": "bcc67410-4570-489b-b293-60ce8e33e544"
+    }
+  ]
+}

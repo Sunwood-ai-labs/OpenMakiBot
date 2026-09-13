@@ -1,0 +1,103 @@
+- complementary "ボットとナビゲーション":
+  - button "サイドバーをアバターだけに畳む":
+  - button "サイドバーの表示密度を選ぶ"
+  - button "新規または共有":
+  - textbox "ボットとメッセージを検索":
+    - /placeholder: 検索
+  - button "Group chats" [expanded]:
+    - generic: Group chats
+  - button "API検証Bot MCP検証Bot API・MCP会議実験" [active]:
+    - img "API検証Bot"
+    - img "MCP検証Bot"
+    - generic: API・MCP会議実験
+  - button "Collapse API・MCP会議実験 threads" [expanded]:
+  - group "API・MCP会議実験 threads":
+    - button "@API検証Bot 137+286はいくつですか？日本語で短く答えてください。":
+      - generic: "@API検証Bot 137+286はいくつですか？日本語で短く答えてください。"
+    - button "Actions for @API検証Bot 137+286はいくつですか？日本語で短く答えてください。":
+    - button "新しいスレッド":
+      - text: 新しいスレッド
+  - button "ボット" [expanded]:
+    - generic: ボット
+  - button "MCP検証Bot MCP検証Bot の名前を変更 Hi, I'm MCP検証Bot. What would you like me to do?":
+    - img "MCP検証Bot"
+    - button "MCP検証Bot の名前を変更": MCP検証Bot
+    - generic: Hi, I'm MCP検証Bot. What would you like me to do?
+  - button "Expand MCP検証Bot threads":
+  - button "New folder under MCP検証Bot":
+  - button "Actions for MCP検証Bot":
+  - button "API検証Bot API検証Bot の名前を変更 Hi, I'm API検証Bot. What would you like me to do?":
+    - img "API検証Bot"
+    - button "API検証Bot の名前を変更": API検証Bot
+    - generic: Hi, I'm API検証Bot. What would you like me to do?
+  - button "Expand API検証Bot threads":
+  - button "New folder under API検証Bot":
+  - button "Actions for API検証Bot":
+  - button "Onyx Onyx の名前を変更 Hi, I'm Onyx. What would you like me to do?":
+    - img "Onyx"
+    - button "Onyx の名前を変更": Onyx
+    - generic: Hi, I'm Onyx. What would you like me to do?
+  - button "Expand Onyx threads":
+  - button "New folder under Onyx":
+  - button "Actions for Onyx":
+  - paragraph
+  - button "ツール":
+    - generic: ツール
+  - button "あなた":
+    - generic: "?"
+    - generic: あなた
+- main:
+  - generic: API・MCP会議実験
+  - button "すべてのスレッド":
+    - generic: すべてのスレッド
+    - generic: "1"
+  - button "会話内を検索":
+  - button "Export conversation":
+  - button "Calls currently need the macOS desktop app":
+  - button "グループの作業フォルダー":
+  - generic "通常のメッセージは MCP検証Bot に届きます。@メンションが優先されます":
+    - combobox "既定の応答者":
+      - 'option "リード: API検証Bot"'
+      - 'option "リード: MCP検証Bot" [selected]'
+      - option "全員が応答"
+      - option "メンションされたときだけ"
+  - button "メンバーを管理 — このグループにボット 2 体":
+    - generic "API検証Bot":
+      - img "API検証Bot"
+    - generic "MCP検証Bot":
+      - img "MCP検証Bot"
+  - button "グループの指示を追加…":
+    - generic: グループの指示を追加…
+  - log "Group chat API・MCP会議実験":
+    - generic: 今日 15:01
+    - button "メッセージに返信":
+    - button "メッセージをピン留め":
+    - generic "2026/9/13 15:01:09":
+      - text: "@API検証Bot 137+286はいくつですか？日本語で短く答えてください。"
+      - generic: Sent through the API, not typed here
+    - generic: 15:01
+    - img "API検証Bot"
+    - generic: API検証Bot
+    - generic "2026/9/13 15:01:15":
+      - paragraph: 423です。
+    - button "メッセージに返信":
+    - button "メッセージをピン留め":
+    - generic: 15:01
+    - button "メッセージに返信":
+    - button "メッセージをピン留め":
+    - generic "2026/9/13 15:01:15":
+      - text: "@API検証Bot さっきの答えを2倍するといくつ？日本語で短く答えてください。"
+      - generic: Sent through the API, not typed here
+    - generic: 15:01
+    - img "API検証Bot"
+    - generic: API検証Bot
+    - generic "2026/9/13 15:01:22":
+      - paragraph: 846です。
+    - button "メッセージに返信":
+    - button "メッセージをピン留め":
+    - generic: 15:01
+  - button "ファイルを添付":
+  - button "みんなで仕上げる":
+    - text: 目標
+  - textbox "API・MCP会議実験 へのメッセージ":
+    - /placeholder: API・MCP会議実験 へのメッセージ — MCP検証Bot が応答します
