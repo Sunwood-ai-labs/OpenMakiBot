@@ -353,6 +353,7 @@ function mimeFor(path: string): string {
     case ".webp": return "image/webp";
     case ".avif": return "image/avif";
     case ".bmp": return "image/bmp";
+    case ".m4v": return "video/x-m4v";
     case ".doc": return "application/msword";
     case ".docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     case ".xls": return "application/vnd.ms-excel";

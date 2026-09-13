@@ -251,6 +251,18 @@ describe("ChatMarkdown attachments", () => {
     expect(html).not.toContain("type=\"button\"");
   });
 
+  it("keeps a download link without a second card when the gallery owns previews", () => {
+    const html = renderToStaticMarkup(createElement(ChatMarkdown, {
+      text: "[Report](./final-report.pdf)",
+      message: { threadId: "thread", messageId: "message" },
+      filePreviews: false,
+    }));
+    expect(html).toContain("Save a copy");
+    expect(html).toContain("Report");
+    expect(html).not.toContain('aria-label="Preview final-report.pdf"');
+    expect(html).not.toContain("group/file");
+  });
+
   it("opens a message-authorized PDF link in a preview", () => {
     const html = renderToStaticMarkup(createElement(ChatMarkdown, {
       text: "[Download the report](/workspace/final-report.pdf)",

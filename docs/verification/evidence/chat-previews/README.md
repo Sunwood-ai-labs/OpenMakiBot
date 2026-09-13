@@ -146,3 +146,43 @@ failing OpenRouter UI case then passed alone (33.80 seconds), including clean
 exit zero and fixture-data removal. The other case was excluded by the test-name
 filter; it passed in the preceding run. New canvas/shared-computers fixture
 verification is coordinated with the shared test-repair task.
+
+
+### Integrating the upstream attachment gallery
+
+Upstream `f073be30` introduces message-level attachment galleries. The integration
+keeps those collections and places preview cards inside them. Direct/group chat
+Markdown keeps its download links but does not render duplicate cards. Standalone
+Markdown retains inline previews. Legacy files and the upstream M4V fallback keep
+their existing explicit download/load behavior. MIME handling keeps AVIF, BMP,
+and all four upstream video types without duplicate switch cases.
+
+- [Before: upstream gallery fixture](gallery-before.png)
+- [After: gallery with preview cards](gallery-after.png)
+- [390px layout](gallery-mobile.png)
+
+The before image uses the upstream chat-polish fixture at `f073be30`; the after
+images use the preview fixture with synthetic PDF/XLSX/PPTX/image/video assets.
+They demonstrate the respective layouts, rather than identical message content.
+Both use the real renderer and disposable fake-engine servers.
+
+Observed in the production preview build: PDF page 2, spreadsheet Checks sheet
+and literal HTML cell text, slide 2, and video advancing from a paused 0.1-second
+poster frame to its 3-second end after a click. All five extension badges appear.
+The chat Markdown contains zero duplicate preview cards. At width 390 the document
+scroll width is 390, and no browser console errors were recorded. Preview downloads
+remain available in each document dialog.
+
+Typecheck, production build, lint, and 10-language locale checks pass. The gallery
+and Markdown suites pass 54 tests, including the new no-duplicate regression.
+The changed gallery expectations now assert preview/play actions and extension
+badges while retaining count, lazy image, no-video-at-SSR, and no-filesystem-URL
+assertions. The real server/driver and tool-summary suites pass 320 tests with
+two existing skips. The preceding ten-file focused run passed 139 tests and failed
+the old gallery-label expectation plus local Windows symlink creation; the gallery
+expectation was updated for the new UI and rechecked, while the security test is
+retained unchanged for CI.
+
+The production preview fixture reports `cleaned: true`. The comparison launcher
+lost writable stdin; automatic approval review rejected manual cleanup, so that
+local cleanup is not claimed complete. No live app or user data was used.
