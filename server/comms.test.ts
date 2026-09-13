@@ -250,6 +250,9 @@ describe("comms e2e (fake ACP fleet)", () => {
     plan[target.id] = { delayMs: 4000, reply: "Existing work" };
     await start(target, "Existing work"); await start(source);
     await respond(source, await approval(source), "allow");
+    // A queued child can exist while its source still finishes the MCP call.
+    // Reload only after the source yields ownership to the durable coordinator.
+    await expect.poll(() => nodes().find(node => !node.parentId && node.botId === source.id)?.status, { timeout: 15_000 }).toBe("waiting");
     await expect.poll(() => childNode(source, target)?.status).toBe("queued");
     const id = childNode(source, target).id;
     await api("PUT", "/api/config", { composio: { apiKey: "" } });
