@@ -1,0 +1,157 @@
+{
+  "passed": true,
+  "model": "CC GLM-5.3",
+  "requests": [
+    {
+      "transport": "HTTP",
+      "text": "@API検証Bot 137+286はいくつですか？日本語で短く答えてください。"
+    },
+    {
+      "transport": "MCP stdio",
+      "text": "@MCP検証Bot API検証Botの答えを2倍するといくつ？日本語で短く答えてください。"
+    }
+  ],
+  "a": {
+    "id": "eb0bdf43-3ed6-4c21-9b44-110606db2e10",
+    "threadId": "ab83f2b4-9528-4cb2-9333-0bd8ae6f2ded",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "glm-5.3",
+      "effort": "low"
+    },
+    "createdAt": 1789281253937,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "ab83f2b4-9528-4cb2-9333-0bd8ae6f2ded",
+        "title": "New thread",
+        "createdAt": 1789281253937,
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "unread": false,
+        "activity": "idle",
+        "busy": false
+      }
+    ],
+    "messages": [
+      {
+        "id": "5e00badc-da63-4028-ba99-4958ac42c777",
+        "at": 1789281253955,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "5e00badc-da63-4028-ba99-4958ac42c777"
+  },
+  "b": {
+    "id": "8d99ba0d-9640-4f25-a3c8-068773dd7f29",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "glm-5.3",
+      "effort": "low"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "a14b42c3-eefd-4f02-9046-28ee5c0a1b6e",
+    "tasks": [
+      {
+        "taskId": "a14b42c3-eefd-4f02-9046-28ee5c0a1b6e",
+        "title": "New thread",
+        "createdAt": 1789281254530,
+        "busy": false,
+        "activity": "idle",
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "active": true
+      }
+    ]
+  },
+  "group": {
+    "channel": {
+      "id": "d4f12179-8aca-4418-b64f-57dd14925327",
+      "name": "API・MCP会議実験",
+      "memberIds": [
+        "eb0bdf43-3ed6-4c21-9b44-110606db2e10",
+        "8d99ba0d-9640-4f25-a3c8-068773dd7f29"
+      ],
+      "bulletin": "",
+      "defaultResponder": {
+        "kind": "mentions"
+      },
+      "section": null,
+      "directMessage": false,
+      "working": false,
+      "busyBotId": null,
+      "activeTaskId": "8cbb65a0-59e5-40c0-a08a-d38130c5385c",
+      "tasks": [
+        {
+          "taskId": "8cbb65a0-59e5-40c0-a08a-d38130c5385c",
+          "title": "@API検証Bot 137+286はいくつですか？日本語で短く答えてください。",
+          "createdAt": 1789281254555,
+          "active": true
+        }
+      ]
+    },
+    "taskId": "8cbb65a0-59e5-40c0-a08a-d38130c5385c",
+    "messages": [
+      {
+        "id": "1bf8511b-8698-42c1-9598-b3fb7259e22b",
+        "at": 1789281255595,
+        "role": "user",
+        "kind": "text",
+        "text": "@API検証Bot 137+286はいくつですか？日本語で短く答えてください。"
+      },
+      {
+        "id": "6631dc4f-c1f9-479d-b808-6e0d4b7fe89a",
+        "at": 1789281261710,
+        "role": "bot",
+        "kind": "text",
+        "text": "423です。",
+        "from": {
+          "botId": "eb0bdf43-3ed6-4c21-9b44-110606db2e10",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "17b1ac3f-82ba-432f-bf03-73e0d2165902",
+        "at": 1789281261789,
+        "role": "user",
+        "kind": "text",
+        "text": "@MCP検証Bot API検証Botの答えを2倍するといくつ？日本語で短く答えてください。"
+      },
+      {
+        "id": "15e63656-3b68-4569-b76f-084bb45b39f2",
+        "at": 1789281267084,
+        "role": "bot",
+        "kind": "text",
+        "text": "846です。",
+        "from": {
+          "botId": "8d99ba0d-9640-4f25-a3c8-068773dd7f29",
+          "name": "MCP検証Bot",
+          "color": "red"
+        }
+      }
+    ],
+    "hasMore": false
+  }
+}

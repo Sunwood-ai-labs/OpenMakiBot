@@ -1,0 +1,104 @@
+{
+  "url": "http://127.0.0.1:21301",
+  "a": {
+    "id": "eb0bdf43-3ed6-4c21-9b44-110606db2e10",
+    "threadId": "ab83f2b4-9528-4cb2-9333-0bd8ae6f2ded",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "glm-5.3",
+      "effort": "low"
+    },
+    "createdAt": 1789281253937,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "ab83f2b4-9528-4cb2-9333-0bd8ae6f2ded",
+        "title": "New thread",
+        "createdAt": 1789281253937,
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "unread": false,
+        "activity": "idle",
+        "busy": false
+      }
+    ],
+    "messages": [
+      {
+        "id": "5e00badc-da63-4028-ba99-4958ac42c777",
+        "at": 1789281253955,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "5e00badc-da63-4028-ba99-4958ac42c777"
+  },
+  "b": {
+    "id": "8d99ba0d-9640-4f25-a3c8-068773dd7f29",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "glm-5.3",
+      "effort": "low"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "a14b42c3-eefd-4f02-9046-28ee5c0a1b6e",
+    "tasks": [
+      {
+        "taskId": "a14b42c3-eefd-4f02-9046-28ee5c0a1b6e",
+        "title": "New thread",
+        "createdAt": 1789281254530,
+        "busy": false,
+        "activity": "idle",
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "active": true
+      }
+    ]
+  },
+  "room": {
+    "id": "d4f12179-8aca-4418-b64f-57dd14925327",
+    "name": "API・MCP会議実験",
+    "memberIds": [
+      "eb0bdf43-3ed6-4c21-9b44-110606db2e10",
+      "8d99ba0d-9640-4f25-a3c8-068773dd7f29"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "eb0bdf43-3ed6-4c21-9b44-110606db2e10"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "8cbb65a0-59e5-40c0-a08a-d38130c5385c",
+    "tasks": [
+      {
+        "taskId": "8cbb65a0-59e5-40c0-a08a-d38130c5385c",
+        "title": "New task",
+        "createdAt": 1789281254555,
+        "active": true
+      }
+    ],
+    "threadId": "8cbb65a0-59e5-40c0-a08a-d38130c5385c"
+  }
+}
