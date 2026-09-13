@@ -65,6 +65,7 @@ export function ApprovalCard({
   const isRoutineRequest = Boolean(card.routineRequest);
   const isSkillRequest = Boolean(card.skillRequest);
   const isProfileRequest = Boolean(card.profileRequest);
+  const isTeamSetup = Boolean(card.teamSetupRequest);
   const routineAction = card.routineRequest?.operation.action;
   const skillAction = card.skillRequest?.action;
   const heldNote = tFromServer(card.heldCode, card.held);
@@ -92,6 +93,7 @@ export function ApprovalCard({
 
   return (
     <div
+      data-tour={settled ? undefined : "approval"}
       className={cn(
         "w-full max-w-[840px] rounded-2xl border bg-card p-4",
         settled ? "border-hairline/30 opacity-70" : "border-accent/40",
@@ -99,7 +101,7 @@ export function ApprovalCard({
     >
       <div className="flex items-baseline justify-between gap-3">
         <div className="text-[15px] font-semibold text-ink">
-          {profileHeader ?? (
+          {isTeamSetup ? card.title : profileHeader ?? (
             <>
               {bot
                 ? t("approval.card.namedWantsTo", { name: bot.name, action: toolLabel(displayTool) })
@@ -107,7 +109,7 @@ export function ApprovalCard({
             </>
           )}
         </div>
-        {displayTool && <span className="shrink-0 font-mono text-[11px] text-ink-secondary">{displayTool}</span>}
+        {displayTool && !isTeamSetup && <span className="shrink-0 font-mono text-[11px] text-ink-secondary">{displayTool}</span>}
       </div>
 
       {/* what, exactly */}
@@ -141,7 +143,7 @@ export function ApprovalCard({
         {settled === "allow" ? (
           <>
             <Check size={14} className="text-success" />
-            {skillSettledLabel ??
+            {isTeamSetup ? (card.teamSetupRequest?.deletion ? "Bot deleted" : "Team setup applied") : skillSettledLabel ??
               routineSettledLabel ??
               (isProfileRequest
                 ? t("approval.status.profileUpdated")
@@ -153,14 +155,14 @@ export function ApprovalCard({
           </>
         ) : settled ? (
           <>
-            <X size={14} /> {isRoutineRequest || isSkillRequest || isProfileRequest
+            <X size={14} /> {isRoutineRequest || isSkillRequest || isProfileRequest || isTeamSetup
               ? t("approval.status.cancelled")
               : t("approval.status.denied")}
           </>
         ) : (
           <>
             <ShieldCheck size={14} className="text-accent" />
-            {isRoutineRequest || isSkillRequest || isProfileRequest
+            {isRoutineRequest || isSkillRequest || isProfileRequest || isTeamSetup
               ? t("approval.status.waitingConfirmation")
               : t("approval.status.waitingAnswer")}
           </>

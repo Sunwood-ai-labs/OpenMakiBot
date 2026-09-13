@@ -17,6 +17,8 @@ import {
   type Message,
 } from "@/state/store";
 import { BotAvatar } from "./Avatar";
+import { ThreadChip } from "./ThreadChip";
+import { ThreadRefText } from "./ThreadRefs";
 import { TurnPresence } from "./TurnPresence";
 import { showToolCallsEnabled } from "@/lib/feature-flags";
 import { roomActivityVisible } from "@/lib/room-activity";
@@ -33,9 +35,11 @@ import { SecretRequestCard } from "./SecretRequestCard";
 import { hasRoutineExecutionTask, RoutineRunCard } from "./RoutineRunCard";
 import { GoalRunCard } from "./GoalRunCard";
 import { AttachedFileChips, AttachedImageGallery } from "./AttachmentPreview";
+import { OptionCard } from "./OptionCard";
 import { GroupCallButton, GroupCallOverlay } from "./GroupCallView";
 
 import { ApprovalCard } from "./ApprovalCard";
+import { QuestionCard } from "./QuestionCard";
 import { ManageMembersPanel } from "./ManageMembersPanel";
 import { groupActivityRuns } from "@/lib/activity-runs";
 import { ActivityRun } from "./ActivityRun";
@@ -78,6 +82,7 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
   const { state, dispatch } = useStore();
   const tool = message.tool;
   if (!tool) return null;
+  if (message.threadRef) return <ThreadChip message={message} />;
   const comm = message.comm;
   if (comm && comm.groupId !== roomId) {
     const withBot = state.bots.find((b) => b.id === comm.withBotId);
@@ -85,7 +90,13 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
       <div className="flex justify-start">
         <button
           type="button"
-          onClick={() => dispatch({ type: "select", id: comm.groupId })}
+          onClick={() => {
+            dispatch({ type: "select", id: comm.groupId });
+            const destination = state.groups.find(g => g.id === comm.groupId);
+            if (comm.threadId && destination?.tasks?.some(task => task.threadId === comm.threadId)) {
+              dispatch({ type: "switchGroupTask", groupId: comm.groupId, threadId: comm.threadId });
+            }
+          }}
           title={t("room.openBot", { name: comm.withName })}
           className="flex items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary hover:bg-raised hover:text-ink"
         >
@@ -104,7 +115,8 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
           tool.ok === false ? "text-danger" : "text-ink-secondary",
         )}
       >
-        <span className="max-w-[480px] truncate font-mono">{tool.name}</span>
+        {comm && <BotAvatar bot={state.bots.find(b => b.id === comm.withBotId) ?? { name: comm.withName, color: comm.withColor }} state="happy" size={16} />}
+        <span className={cn("max-w-[480px] truncate", !comm && "font-mono")}>{tool.name}</span>
       </div>
     </div>
   );
@@ -174,7 +186,8 @@ const Transcript = memo(function Transcript({
   const memberOf = (id?: string) => members.find((b) => b.id === id);
   // Several bots working at once turn a room into a wall of chips; fold the
   // finished ones the same way a 1:1 chat does.
-  const items = useMemo(() => groupActivityRuns(messages), [messages]);
+  const items = useMemo(() => groupActivityRuns(messages.filter(message =>
+    message.kind !== "activity" || roomActivityVisible(message, showToolCalls))), [messages, showToolCalls]);
   const newestMessageId = messages.at(-1)?.id;
   const newestUserMessageId = [...messages].reverse().find((message) => message.role === "user")?.id;
   const focus = state.focusMessage;
@@ -212,7 +225,7 @@ const Transcript = memo(function Transcript({
         const m = item.message;
         const user = m.role === "user";
         const attachments = user && m.text ? splitTranscriptAttachments(m.text) : null;
-        const newCluster = !prev || prev.role !== m.role || prev.from?.botId !== m.from?.botId || newDay;
+        const newCluster = !prev || prev.role !== m.role || prev.from?.botId !== m.from?.botId || Boolean(prev.comm) || newDay;
         const routineOwner = m.kind === "routine.run" ? memberOf(m.from?.botId) : undefined;
         const routineExecutionThreadId = m.routineRun?.executionThreadId;
         const routineTarget = routineOwner && hasRoutineExecutionTask(routineOwner.tasks, routineExecutionThreadId)
@@ -222,15 +235,27 @@ const Transcript = memo(function Transcript({
           // a member can hit a permission ask mid-turn; without this the
           // card never rendered here and the bot waited out its timeout.
           // `tool` distinguishes a permission from a QUESTION — a question
-          // only accepts an "answer", so routing it here would offer an
-          // Allow the broker rejects
+          // only accepts an "answer", so routing it to the approval box
+          // would offer an Allow the broker rejects. A structured ask is
+          // one of those questions, and answers in its own card.
           m.kind === "secret" && m.secret && m.from?.botId ? (
             <SecretRequestCard botId={m.from.botId} threadId={group.threadId} message={m} />
           ) : m.kind === "connector" && m.connector && m.from?.botId ? (
             <ConnectorCard botId={m.from.botId} threadId={group.threadId} message={m} />
+          ) : m.kind === "options" && m.card?.requestId && m.card.questionRequest ? (
+            <div className="flex justify-start">
+              <QuestionCard threadId={group.threadId} bot={memberOf(m.from?.botId)} message={m} />
+            </div>
           ) : m.kind === "options" && m.card?.requestId && m.card.tool ? (
             <div className="flex justify-start">
               <ApprovalCard bot={memberOf(m.from?.botId)} message={m} />
+            </div>
+          ) : m.kind === "options" && m.card && m.from?.botId ? (
+            // a QUESTION from a member. Without this branch the card fell
+            // through to null: invisible on screen, and the asking bot sat
+            // there until its 15-minute timeout answered for you
+            <div className="flex justify-start">
+              <OptionCard botId={m.from.botId} threadId={group.threadId} groupId={group.id} message={m} />
             </div>
           ) : m.kind === "goal.run" ? (
             <div className="flex justify-start">
@@ -304,7 +329,7 @@ const Transcript = memo(function Transcript({
                           className={!attachments.display ? "mb-0" : undefined}
                         />
                       )}
-                      {attachments?.display ?? m.text}
+                      <ThreadRefText text={attachments?.display ?? m.text ?? ""} peers={members} everyone={!group.dm} />
                       {m.via === "api" && (
                         <div className="mt-1 text-[11px] text-ink-secondary">Sent through the API, not typed here</div>
                       )}
@@ -318,7 +343,7 @@ const Transcript = memo(function Transcript({
                           eager={m.id === newestMessageId || m.id === newestUserMessageId}
                         />
                       ) : null}
-                      {m.text ? <ChatMarkdown text={m.text} message={{ threadId: group.threadId, messageId: m.id }} /> : null}
+                      {m.text ? <ChatMarkdown text={m.text} mentionPeers={members} everyone={!group.dm} message={{ threadId: group.threadId, messageId: m.id }} /> : null}
                     </>
                   )}
                 </div>
@@ -350,7 +375,7 @@ const Transcript = memo(function Transcript({
                 {dayLabel(m.at)} {formatTime(m.at)}
               </div>
             )}
-            {!user && m.from && newCluster && (
+            {!user && m.from && newCluster && !(m.kind === "activity" && m.comm) && (
               <ClusterLabel bot={memberOf(m.from.botId)} name={m.from.name} color={m.from.color} />
             )}
             {row}

@@ -13,8 +13,13 @@ organisation. Hosting it for third parties or white-labelling the product needs
 a partner agreement.
 
 Delete the folder and what remains is the open-source edition: the server
-reports `{"edition":"oss"}` and nothing else changes. CI proves this on every
-change (`open-source edition builds without enterprise/` in `ci.yml`). The list
+reports `{"edition":"oss"}` and ordinary standalone operation is unchanged.
+A workspace explicitly configured for hosted sign-in refuses remote access
+without that optional adapter; removing the enterprise layer must not bypass
+its configured sign-in authority. The `open-source edition builds without
+enterprise/` CI job proves the OSS build, boot response and absent adapter
+factory; it does not exercise every hosted HTTP route. The isolated hosted
+workspace tests verify those sign-in and revocation paths separately. The list
 of entitlement ids the server understands is in [`enterprise/FEATURES`](enterprise/FEATURES).
 
 The routing rule for new work: could any open-source user want it? Then it goes
@@ -25,8 +30,8 @@ data and configuration, never as a fork.
 
 ## Contributions
 
-- Outside `enterprise/`: sign off your commits (`git commit -s`), which is the
-  [Developer Certificate of Origin](https://developercertificate.org/). CI checks it.
+- Outside `enterprise/`: contribute under Apache 2.0. No DCO sign-off or CLA is
+  required. Submit only code you wrote or have the right to contribute.
 - Inside `enterprise/`: sign the [Contributor License Agreement](CLA.md) once, by
   commenting on your pull request. It lets the project keep that folder under
   its own license while still accepting your work.

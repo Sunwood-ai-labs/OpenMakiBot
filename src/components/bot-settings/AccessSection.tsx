@@ -6,10 +6,12 @@
 // standing grants) are new.
 import { useEffect, useState } from "react";
 import { browserUnavailableReason } from "@/lib/feature-flags";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Plus } from "lucide-react";
 
 import { api, useStore, type Bot } from "@/state/store";
 import { cn } from "@/lib/cn";
+import { t } from "@/lib/i18n";
+import { mcpServersForBot, useMcpServers } from "@/lib/mcp-servers";
 import { shortPath } from "@/lib/short-path";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { CloudBackendPicker } from "../CloudBackendPicker";
@@ -100,6 +102,79 @@ function WorkingFolder({ bot }: { bot: Bot }) {
   );
 }
 
+/** Which app-wide MCP servers this bot mounts. Absent list = all enabled
+ * (the pre-existing behavior); the first switch flip writes an explicit
+ * list so later additions in Plugins do not silently reach this bot. */
+function McpServersCard({ bot, patch }: { bot: Bot; patch: (patch: { mcpServers: string[] | null }) => void }) {
+  const { dispatch } = useStore();
+  const { servers, error, refresh } = useMcpServers();
+  const mounted = new Set((servers ? mcpServersForBot(servers, bot.mcpServers) : []).map((server) => server.name));
+  const usesAll = bot.mcpServers == null;
+
+  const toggle = (name: string) => {
+    if (!servers || bot.busy || error) return;
+    const current = usesAll ? servers.filter((server) => server.enabled).map((server) => server.name) : [...(bot.mcpServers ?? [])];
+    const next = current.includes(name) ? current.filter((item) => item !== name) : [...current, name];
+    patch({ mcpServers: next });
+  };
+  const openPlugins = () => {
+    dispatch({ type: "toggleSettings", open: false });
+    dispatch({ type: "togglePlugins", open: true, surface: "mcp" });
+  };
+
+  return (
+    <div className="rounded-xl bg-card p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[15px] font-medium text-ink">{t("connectors.tab.mcp")}</div>
+          <div className="mt-0.5 text-[13px] text-ink-secondary">
+            {t("botAccess.mcpDescription")}
+          </div>
+        </div>
+      </div>
+      {error && (
+        <div role="alert" className="mt-3 text-[12px] text-danger">
+          {t("botAccess.mcpRefreshError")} <button type="button" onClick={() => void refresh()} className="underline">{t("connectors.action.retry")}</button>
+        </div>
+      )}
+      {servers === null ? !error && (
+        <div className="mt-3 text-[12px] text-ink-secondary">{t("mcp.loading")}</div>
+      ) : servers.length === 0 ? (
+        <div className="mt-3 rounded-lg bg-inset px-3 py-2 text-[12px] text-ink-secondary">{t("botAccess.mcpEmpty")}</div>
+      ) : (
+        <div className="mt-3 divide-y divide-hairline/40 overflow-hidden rounded-lg border border-hairline/40">
+          {servers.map((server) => (
+            <div key={server.name} className="flex items-center justify-between gap-3 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-[12.5px] text-ink">{server.name}</div>
+                {!server.enabled && <div className="text-[11.5px] text-ink-secondary">{t("botAccess.mcpDisabled")}</div>}
+              </div>
+              <Switch
+                checked={mounted.has(server.name)}
+                disabled={!server.enabled || !!bot.busy || error}
+                aria-label={t("botAccess.mcpAllow", { name: server.name })}
+                onClick={() => toggle(server.name)}
+                className="disabled:cursor-not-allowed"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex items-center gap-2">
+        <button type="button" onClick={openPlugins} className="flex items-center gap-1.5 rounded-lg bg-control px-3 py-2 text-[13px] text-ink hover:bg-raised-hover">
+          <Plus size={14} /> {t("botAccess.mcpAdd")}
+        </button>
+        {!usesAll && servers && servers.length > 0 && (
+          <button type="button" disabled={!!bot.busy || error} onClick={() => { if (!bot.busy && !error) patch({ mcpServers: null }); }} className="rounded-lg px-2 py-2 text-[13px] text-ink-secondary hover:text-ink disabled:opacity-50">
+            {t("botAccess.mcpUseAll")}
+          </button>
+        )}
+      </div>
+      {bot.busy && <p className="mt-2 text-[12px] text-ink-secondary">{t("botAccess.mcpBusy")}</p>}
+    </div>
+  );
+}
+
 export function AccessSection({
   bot,
   derived,
@@ -171,7 +246,9 @@ export function AccessSection({
                   ? localDisabledReason ?? undefined
                   : mode === "browser"
                     ? browserSelectable ? "The built-in browser tab only; no desktop" : browserDisabledReason
-                    : undefined
+                    : mode === "off"
+                      ? "No computer and no built-in browser"
+                      : undefined
               }
               onClick={() => {
                 if ((mode === null && bot.computer === undefined) || mode === bot.computer) return;
@@ -194,6 +271,13 @@ export function AccessSection({
             </button>
           ))}
         </div>
+        {bot.computer === "off" && (
+          <div className="mt-3 rounded-lg bg-inset px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-secondary">
+            <span className="font-medium text-ink">Off means no screen.</span>{" "}
+            This bot gets no computer and no built-in browser, so it cannot open a web page, click, or type
+            anywhere. Its connected apps, MCP servers, files and chat all still work.
+          </div>
+        )}
         {(!bot.computer || bot.computer === "cloud") && (
           <>
             {!bot.computer && (
@@ -272,7 +356,21 @@ export function AccessSection({
             )}
           </div>
         )}
+        {connectedAppsEnabled && connectedAppsConfigured && (
+          <button
+            type="button"
+            onClick={() => {
+              dispatch({ type: "toggleSettings", open: false });
+              dispatch({ type: "togglePlugins", open: true, surface: "apps" });
+            }}
+            className="mt-3 flex items-center gap-1.5 rounded-lg bg-control px-3 py-2 text-[13px] text-ink hover:bg-raised-hover"
+          >
+            <Plus size={14} /> {t("botAccess.connectApp")}
+          </button>
+        )}
       </div>
+
+      <McpServersCard bot={bot} patch={patch} />
 
       <div className="flex items-center justify-between gap-4 rounded-xl bg-card p-4">
         <div>
@@ -286,16 +384,22 @@ export function AccessSection({
                 ? "The built-in browser is switched off under App Settings → Experimental."
                 : !canUseBrowser
                   ? "This bot's current engine cannot use the built-in browser."
-                  : browserEnabled
-                    ? "This bot has its own browser with its own logins."
-                    : "Keep the built-in browser unavailable to this bot."}
+                  : bot.computer === "off"
+                    ? "Works on is set to Off, so this bot has no browser. Pick another destination above to give it one."
+                    : browserEnabled
+                      ? "This bot has its own browser with its own logins."
+                      : "Keep the built-in browser unavailable to this bot."}
           </div>
         </div>
         <Switch
-          checked={browserEnabled}
+          checked={browserEnabled && bot.computer !== "off"}
           aria-label="Give this bot a built-in browser"
-          disabled={!browserEnabled && ((!desktopBrowser && !browserInstallable) || !browserFeature || !canUseBrowser)}
+          disabled={
+            bot.computer === "off" ||
+            (!browserEnabled && ((!desktopBrowser && !browserInstallable) || !browserFeature || !canUseBrowser))
+          }
           onClick={() => patch({ browser: !browserAllowed })}
+          title={bot.computer === "off" ? "Works on is set to Off, so this bot has no browser" : undefined}
           className="disabled:cursor-not-allowed"
         />
       </div>

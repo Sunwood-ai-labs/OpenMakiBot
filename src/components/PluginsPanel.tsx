@@ -4,7 +4,7 @@
 // logo → favicon → monogram.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Loader2, RefreshCw, Search, TriangleAlert, X } from "lucide-react";
-import { api, useStore } from "@/state/store";
+import { api, useStore, type Bot, type InstanceInfo } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
@@ -12,7 +12,7 @@ import { readCachedInventory, writeCachedInventory } from "@/lib/connected-apps-
 import { managedConnectorUnavailableReason } from "../../shared/connector-availability";
 import { McpServersPanel } from "./McpServersPanel";
 
-interface ToolkitCard {
+export interface ToolkitCard {
   slug: string;
   label: string;
   blurb: string;
@@ -87,8 +87,25 @@ export function disconnectAccountConfirmation(
   return t("connectors.disconnectConfirm", { identity, service });
 }
 
-export function connectedAppsMayDisconnect(remoteClient: boolean): boolean {
-  return !remoteClient;
+/** Bots that cannot see the workspace's connected apps because their own
+ * per-bot grant is off. Connecting an app is only half of it: a bot a Chief
+ * of Staff created, a package brought in, or a backup restored starts with
+ * that grant off, and until it is on the bot is never told the tools exist
+ * and reaches for a browser instead — with nothing on screen saying why.
+ * Bots whose engine cannot mount the tools at all are left out, because
+ * their switch is disabled: naming them would move the dead end, not end it.
+ * Hidden bots are left out for the same reason — the person cannot act on
+ * one from here. */
+export function botsMissingConnectedApps(bots: Bot[], instances: InstanceInfo[]): Bot[] {
+  return bots.filter((bot) =>
+    !bot.hidden &&
+    bot.composio === false &&
+    instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId)
+      ?.capabilities?.composioMcp === true);
+}
+
+export function hasUsableConnectedApps(configured: boolean, phase: ConnectorInventoryPhase, stale: boolean, status: Record<string, ConnectorStatus>): boolean {
+  return configured && phase === "ready" && !stale && Object.values(status).some((service) => service.connected);
 }
 
 export function requiresAccountAlias(message: string) {
@@ -176,7 +193,9 @@ export function onlyLatestConnectorResponses(
   );
 }
 
-function ServiceIcon({ card }: { card: ToolkitCard }) {
+/** A toolkit's mark: official logo, else favicon by domain, else monogram.
+ * Shared with the onboarding connectors scene so both show the same logos. */
+export function ServiceIcon({ card, className = "size-11" }: { card: Pick<ToolkitCard, "logo" | "domain" | "label">; className?: string }) {
   // 0 = official logo, 1 = favicon by domain, 2 = monogram
   const [stage, setStage] = useState(card.logo ? 0 : card.domain ? 1 : 2);
   // The full catalog is well over a thousand cards, so let the browser skip
@@ -187,7 +206,7 @@ function ServiceIcon({ card }: { card: ToolkitCard }) {
         src={card.logo}
         alt=""
         loading="lazy"
-        className="size-11 rounded-xl object-contain"
+        className={cn("rounded-xl object-contain", className)}
         onError={() => setStage(1)}
       />
     );
@@ -198,27 +217,26 @@ function ServiceIcon({ card }: { card: ToolkitCard }) {
         src={`https://www.google.com/s2/favicons?domain=${card.domain}&sz=64`}
         alt=""
         loading="lazy"
-        className="size-11 rounded-xl object-contain"
+        className={cn("rounded-xl object-contain", className)}
         onError={() => setStage(2)}
       />
     );
   }
   return (
-    <div className="flex size-11 items-center justify-center rounded-xl bg-raised text-[15px] font-semibold text-ink-secondary">
+    <div className={cn("flex items-center justify-center rounded-xl bg-raised text-[15px] font-semibold text-ink-secondary", className)}>
       {card.label.slice(0, 1).toUpperCase()}
     </div>
   );
 }
 
 export function PluginsPanel() {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
   const remoteClient = window.ogb?.remoteClient?.active === true;
-  const mayDisconnect = connectedAppsMayDisconnect(remoteClient);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const [surface, setSurface] = useState<"apps" | "mcp">("apps");
+  const surface = state.pluginsSurface;
   const [cards, setCards] = useState<ToolkitCard[] | null>(null);
   const [source, setSource] = useState<"api" | "curated">("curated");
-  const [configured, setConfigured] = useState(true);
+  const [configured, setConfigured] = useState(false);
   const [mode, setMode] = useState<"managed" | "self-hosted" | "unavailable">("unavailable");
   // Paint what we last knew before any request goes out: the module cache if
   // this window already fetched, otherwise the inventory saved on disk. An
@@ -492,6 +510,10 @@ export function PluginsPanel() {
   const connectedCount = Object.values(status).filter((service) => service.connected || service.accounts?.length).length;
   const connectedEmptyCopy = connectedInventoryCopy(inventoryPhase);
   const close = () => dispatch({ type: "togglePlugins", open: false });
+  // Only worth saying once an app is actually connected and reachable.
+  const botsWithoutApps = hasUsableConnectedApps(configured, inventoryPhase, stale, status)
+    ? botsMissingConnectedApps(state.bots, state.instances)
+    : [];
 
   return (
     <div
@@ -500,6 +522,7 @@ export function PluginsPanel() {
     >
       <div
         ref={dialogRef}
+        data-tour="apps-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="plugins-title"
@@ -522,7 +545,7 @@ export function PluginsPanel() {
                 <RefreshCw size={17} className={cn(refreshing && "animate-spin")} />
               </button>
             )}
-            <button
+            <button data-tour="apps-close"
               onClick={close}
               aria-label={t("connectors.closeAria")}
               className="rounded-lg p-2 text-ink-secondary hover:bg-raised hover:text-ink"
@@ -540,7 +563,7 @@ export function PluginsPanel() {
                 type="button"
                 role="tab"
                 aria-selected={surface === item}
-                onClick={() => setSurface(item)}
+                onClick={() => dispatch({ type: "togglePlugins", open: true, surface: item })}
                 className={cn(
                   "border-b-2 px-0.5 pb-3 pt-1 text-[13.5px] font-medium transition-colors",
                   surface === item ? "border-accent text-ink" : "border-transparent text-ink-secondary hover:text-ink",
@@ -617,6 +640,24 @@ export function PluginsPanel() {
             >
               {t("connectors.openSettings")}
             </button>
+          </div>
+        )}
+        {botsWithoutApps.length > 0 && (
+          <div className="mx-6 mb-1 rounded-xl bg-inset px-4 py-3 text-[12.5px] leading-relaxed text-ink-secondary sm:mx-8">
+            <span className="font-medium text-ink">{t("connectors.perBot.title")}</span>{" "}
+            {t("connectors.perBot.body")}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {botsWithoutApps.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() => dispatch({ type: "updateBot", botId: candidate.id, patch: { composio: true } })}
+                  className="rounded-full bg-control px-2.5 py-1 text-[11.5px] font-medium text-ink hover:bg-raised-hover"
+                >
+                  {t("connectors.perBot.allow", { name: candidate.name })}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {configured && !remoteClient && source === "curated" && mode === "self-hosted" && (
@@ -743,23 +784,21 @@ export function PluginsPanel() {
                                 {account.alias ? `${account.id} · ` : ""}{account.status.toLowerCase()}
                               </div>
                             </div>
-                            {mayDisconnect && (
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => {
-                                  if (!window.confirm(disconnectAccountConfirmation(card.label, account))) return;
-                                  disconnectAccount(card.slug, account.id);
-                                }}
-                                className="rounded-md px-2 py-1 text-[11px] text-ink-secondary transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-40"
-                                aria-label={t("connectors.disconnectAria", {
-                                  account: account.alias || account.id,
-                                  service: card.label,
-                                })}
-                              >
-                                {t("connectors.disconnect")}
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => {
+                                if (!window.confirm(disconnectAccountConfirmation(card.label, account))) return;
+                                disconnectAccount(card.slug, account.id);
+                              }}
+                              className="rounded-md px-2 py-1 text-[11px] text-ink-secondary transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-40"
+                              aria-label={t("connectors.disconnectAria", {
+                                account: account.alias || account.id,
+                                service: card.label,
+                              })}
+                            >
+                              {t("connectors.disconnect")}
+                            </button>
                           </div>
                         );
                       })}

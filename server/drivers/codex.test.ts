@@ -6,10 +6,11 @@
 // The fake is a shebang script — the same constraint codex.cmd itself
 // hits on Windows. resolveCliSpawn covers both, so these run everywhere.
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProviderInstance } from "../contracts.ts";
 import { NATIVE_DIR } from "../config.ts";
@@ -21,6 +22,7 @@ import {
   codexUpdateCommand,
 } from "./codex.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
+import * as procs from "../procs.ts";
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "testing", "fake-codex-app-server.ts");
 
@@ -200,6 +202,42 @@ describe("CodexDriver turns (fake app-server)", () => {
     expect(recorder.events.some((event) => event.type === "request.opened")).toBe(false);
   });
 
+  it("keeps the parent working after helper completion and ignores foreign output and usage", async () => {
+    await create({ mode: "helper-events" });
+    await instance.adapter.sendTurn({ threadId: "t-helper-events", text: "use a helper then continue" });
+    const permission = await recorder.until((event) => event.type === "request.opened");
+    expect(permission).toMatchObject({ summary: "echo parent continues" });
+    expect(recorder.events.some((event) => event.type === "turn.completed")).toBe(false);
+    expect(JSON.stringify(recorder.events)).not.toContain("FOREIGN");
+    expect(recorder.events.some((event) => event.type === "thread.token-usage.updated")).toBe(false);
+    await instance.adapter.respondToRequest("t-helper-events", permission.requestId!, { behavior: "allow" });
+    await recorder.until((event) => event.type === "turn.completed");
+    expect(recorder.events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
+    expect(recorder.events.at(-1)).toMatchObject({ ok: true, usage: { input: 7, output: 3 } });
+    expect(recorder.events.find((event) => event.type === "item.completed" && event.itemType === "assistant_text")).toMatchObject({ text: "done from fake codex" });
+    expect(JSON.stringify(recorder.events)).not.toContain("FOREIGN");
+
+    const repeat = await instance.adapter.sendTurn({
+      threadId: "t-helper-events", resumeCursor: "codex-thread-1", text: "continue and deny the next request",
+    });
+    const denied = await recorder.until((event) => event.turnId === repeat.turnId && event.type === "request.opened");
+    await instance.adapter.respondToRequest("t-helper-events", denied.requestId!, { behavior: "deny" });
+    await recorder.until((event) => event.turnId === repeat.turnId && event.type === "turn.completed");
+    expect(recorder.events.filter((event) => event.type === "turn.completed")).toHaveLength(2);
+    expect(recorder.events.at(-1)).toMatchObject({ ok: true });
+    expect(recorder.events.find((event) => event.turnId === repeat.turnId && event.type === "request.resolved")).toMatchObject({ behavior: "deny" });
+    expect(JSON.stringify(recorder.events)).not.toContain("FOREIGN");
+  });
+
+  it("retains parent notifications delivered before the turn/start response", async () => {
+    await create({ mode: "early-turn-events" });
+    await instance.adapter.sendTurn({ threadId: "t-early-events", text: "finish quickly" });
+    await recorder.until((event) => event.type === "turn.completed");
+    expect(recorder.events.at(-1)).toMatchObject({ ok: true });
+    expect(recorder.events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
+    expect(recorder.events.find((event) => event.type === "item.completed" && event.itemType === "assistant_text")).toMatchObject({ text: "done from fake codex" });
+  });
+
   it.each([
     ["ask", "on-request", "workspace-write", "workspaceWrite"],
     ["auto", "on-request", "workspace-write", "workspaceWrite"],
@@ -232,6 +270,47 @@ describe("CodexDriver turns (fake app-server)", () => {
         approvalsReviewer: approvalMode === "auto" ? "auto_review" : "user",
         sandboxPolicy: { type: turnSandbox },
       });
+    },
+  );
+
+  it.each(["gpt-5.6-sol", "gpt-5.4"])(
+    "reapplies Full, Auto, and Ask across thread start and resume for %s",
+    async (model) => {
+      await create({ mode: "resume", fullAuto: true });
+      const dump = join(scratch, "approval-transitions.json");
+      process.env.FAKE_CODEX_DUMP = dump;
+
+      for (const [approvalMode, approvalPolicy, sandbox, turnSandbox] of [
+        ["full", "never", "danger-full-access", "dangerFullAccess"],
+        ["auto", "on-request", "workspace-write", "workspaceWrite"],
+        ["ask", "on-request", "workspace-write", "workspaceWrite"],
+      ] as const) {
+        const resumed = approvalMode !== "full";
+        const { turnId } = await instance.adapter.sendTurn({
+          threadId: "t-mode-transitions",
+          text: "continue",
+          model,
+          approvalMode,
+          ...(resumed ? { resumeCursor: "codex-thread-1" } : {}),
+        });
+        await recorder.until((event) => event.type === "turn.completed" && event.turnId === turnId);
+
+        const calls = JSON.parse(readFileSync(dump, "utf8")).calls as Array<{
+          method: string;
+          params: Record<string, unknown>;
+        }>;
+        expect(calls.find((call) => call.method === (resumed ? "thread/resume" : "thread/start"))?.params).toMatchObject({
+          ...(resumed ? { threadId: "codex-thread-1" } : { model }),
+          approvalPolicy,
+          approvalsReviewer: approvalMode === "auto" ? "auto_review" : "user",
+          sandbox,
+        });
+        expect(calls.find((call) => call.method === "turn/start")?.params).toMatchObject({
+          approvalPolicy,
+          approvalsReviewer: approvalMode === "auto" ? "auto_review" : "user",
+          sandboxPolicy: { type: turnSandbox },
+        });
+      }
     },
   );
 
@@ -543,7 +622,7 @@ describe("CodexDriver turns (fake app-server)", () => {
     })).rejects.toThrow(/reserved environment variable.*OMB_HARNESS_URL/i);
   });
 
-  it("mounts peer-agent comms without placing the comms token in argv", async () => {
+  it.each(["ask", "auto"] as const)("pre-allows peer-agent comms without exposing its token in %s mode", async (approvalMode) => {
     await create();
     const dump = join(scratch, "agents.json");
     process.env.FAKE_CODEX_DUMP = dump;
@@ -551,6 +630,7 @@ describe("CodexDriver turns (fake app-server)", () => {
     await instance.adapter.sendTurn({
       threadId: "t-agents",
       text: "ask the researcher",
+      approvalMode,
       integrations: {
         agents: {
           command: process.execPath,
@@ -570,6 +650,7 @@ describe("CodexDriver turns (fake app-server)", () => {
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     expect(seen.argv.join(" ")).toContain("mcp_servers.agents.command");
+    expect(seen.argv).toContain('mcp_servers.agents.default_tools_approval_mode="auto"');
     expect(seen.argv.join(" ")).toContain("/tmp/agents-proxy.js");
     expect(seen.argv.join(" ")).toContain("OMB_COMMS_TOKEN");
     expect(seen.argv.join(" ")).not.toContain("peer-comms-secret");
@@ -992,6 +1073,37 @@ describe("CodexDriver turns (fake app-server)", () => {
     await recorder.until((e) => e.type === "turn.completed");
   });
 
+  it.each([false, true])("keeps ownership after an uncertain stop even when root close arrives (before failure: %s)", async (closeFirst) => {
+    await create();
+    const stopping = vi.spyOn(procs, "killCliTree").mockImplementation(async (child) => {
+      if (closeFirst && child.exitCode === null && child.signalCode === null) {
+        const closed = once(child, "close");
+        child.kill("SIGKILL");
+        await closed;
+      }
+      return false;
+    });
+    try {
+      await instance.adapter.sendTurn({ threadId: "t-uncertain-stop", text: "one" });
+      await recorder.until((event) => event.type === "runtime.error" && event.message.includes("did not shut down"));
+      const child = stopping.mock.calls[0]![0];
+      if (!closeFirst) {
+        const closed = once(child, "close");
+        child.kill("SIGKILL");
+        await closed;
+        await expect.poll(() => stopping.mock.calls.length).toBeGreaterThan(1);
+      }
+      expect(recorder.events.some((event) => event.type === "turn.completed")).toBe(false);
+      expect(instance.adapter.hasSession("t-uncertain-stop")).toBe(true);
+      await expect(instance.adapter.sendTurn({ threadId: "t-uncertain-stop", text: "two" })).rejects.toThrow(/already running/);
+    } finally {
+      stopping.mockRestore();
+      await instance.adapter.interruptTurn("t-uncertain-stop");
+    }
+    await recorder.until((event) => event.type === "turn.completed");
+    expect(instance.adapter.hasSession("t-uncertain-stop")).toBe(false);
+  });
+
   it("a missing binary surfaces as a failed turn, and snapshot says unavailable", async () => {
     instance = await CodexDriver.create({
       instanceId: "codex-missing",
@@ -1098,6 +1210,18 @@ describe("CodexDriver turns (fake app-server)", () => {
       ok: false,
       stopReason: "auth_required",
     });
+  });
+
+  it.each(["safety-rpc", "safety-completion", "safety-notification"])("surfaces %s once without retrying or asking for login", async (mode) => {
+    await create({ mode });
+    const { turnId } = await instance.adapter.sendTurn({ threadId: "t-safety", text: "Deploy my site", approvalMode: "full" });
+    const done = await recorder.until((e) => e.type === "turn.completed" && e.turnId === turnId);
+    expect(done).toMatchObject({ ok: false, stopReason: "provider_safety" });
+    const errors = recorder.events.filter((e) => e.type === "runtime.error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({ message: expect.stringContaining("blocked by our safety systems") });
+    expect(errors[0]).not.toHaveProperty("setup");
+    expect(recorder.events.some((e) => e.type === "turn.retrying")).toBe(false);
   });
 
   it("auto-retries a transient turn/start failure, then completes with one final message", async () => {

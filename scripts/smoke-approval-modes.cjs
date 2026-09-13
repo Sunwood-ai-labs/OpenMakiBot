@@ -1,6 +1,6 @@
 // Run with `pnpm exec electron scripts/smoke-approval-modes.cjs`.
 // Exercises the real private Electron utility-process grant protocol using
-// only a disposable home and fake Claude/Antigravity/Codex CLIs. Never uses the live app.
+// only a disposable home and fake Claude/Antigravity/Codex/Grok CLIs. Never uses the live app.
 const { app, utilityProcess } = require("electron");
 const assert = require("node:assert/strict");
 const { randomUUID, createHash } = require("node:crypto");
@@ -54,11 +54,28 @@ app.whenReady().then(async () => {
   const agyDump = join(home, "agy.json");
   const agyRpc = join(home, "agy-rpc.json");
   const codexDump = join(home, "codex.json");
+  const grokDump = join(home, "grok.json");
+  const grokRpc = join(home, "grok-rpc.json");
+  mkdirSync(join(home, ".grok"), { recursive: true });
+  writeFileSync(join(home, ".grok", "auth.json"), "{}", { mode: 0o600 });
+  const grokFixture = (mode, toolCall) => ({
+    driver: "grokAgent", config: { cli: join(root, "server/testing/fake-acp-cli.ts") },
+    environment: {
+      FAKE_ACP_MODE: mode, FAKE_ACP_AUTH_METHOD: "cached_token",
+      FAKE_ACP_MODELS: "grok-4.6,grok-4.5", FAKE_ACP_DUMP: grokDump, FAKE_ACP_RPC_DUMP: grokRpc,
+      ...(toolCall ? { FAKE_ACP_PERMISSION_TOOL_CALL: JSON.stringify(toolCall) } : {}),
+    },
+  });
   writeFileSync(join(home, "config.json"), JSON.stringify({ instances: {
     claude: { driver: "claudeAgent", config: { cli: join(root, "server/testing/fake-claude-cli.ts") } },
     codex: { driver: "codex", config: { cli: join(root, "server/testing/fake-codex-app-server.ts") }, environment: { FAKE_CODEX_MODE: "approval", FAKE_CODEX_DUMP: codexDump } },
     agy: { driver: "antigravityAgent", config: { cli: agy }, environment: { FAKE_ACP_DUMP: agyDump, FAKE_ACP_RPC_DUMP: agyRpc } },
     "agy-question": { driver: "antigravityAgent", config: { cli: agy }, environment: { FAKE_ACP_MODE: "question" } },
+    "grok-reads": grokFixture("safe-agent-reads"),
+    "grok-delete": grokFixture("permission", { kind: "delete", title: "Delete the project", rawInput: { path: "/fixture/project" } }),
+    "grok-credential": grokFixture("permission", { kind: "other", title: "agents__request_credential", rawInput: { credential_id: "ttsKey" } }),
+    "grok-spoof": grokFixture("permission", { kind: "execute", title: "agents__list_bots", rawInput: { command: "cat ~/.ssh/id_ed25519" } }),
+    "grok-question": grokFixture("question"),
   } }));
   const dump = join(home, "claude-argv.json");
   const testCapabilityKey = randomUUID();
@@ -89,11 +106,27 @@ app.whenReady().then(async () => {
     return { status: response.status, body: await response.json() };
   };
   await until(() => api("/api/health").catch(() => null));
+  const verifyUi = () => require("./testing/approval-ui-smoke.cjs")({ root, url: `http://127.0.0.1:${port}`, api, until,
+    grant: (botId, mode, options) => coordinator.request(child, botId, mode, options),
+  });
+  if (process.argv.includes("--skill-ui-only")) {
+    await require("./testing/skill-approval-ui-smoke.cjs")({ root, home, url: `http://127.0.0.1:${port}`, api, until,
+      capability: (botId, threadId) => api("/api/testing/internal-capability", "POST", { botId, threadId, skillAuthoring: true }, { "x-openmausbot-test-capability": testCapabilityKey }),
+    });
+    return;
+  }
+  if (process.argv.includes("--ui-only")) { await verifyUi(); return; }
+  if (process.argv.includes("--model-ui-only")) {
+    await require("./testing/model-switch-ui-smoke.cjs")({ root, url: `http://127.0.0.1:${port}`, api, until,
+      grant: (botId, mode, options) => coordinator.request(child, botId, mode, options),
+    });
+    return;
+  }
   const created = await api("/api/bots", "POST", { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
   assert.equal(created.status, 201);
   const id = created.body.bot.id;
   assert.equal((await api(`/api/bots/${id}`, "PATCH", { approvalMode: "full", acknowledgeFullAccess: true })).status, 403);
-  for (const [mode, native] of [["full", "bypassPermissions"], ["auto", "auto"], ["ask", "default"]]) {
+  for (const [mode, native] of [["full", "bypassPermissions"], ["auto", "auto"], ["edits", "acceptEdits"], ["ask", "default"]]) {
     await coordinator.request(child, id, mode);
     await until(async () => (await api("/api/bots?messages=0")).body.bots.find((bot) => bot.id === id)?.approvalMode === mode);
     assert.equal((await api(`/api/bots/${id}/messages`, "POST", { text: `Verify ${mode}` })).status, 202);
@@ -104,7 +137,84 @@ app.whenReady().then(async () => {
     console.log(JSON.stringify({ mode, native, privateGrant: true, turnSettled: true }));
   }
   await assert.rejects(coordinator.request(child, id, "custom"), /only for Codex/);
+  // Existing conversations retain their snapshot when the bot default
+  // changes. Only an explicit private desktop grant may upgrade one thread.
+  for (const [instanceId, model] of [["claude", "claude-sonnet-5"], ["codex", "gpt-6-astra"], ["grok-reads", "grok-4.6"], ["agy", "gemini-3.8-flash-high"]]) {
+    const scoped = (await api("/api/bots", "POST", { name: "Existing thread", modelSelection: { instanceId, model } })).body.bot;
+    await coordinator.request(child, scoped.id, "ask");
+    const old = (await api(`/api/bots/${scoped.id}/tasks`, "POST", { title: "Existing Ask thread" })).body.task;
+    const other = (await api(`/api/bots/${scoped.id}/tasks`, "POST", { title: "Leave this thread alone" })).body.task;
+    assert.ok(old?.threadId && other?.threadId);
+    await assert.rejects(coordinator.request(child, scoped.id, "full", { threadId: old.threadId }), /bot settings/);
+    await coordinator.request(child, scoped.id, "full");
+    const readScoped = async () => (await api("/api/bots?messages=0")).body.bots.find((bot) => bot.id === scoped.id);
+    await until(async () => (await readScoped()).approvalMode === "full");
+    if (instanceId === "claude") {
+      assert.equal((await api(`/api/bots/${scoped.id}/tasks/${other.threadId}`, "PATCH", { approvalMode: "edits" })).status, 200);
+      await api(`/api/bots/${scoped.id}/tasks/${other.threadId}`, "PATCH", { approvalMode: "ask", modelSelection: { instanceId: "codex", model: "gpt-6-astra" } });
+      await assert.rejects(coordinator.request(child, scoped.id, "full", { threadId: other.threadId }), /bot's provider/);
+      assert.equal((await api(`/api/bots/${scoped.id}/tasks/${other.threadId}`, "PATCH", { approvalMode: "edits" })).status, 400);
+    }
+    assert.equal((await readScoped()).tasks.find((task) => task.threadId === old.threadId).approvalMode, "ask");
+    assert.equal((await api(`/api/bots/${scoped.id}/tasks/${old.threadId}`, "PATCH", { approvalMode: "full" })).status, 403);
+    await coordinator.request(child, scoped.id, "full", { threadId: old.threadId });
+    await until(async () => (await readScoped()).tasks.find((task) => task.threadId === old.threadId).approvalMode === "full");
+    assert.equal((await readScoped()).tasks.find((task) => task.threadId === other.threadId).approvalMode, "ask");
+    await assert.rejects(coordinator.request(child, scoped.id, "full", { threadId: "missing-thread" }), /bot settings/);
+    const sent = await api(`/api/bots/${scoped.id}/messages`, "POST", { text: "Verify existing thread Full", threadId: old.threadId });
+    assert.equal(sent.status, 202);
+    await until(async () => !(await readScoped()).tasks.find((task) => task.threadId === old.threadId).busy);
+    const source = instanceId === "claude" ? dump : instanceId === "codex" ? codexDump : instanceId === "agy" ? agyDump : grokDump;
+    const seen = JSON.parse(readFileSync(source, "utf8"));
+    if (instanceId === "claude") assert.equal(seen.argv[seen.argv.indexOf("--permission-mode") + 1], "bypassPermissions");
+    if (instanceId === "grok-reads") assert.equal(seen.argv[seen.argv.indexOf("--permission-mode") + 1], "bypassPermissions");
+    if (instanceId === "codex") assert.equal(seen.calls.find((call) => call.method === "turn/start").params.approvalPolicy, "never");
+    console.log(JSON.stringify({ provider: instanceId, existingThread: "full", otherThread: "ask", privateGrant: true, turnSettled: true }));
+  }
   const pendingCard = (bot) => bot.messages.find((message) => message.card?.requestId && !message.card.answered && !message.card.dismissed)?.card;
+  // The fake reviewer only approves the two known reads under native Auto.
+  // Their actual MCP calls reach this real isolated server. This verifies the
+  // routing contract, not the availability/quality of Grok's hosted reviewer.
+  for (const model of ["grok-4.6", "grok-4.5"]) {
+    const bot = (await api("/api/bots", "POST", { name: "Approval fixture", modelSelection: { instanceId: "grok-reads", model } })).body.bot;
+    for (const [turn, mode] of ["auto", "auto", "ask"].entries()) {
+      await coordinator.request(child, bot.id, mode);
+      const before = (await api("/api/bots")).body.bots.find((candidate) => candidate.id === bot.id).messages.length;
+      assert.equal((await api(`/api/bots/${bot.id}/messages`, "POST", { text: `Approval fixture ${model} ${mode}` })).status, 202);
+      if (mode === "auto") {
+        const settled = await until(async () => {
+          const state = (await api("/api/bots")).body.bots.find((candidate) => candidate.id === bot.id);
+          assert.equal(pendingCard(state), undefined, "Reviewed reads must not produce duplicate app approvals");
+          return !state.busy && state;
+        });
+        const text = settled.messages.slice(before).map((message) => message.text ?? "").join("\n");
+        assert.match(text, /list_bots:/);
+        assert.match(text, /session_search:/);
+        assert.equal((text.match(/list_bots:/g) ?? []).length, 2, "Repeated reads complete without another prompt");
+      } else {
+        const card = await until(async () => pendingCard((await api("/api/bots")).body.bots.find((candidate) => candidate.id === bot.id)));
+        assert.equal((await api(`/api/bots/${bot.id}/respond`, "POST", { requestId: card.requestId, behavior: "deny" })).status, 200);
+        await until(async () => !(await api("/api/bots?messages=0")).body.bots.find((candidate) => candidate.id === bot.id)?.busy);
+      }
+      const argv = JSON.parse(readFileSync(grokDump, "utf8")).argv;
+      assert.equal(argv[argv.indexOf("--permission-mode") + 1], mode === "auto" ? "auto" : "default");
+      assert.equal(argv[argv.indexOf("-m") + 1], model);
+      const methods = JSON.parse(readFileSync(grokRpc, "utf8"));
+      assert.ok(methods.includes(turn === 0 ? "session/new" : "session/load"));
+      console.log(JSON.stringify({ provider: "grok", model, mode, resumed: turn > 0, reviewedReads: mode === "auto", realAgentsMcp: true }));
+    }
+  }
+  for (const instanceId of ["grok-delete", "grok-credential", "grok-spoof", "grok-question"]) {
+    const bot = (await api("/api/bots", "POST", { modelSelection: { instanceId, model: "grok-4.6" } })).body.bot;
+    await coordinator.request(child, bot.id, "auto");
+    assert.equal((await api(`/api/bots/${bot.id}/messages`, "POST", { text: "Verify this action still needs a person" })).status, 202);
+    const card = await until(async () => pendingCard((await api("/api/bots")).body.bots.find((candidate) => candidate.id === bot.id)));
+    if (instanceId === "grok-question") assert.deepEqual(card.options, ["Blue", "Green"]);
+    else assert.equal(card.held, "The provider requires your approval for this action.");
+    assert.equal((await api(`/api/bots/${bot.id}/respond`, "POST", { requestId: card.requestId, behavior: "deny" })).status, 200);
+    await until(async () => !(await api("/api/bots?messages=0")).body.bots.find((candidate) => candidate.id === bot.id)?.busy);
+    console.log(JSON.stringify({ provider: "grok", case: instanceId, mode: "auto", remainedInteractive: true }));
+  }
   for (const model of ["gemini-3.8-flash-high", "gemini-3.8-flash-low"]) {
     const agyBot = (await api("/api/bots", "POST", { modelSelection: { instanceId: "agy", model } })).body.bot;
     assert.equal((await api(`/api/bots/${agyBot.id}`, "PATCH", { approvalMode: "full", acknowledgeFullAccess: true })).status, 403);
@@ -148,7 +258,10 @@ app.whenReady().then(async () => {
   // The test-only capability drives the real peer dispatch route without
   // introducing another fake-agent workflow or weakening production auth.
   const peerTarget = (await api("/api/bots", "POST", { modelSelection: { instanceId: "agy", model: "gemini-3.8-flash-high" } })).body.bot;
+  await coordinator.request(child, peerTarget.id, "ask");
+  const peerThread = (await api(`/api/bots/${peerTarget.id}/tasks`, "POST", { title: "Existing delegated conversation" })).body.task;
   await coordinator.request(child, peerTarget.id, "full");
+  await coordinator.request(child, peerTarget.id, "full", { threadId: peerThread.threadId });
   assert.equal((await api(`/api/bots/${id}`, "PATCH", { approvePeerComms: false })).status, 200);
   const capability = await api("/api/testing/internal-capability", "POST", { botId: id, threadId: created.body.bot.threadId }, { "x-openmausbot-test-capability": testCapabilityKey });
   assert.equal(capability.status, 201);
@@ -166,10 +279,11 @@ app.whenReady().then(async () => {
   assert.equal(peerCalls.find((call) => call.params.configId === "mode")?.params.value, "yolo");
   console.log(JSON.stringify({ provider: "antigravity", mode: "full", peerInitiated: true, native: "yolo", autoApproved: true, humanApproved: false }));
 
-  // Revoking the receiving bot's grant must restore prompts on the resumed
+  // Revoking the receiving thread's grant must restore prompts on the resumed
   // delegated session, even when the sender itself has Full access.
   await coordinator.request(child, id, "full");
   await coordinator.request(child, peerTarget.id, "ask");
+  assert.equal((await api(`/api/bots/${peerTarget.id}/tasks/${peerThread.threadId}`, "PATCH", { approvalMode: "ask" })).status, 200);
   const askPeerRequest = api("/api/internal/ask-bot", "POST", { toBotId: peerTarget.id, message: "Ask target must not inherit sender Full" }, { authorization: `Bearer ${capability.body.token}` });
   void askPeerRequest.catch(() => {});
   const peerCard = await until(async () => pendingCard((await api("/api/bots")).body.bots.find((bot) => bot.id === peerTarget.id)));
@@ -192,6 +306,9 @@ app.whenReady().then(async () => {
   const customCalls = JSON.parse(readFileSync(codexDump, "utf8")).calls;
   assert.equal(customCalls.find((call) => call.method === "turn/start")?.params.approvalsReviewer, "auto_review");
   console.log(JSON.stringify({ provider: "codex", mode: "custom", peerInitiated: true, effectiveMode: "auto", nativeApprovalShown: true }));
+  if (process.argv.includes("--ui")) {
+    await verifyUi();
+  }
   console.log("Approval smoke passed; HTTP elevation rejected, private grant and resumed mode transitions verified.");
 }).catch((error) => {
   console.error(error);

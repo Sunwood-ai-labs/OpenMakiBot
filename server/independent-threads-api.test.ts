@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
 import { handleToolCall, request } from "../scripts/mcp-server.ts";
+import { memoryDate } from "./workspace.ts";
 
 describe("independent bot tasks through the isolated control surface", () => {
   let session: VerificationServer;
@@ -96,6 +97,88 @@ describe("independent bot tasks through the isolated control surface", () => {
     await session.close();
   });
 
+  it("holds a delegation behind an approval and delivers it once without another user prompt", async () => {
+    const chief = (await tool("create_bot", { name: "Mailbox Chief", instance_id: "claude", model: models[0] })).bot;
+    const peer = (await tool("create_bot", { name: "Mailbox Peer", instance_id: "claude", model: models[1] })).bot;
+    await api("PATCH", `/api/bots/${peer.id}/tasks/${peer.activeTaskId}`, { approvalMode: "ask" });
+    await control(["send", "--bot", peer.id, "--text", "Hold this review until I approve the check."]);
+    const answers = await permission(models[1], "mailbox-approval");
+    await expect.poll(async () => (await botState(peer.id)).activity).toBe("waiting-on-you");
+    await control(["send", "--bot", chief.id, "--text", "Ask the reviewer to check the release notes, then return the result here."]);
+    const token = (await dump(models[0])).mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
+    const roster = await internal(token, "GET", "/api/internal/agents");
+    expect(roster.status).toBe(200);
+    expect(roster.body.bots.find((bot: any) => bot.id === peer.id)).toMatchObject({
+      status: "waiting-on-user", statusText: "waiting on the user", busy: true,
+    });
+    const queued = await internal(token, "POST", "/api/internal/delegate-bot", {
+      toBotId: peer.id, message: "MAILBOX_REVIEW: check the release notes.",
+    });
+    expect(queued.body.queued).toBe(true);
+    // Finish only the Chief. Its peer remains parked on the actual approval
+    // broker, and the handoff must be visible once without occupying the Chief.
+    writeFileSync(modelFile(models[0], "gate"), "finish");
+    expect((await control(["wait", "--bot", chief.id, "--timeout", "15"])).status).toBe("settled");
+    await expect.poll(async () => {
+      const current = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === chief.id);
+      return current.messages.filter((message: any) => message.tool?.name?.includes("who's waiting on you")).length;
+    }).toBe(1);
+    expect(answers).toEqual([]);
+    await control(["messages", "--bot", chief.id, "--limit", "10"]);
+    const allowed = await api("POST", `/api/threads/${peer.activeTaskId}/respond`, { requestId: "mailbox-approval", behavior: "allow" });
+    expect(allowed.body.outcome).toBe("allowed-once");
+    await expect.poll(() => answers.some((answer) => answer.id === "mailbox-approval")).toBe(true);
+    writeFileSync(modelFile(models[1], "gate"), "finish");
+    await expect.poll(async () => {
+      const bots = (await api("GET", "/api/bots")).body.bots;
+      const current = bots.find((bot: any) => bot.id === chief.id);
+      return !current.busy && current.messages.some((message: any) =>
+        message.from?.botId === peer.id && message.text?.includes("MAILBOX_REVIEW"));
+    }, { timeout: 20_000 }).toBe(true);
+    const bots = (await api("GET", "/api/bots")).body.bots;
+    const peerState = bots.find((bot: any) => bot.id === peer.id);
+    expect(peerState.messages.filter((message: any) => message.role === "user" && message.text?.includes("MAILBOX_REVIEW"))).toHaveLength(1);
+    expect((await control(["wait", "--bot", peer.id, "--timeout", "15"])).status).toBe("settled");
+    await control(["messages", "--bot", peer.id, "--limit", "10"]);
+    await control(["messages", "--bot", chief.id, "--limit", "15"]);
+  }, 60_000);
+
+  it("replaces the final worked thread with blank context but refuses to delete it while running", async () => {
+    const created = await tool("create_bot", { name: "Last thread fixture", instance_id: "claude", model: models[0] });
+    const botId = created.bot.id;
+    const threadId = created.bot.activeTaskId;
+    await control(["send", "--bot", botId, "--task", threadId, "--text", "LAST_THREAD_WORK"]);
+    await dump(models[0]);
+    expect((await api("DELETE", `/api/bots/${botId}/tasks/${threadId}`)).status).toBe(409);
+    writeFileSync(modelFile(models[0], "gate"), "finish");
+    expect((await control(["wait", "--bot", botId, "--task", threadId, "--timeout", "15"])).status).toBe("settled");
+    const before = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === botId);
+    expect(before.tasks).toHaveLength(1);
+    expect(before.messages.some((message: any) => message.role === "user" && message.text === "LAST_THREAD_WORK")).toBe(true);
+    const artifact = join(session.info.dataDir, "task-workspaces", botId, threadId, "result.txt");
+    writeFileSync(artifact, "Retain generated project files");
+
+    const deleted = await api("DELETE", `/api/bots/${botId}/tasks/${threadId}`);
+    expect(deleted.status).toBe(200);
+    const fresh = deleted.body.bot;
+    expect(fresh.tasks).toHaveLength(1);
+    expect(fresh.threadId).not.toBe(threadId);
+    expect(fresh.tasks[0]).toMatchObject({ threadId: fresh.threadId, title: "New thread", busy: false });
+    expect(fresh.messages).toEqual([]);
+    expect(fresh.modelSelection).toEqual(before.modelSelection);
+    expect(readFileSync(artifact, "utf8")).toBe("Retain generated project files");
+    expect((await api("DELETE", `/api/bots/${botId}/tasks/${threadId}`)).status).toBe(404);
+    const loaded = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === botId);
+    expect(loaded.threadId).toBe(fresh.threadId);
+    expect(loaded.messages).toEqual([]);
+    await control(["send", "--bot", botId, "--task", fresh.threadId, "--text", "NEW_THREAD_WORK"]);
+    expect((await control(["wait", "--bot", botId, "--task", fresh.threadId, "--timeout", "15"])).status).toBe("settled");
+    const messages = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === botId).messages;
+    expect(messages.some((message: any) => message.text === "NEW_THREAD_WORK")).toBe(true);
+    expect(messages.some((message: any) => message.text === "LAST_THREAD_WORK")).toBe(false);
+    evidence.push({ deletedThreadId: threadId, replacementThreadId: fresh.threadId, blankReplacement: true, artifactRetained: true });
+  }, 30_000);
+
   it("rejects blank memory replacements, caps new titles, and retains project files after deletion", async () => {
     const created = await tool("create_bot", { name: "Release review fixture", instance_id: "claude", model: models[0] });
     const botId = created.bot.id;
@@ -109,7 +192,8 @@ describe("independent bot tasks through the isolated control surface", () => {
     expect((await internal(token, "POST", "/api/internal/memory", { action: "append", text: "A unique saved fact." })).status).toBe(200);
     for (const text of ["", " \n\t "]) {
       expect((await internal(token, "POST", "/api/internal/memory", { action: "replace", oldText: "unique saved fact", text })).status).toBe(400);
-      expect((await api("GET", `/api/bots/${botId}/memory`)).body.text).toBe("A unique saved fact.");
+      // the append landed as one dated entry naming the thread it came from
+      expect((await api("GET", `/api/bots/${botId}/memory`)).body.text).toBe(`- ${memoryDate()} · from chat "${"t".repeat(60)}…" · A unique saved fact.\n`);
     }
     const project = join(session.info.dataDir, "task-workspaces", botId, threadId, "result.txt");
     writeFileSync(project, "Generated project files are retained.");
@@ -302,12 +386,14 @@ describe("independent bot tasks through the isolated control surface", () => {
     // a no-op relative to the task is not a no-op relative to the Group.
     expect((await api("PATCH", `/api/bots/${botId}/model`, selection)).status).toBe(409);
     expect((await api("PATCH", `/api/bots/${botId}`, { modelSelection: selection })).status).toBe(409);
+    expect((await api("PATCH", `/api/bots/${botId}/tasks/${threadId}`, { modelSelection: selection, updateBotDefault: true })).status).toBe(409);
     expect((await botState(botId)).tasks.find((task: any) => task.taskId === threadId)?.modelSelection).toEqual(selection);
     const profile = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === botId);
     expect(profile.modelSelection.model).toBe(models[0]);
     expect((await api("POST", `/api/groups/${group.id}/interrupt`, {})).status).toBe(200);
     await expect.poll(async () => (await botState(botId)).busy, { timeout: 10_000 }).toBe(false);
-    expect((await api("PATCH", `/api/bots/${botId}/model`, selection)).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${botId}/tasks/${threadId}`, { modelSelection: selection, updateBotDefault: true })).status).toBe(200);
+    expect((await botState(botId)).modelSelection).toEqual(selection);
     evidence.push({ groupDefaultPreservedUntilStop: true, groupId: group.id, selectedTaskId: threadId });
   }, 30_000);
 
@@ -379,7 +465,7 @@ describe("independent bot tasks through the isolated control surface", () => {
     await control(["interrupt", "--bot", botId, "--task", taskA]);
   }, 45_000);
 
-  it("keeps an unattended task's approval requirement while a sibling runs attended", async () => {
+  it("runs an unattended task in the bot's own level, still carding what the provider asks, while a sibling runs attended", async () => {
     const created = await tool("create_bot", { name: "Unattended fixture", instance_id: "claude", model: models[0] });
     const botId = created.bot.id;
     expect((await api("PATCH", `/api/bots/${botId}`, { approvalMode: "auto" })).status).toBe(200);
@@ -399,14 +485,17 @@ describe("independent bot tasks through the isolated control surface", () => {
     await control(["set-model", "--bot", botId, "--task", attendedTask, "--instance", "claude", "--model", models[1]]);
     await control(["send", "--bot", botId, "--task", attendedTask, "--text", "ATTENDED_ONLY"]);
     const attendedLaunch = await dump(models[1]);
-    expect(unattendedLaunch.argv[unattendedLaunch.argv.indexOf("--permission-mode") + 1]).toBe("default");
+    // Approval levels are the provider's own modes, passed through: a turn a
+    // webhook started runs in the bot's level like any other, and a request
+    // Claude's reviewer leaves for a person is carded, not answered.
+    expect(unattendedLaunch.argv[unattendedLaunch.argv.indexOf("--permission-mode") + 1]).toBe("auto");
     expect(attendedLaunch.argv[attendedLaunch.argv.indexOf("--permission-mode") + 1]).toBe("auto");
 
     const unattendedAnswers = await permission(models[0], "unattended-permission");
     expect((await control(["wait", "--bot", botId, "--task", unattendedTask, "--timeout", "5"])).status).toBe("needs-user");
     const card = (await api("GET", `/api/threads/${unattendedTask}/messages`)).body.messages
       .find((message: any) => message.card?.requestId === "unattended-permission");
-    expect(card.card.heldCode).toMatch(/unattended/);
+    expect(card.card.heldCode).toBe("approval.held.native");
     expect(unattendedAnswers).toEqual([]);
     expect((await botState(botId)).tasks.find((task: any) => task.taskId === attendedTask)?.activity).toBe("working");
     await control(["interrupt", "--bot", botId, "--task", attendedTask]);

@@ -87,6 +87,11 @@ describe("request source for the lockout", () => {
 });
 
 describe("scopes", () => {
+  it("keeps full backups, credentials and replacement behind admin scope", () => {
+    for (const path of ["status", "export", "upload", "preview", "restore", "client-state", "download/123"]) {
+      for (const method of ["GET", "POST", "DELETE"]) expect(requiredScope(method, `/api/workspace-backup/${path}`)).toBe("admin");
+    }
+  });
   it("is default deny: chat, approvals, rooms, attachments, routines and own session are client; everything else admin", () => {
     for (const [method, path] of [
       ["POST", "/api/bots/x/messages"], ["POST", "/api/bots/x/respond"], ["POST", "/api/threads/t/respond"],
@@ -189,6 +194,23 @@ describe("resolveRequestAuth", () => {
     const foreignOrigin = resolve({ host: "127.0.0.1:8799", origin: "https://evil.example" });
     expect(foreignOrigin.status).toBe(403);
     expect(foreignOrigin.error).toBe("forbidden: cross-origin request");
+  });
+
+  it("rejects revoked email cookies, bearers and tickets without falling back to loopback ownership", () => {
+    let allowed: Array<"admin" | "client"> = ["admin", "client"];
+    sessions = new SessionRegistry({ file: join(dir, "sessions.json"), emailScopes: () => allowed });
+    const paired = pairedToken();
+    const email = sessions.issue({ label: "browser", email: "person@example.test", scopes: ["admin", "client"] });
+    const { ticket } = sessions.issueStreamTicket(email.session.id);
+    expect(resolve({ host: "localhost", cookie: `${cookieName}=${email.token}` }).auth?.kind).toBe("session");
+    allowed = ["client"];
+    for (const host of ["bots.example.com", "localhost"]) {
+      expect(resolve({ host, cookie: `${cookieName}=${email.token}` })).toMatchObject({ auth: null, status: 401 });
+      expect(resolve({ host, authorization: `Bearer ${email.token}` })).toMatchObject({ auth: null, status: 401 });
+      expect(resolve({ host }, `/api/events?ticket=${ticket}`)).toMatchObject({ auth: null, status: 401 });
+    }
+    expect(resolve({ host: "localhost", authorization: `Bearer ${paired}` }).auth?.kind).toBe("session");
+    expect(resolve({ host: "localhost" }).auth?.kind).toBe("loopback");
   });
 
   it("renews a session only for a request that passed the origin and scope checks", () => {
@@ -325,6 +347,14 @@ describe("resolveRequestAuth", () => {
     ["POST", "/api/instances/codex/auth/start"],
     ["POST", "/api/instances/codex/auth/cancel"],
     ["POST", "/api/instances/codex/auth/sign-out"],
+    ["POST", "/api/instances/claude-work/auth/sign-out"],
+    ["GET", "/api/usage?from=2026-09-01&to=2026-09-30"],
+    ["GET", "/api/usage.csv?from=2026-09-01&to=2026-09-30"],
+    ["POST", "/api/keys/test"],
+    ["GET", "/api/fleet"],
+    ["POST", "/api/fleet/workspaces"],
+    ["DELETE", "/api/fleet/workspaces/acme"],
+    ["POST", "/api/fleet/upgrade"],
     ["POST", "/api/instances/antigravity/auth/complete"],
   ])("requires admin for server Settings: %s %s", (method, path) => {
     expect(requiredScope(method, path.split("?")[0]!)).toBe("admin");
@@ -344,7 +374,7 @@ describe("resolveRequestAuth", () => {
     expect(resolve(headers, path, method).auth).toBeNull();
   });
 
-  it("explains a dead credential instead of silently falling back, except on loopback", () => {
+  it("explains a dead credential instead of silently falling back, even on loopback", () => {
     const token = pairedToken();
     const session = sessions.authenticate(token);
     if (!session) throw new Error("no session");
@@ -352,8 +382,8 @@ describe("resolveRequestAuth", () => {
     const remote = resolve({ host: "bots.example.com", authorization: `Bearer ${token}` });
     expect(remote.status).toBe(401);
     expect(remote.error).toMatch(/expired or was revoked; pair this device again/);
-    // the owner on the same machine keeps working even with a stale cookie
-    expect(resolve({ host: "127.0.0.1:8799", cookie: `${cookieName}=${token}` }).auth?.kind).toBe("loopback");
+    // A rejected credential must never become a more powerful identity.
+    expect(resolve({ host: "127.0.0.1:8799", cookie: `${cookieName}=${token}` })).toMatchObject({ auth: null, status: 401 });
   });
 });
 

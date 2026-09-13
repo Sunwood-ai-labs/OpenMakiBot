@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   mirror:
-    if: github.repository == 'milind-soni/OpenMausBot'
+    if: github.repository == 'milind-soni/OpenMausBot' && !(github.event_name != 'workflow_dispatch' && !(!github.event.release.prerelease && startsWith(github.event.release.tag_name, 'v')))
     name: Preserve legacy updater compatibility
     # Dependency prereleases are not desktop updates. Manual recovery still
     # reaches the strict stable-tag and artifact checks below.

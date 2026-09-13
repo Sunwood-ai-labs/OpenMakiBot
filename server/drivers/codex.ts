@@ -33,6 +33,7 @@ import { codexLocalProviderArgs } from "./local-inject.ts";
 import { augmentedPath, splitCliString } from "../env-path.ts";
 import { classifyError, computeBackoff, RETRY_MAX_ATTEMPTS } from "./retry.ts";
 import { appendNative } from "./native.ts";
+import { commandSummary } from "../tool-summary.ts";
 import { codexDeveloperInstructions, syncCodexInstructions } from "./codex-instructions.ts";
 import type { ApprovalMode } from "../../shared/approval-mode.ts";
 import { CodexDeviceAuthController } from "./codex-device-auth.ts";
@@ -231,6 +232,9 @@ function mcpAppApprovalForm(params: unknown): McpApprovalForm | null {
 /** Codex persists these values on its native thread. Keep them explicit on
  * start, resume, and every turn so switching modes cannot leave a more
  * permissive sandbox/reviewer stuck to the next request. */
+/** Ask and Edits both run Codex's workspace-write sandbox with the person as
+ * reviewer: Codex has no narrower "edits only" mode, so the selector never
+ * offers Edits for it (supportsApprovalMode) and a stray value asks. */
 function namedApprovalParams(mode: Exclude<ApprovalMode, "custom">): CodexApprovalParams {
   if (mode === "full") {
     return {
@@ -504,7 +508,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     const active = new Map<string, Turn>();
 
     const emit = (event: RuntimeEvent) => {
-      for (const l of [...listeners]) l(event);
+      for (const l of Array.from(listeners)) l(event);
     };
     const base = (threadId: string, turnId: string) => ({
       eventId: newEventId(),
@@ -590,8 +594,13 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         });
 
       let abandoned = false;
+      let codexThreadId: string | null = null;
+      let codexTurnId: string | null = null;
+      let startingNativeTurn = false;
+      const earlyNotifications: any[] = [];
       const state = {
         settled: false,
+        lastError: "",
         lastText: "",
         sawStreamDelta: false,
         // codex reports token usage as a running THREAD total; the harness
@@ -630,6 +639,20 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           rpcPending.set(id, {
             resolve: (v) => {
               clearTimeout(timer);
+              if (method === "turn/start") {
+                if (typeof v?.turn?.id !== "string" || !v.turn.id) {
+                  reject(new Error("Codex did not return a native turn id"));
+                  return;
+                }
+                // Bind synchronously: a single stdout chunk can contain the
+                // response, streamed events, completion and a late request.
+                codexTurnId = v.turn.id;
+                startingNativeTurn = false;
+                for (const notification of earlyNotifications.splice(0)) {
+                  if (state.settled) break;
+                  handleNotification(notification);
+                }
+              }
               resolve(v);
             },
             reject: (e) => {
@@ -641,16 +664,22 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         });
 
       let stopping: Promise<boolean> | undefined;
-      const terminate = () => stopping ??= killCliTree(child);
-      const stop = () => {
+      const terminate = () => stopping ??= killCliTree(child).then((stopped) => {
+        if (!stopped) stopping = undefined;
+        return stopped;
+      });
+      let completeStoppedTurn: (() => void) | undefined;
+      const stop = async () => {
         stopRequested = true;
-        return terminate();
+        const stopped = await terminate();
+        if (stopped) completeStoppedTurn?.();
+        return stopped;
       };
 
       const settle = async (ok: boolean, stopReason: string | null) => {
         if (state.settled) return;
         state.settled = true;
-        for (const finish of [...asks.values()]) finish("deny", "OpenMausBot: the turn ended", "system");
+        for (const finish of Array.from(asks.values())) finish("deny", "OpenMausBot: the turn ended", "system");
         for (const p of rpcPending.values()) p.reject(new Error("turn settled"));
         rpcPending.clear();
         const complete = () => {
@@ -658,12 +687,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           active.delete(threadId);
           emit({ ...base(threadId, turnId), type: "turn.completed", ok, stopReason, cost: null, ...(state.usage ? { usage: state.usage } : {}) });
         };
-        if (await stop()) {
-          complete();
-        } else {
+        completeStoppedTurn = complete;
+        if (!(await stop())) {
           emit({ ...base(threadId, turnId), type: "runtime.error", message: "codex did not shut down after termination was requested" });
-          if (child.exitCode !== null || child.signalCode !== null) complete();
-          else child.once("close", complete);
         }
       };
 
@@ -788,6 +814,30 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
 
       const handleNotification = (msg: any) => {
         const p = msg.params ?? {};
+        // An app-server also emits notifications for native helper threads.
+        // Only this request's parent may write its transcript/usage or settle
+        // its run. Requests still use the approval broker above, including
+        // helper requests; ignoring child *notifications* must not grant tools.
+        const connectionError = msg.method === "error" &&
+          !("threadId" in p) && !("turnId" in p);
+        if (!connectionError) {
+          if (!codexThreadId || p.threadId !== codexThreadId) return;
+          if (!codexTurnId) {
+            // Some servers stream before acknowledging turn/start. Retain a
+            // bounded prefix, then filter against the authoritative response.
+            if (startingNativeTurn) {
+              if (earlyNotifications.length >= 1024) {
+                void settle(false, "too_many_events_before_turn_start");
+              } else {
+                earlyNotifications.push(msg);
+              }
+            }
+            return;
+          }
+          const eventTurnId = msg.method === "turn/started" || msg.method === "turn/completed"
+            ? p.turn?.id : p.turnId;
+          if (eventTurnId !== codexTurnId) return;
+        }
         switch (msg.method) {
           // token-level chat text; the item/completed frame follows with the
           // whole message, so its delta is only a fallback when none streamed
@@ -817,7 +867,16 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
                     : item.type === "webSearch"
                       ? "web_search"
                       : null;
-            if (title) emit({ ...base(threadId, turnId), type: "item.started", itemType: "tool", itemId: item.id, title });
+            if (title) {
+              emit({
+                ...base(threadId, turnId),
+                type: "item.started",
+                itemType: "tool",
+                itemId: item.id,
+                title,
+                summary: item.type === "commandExecution" ? commandSummary({ command: item.command }) : undefined,
+              });
+            }
             break;
           }
           case "item/completed": {
@@ -893,7 +952,15 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           }
           case "turn/completed": {
             const t = p.turn ?? {};
-            void settle(t.status === "completed", t.status === "completed" ? null : (t.error?.message ?? t.status ?? "failed"));
+            const message = typeof t.error?.message === "string" ? t.error.message.slice(0, 400) : "";
+            if (t.status !== "completed" && message && message !== state.lastError) {
+              state.lastError = message;
+              emit({ ...base(threadId, turnId), type: "runtime.error", message,
+                ...(classifyError({ text: message }).reason === "auth" ? { setup: true } : {}),
+              });
+            }
+            void settle(t.status === "completed", t.status === "completed" ? null :
+              (classifyError({ text: message || state.lastError }).reason === "provider_safety" ? "provider_safety" : (message || t.status || "failed")));
             break;
           }
           case "error":
@@ -901,7 +968,10 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             // {error:{message}} — surface either (agentcal armor)
             {
               const message = p.message ?? p.error?.message;
-              if (message) emit({ ...base(threadId, turnId), type: "runtime.error", message: String(message).slice(0, 400) });
+              if (message) {
+                state.lastError = String(message).slice(0, 400);
+                emit({ ...base(threadId, turnId), type: "runtime.error", message: state.lastError });
+              }
             }
             break;
         }
@@ -954,6 +1024,12 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       });
       child.on("close", (code) => {
         if (abandoned) return;
+        if (state.settled) {
+          // Root exit alone cannot release a turn after an uncertain stop.
+          // Recheck its group; an explicit later Stop can also retry this.
+          void stop();
+          return;
+        }
         if (!state.settled) {
           emit({
             ...base(threadId, turnId),
@@ -1015,7 +1091,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         // on start AND resume so Codex owns their lifetime through compaction.
         // Removed bot rules are cleared without dropping native configured rules.
         const cursor = typeof turn.resumeCursor === "string" ? turn.resumeCursor : null;
-        let codexThreadId: string | null = null;
         let startedModel: string | null = null;
         if (cursor) {
           try {
@@ -1071,7 +1146,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           ...(promptText ? [{ type: "text" as const, text: promptText }] : []),
           ...(turn.images ?? []).map((image) => ({ type: "localImage" as const, path: image.path })),
         ];
-        const startTurn = () => request("turn/start", {
+        const startTurn = () => {
+          startingNativeTurn = true;
+          return request("turn/start", {
             threadId: codexThreadId,
             input: turnInput,
             ...approvalParams.turn,
@@ -1086,6 +1163,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             // thread rather than the current one.
             ...(turn.effort ? { effort: turn.effort } : {}),
           });
+        };
         try {
           await startTurn();
         } catch (error) {
@@ -1133,7 +1211,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             message,
             ...(needsAuth ? { setup: true } : {}),
           });
-          await settle(false, needsAuth ? "auth_required" : "rpc_error");
+          await settle(false, needsAuth ? "auth_required" : verdict.reason === "provider_safety" ? "provider_safety" : "rpc_error");
         }
       }
     };
