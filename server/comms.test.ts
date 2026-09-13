@@ -207,16 +207,18 @@ describe("comms e2e (fake ACP fleet)", () => {
     const operator = (await bots()).find(bot => bot.name === "Pixel"); created.push(operator.id);
     expect(operator).toMatchObject({ title: "Product designer", description: "Design and review the user experience.", section: "Launch", composio: false, autoApprove: false, approvePeerComms: false, modelSelection: { instanceId: "grok", model: "fake-model" } });
     expect(operator.chiefOfStaff).toBeFalsy();
-    await expect.poll(async () => (await state(chief.id)).busy).toBe(false);
+    await expect.poll(async () => (await state(chief.id)).busy, { timeout: 15_000 }).toBe(false);
     plan = { [chief.id]: { steps: [{ arguments: { bot_ids: [operator.id], request_key: "design", message: "Review the new onboarding flow" } }] }, [operator.id]: { reply: "Onboarding reviewed" } };
     await start(chief); await settled(chief);
     expect(childNode(chief, operator)).toMatchObject({ status: "completed", result: "Onboarding reviewed" });
   }, 45_000);
   it("dispatches addressed work after the source provider finishes and resumes its pinned task", async () => {
-    const { source, target } = await pair(); plan[source.id].delayMs = 700;
+    const { source, target } = await pair();
+    const release = join(home, `${source.id}.release`); plan[source.id].waitForFile = release;
     await start(source);
-    await expect.poll(() => childNode(source, target)?.status).toBe("queued");
+    await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
     expect(evidence().some(turn => turn.botId === target.id)).toBe(false);
+    writeFileSync(release, "continue");
     await settled(source);
     expect(evidence().filter(turn => turn.botId === source.id).map(turn => turn.threadId)).toEqual([source.threadId, source.threadId]);
     expect((await messages(source.threadId)).filter(message => message.tool?.name === "Sent to Helper")).toHaveLength(1);
@@ -224,21 +226,25 @@ describe("comms e2e (fake ACP fleet)", () => {
   }, 40_000);
   it("keeps a Chief available in a separate task while its coordinated teammate works", async () => {
     const { source, target } = await pair(); await api("PATCH", `/api/bots/${source.id}`, { chiefOfStaff: true });
-    plan[target.id].delayMs = 2000;
+    const release = join(home, `${target.id}.release`); plan[target.id].waitForFile = release;
     plan[source.id] = { turns: [{ steps: plan[source.id].steps, reply: "Assigned" }, { reply: "Available in another task" }, { reply: "Reviewed returned work" }] };
     await start(source); await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("running");
     const other = (await api("POST", `/api/bots/${source.id}/tasks`, { title: "Other request" })).body.task;
     expect((await api("POST", `/api/bots/${source.id}/messages`, { threadId: other.threadId, text: "Are you available?" })).status).toBe(202);
-    await expect.poll(async () => (await messages(other.threadId)).some(message => message.text === "Available in another task")).toBe(true);
+    await expect.poll(async () => (await messages(other.threadId)).some(message => message.text === "Available in another task"), { timeout: 15_000 }).toBe(true);
     expect(childNode(source, target).status).toBe("running");
+    writeFileSync(release, "continue");
     await settled(source);
     expect((await messages(source.threadId)).some(message => message.text === "Reviewed returned work")).toBe(true);
     expect((await messages(other.threadId)).some(message => message.roomRequest)).toBe(false);
   }, 40_000);
   it("queues a busy recipient and leaves its current conversation untouched", async () => {
-    const { source, target } = await pair(); plan[target.id] = { turns: [{ delayMs: 1000, reply: "Existing work" }, { reply: "Fresh coordinated result" }] };
+    const { source, target } = await pair();
+    const release = join(home, `${target.id}.release`);
+    plan[target.id] = { turns: [{ waitForFile: release, reply: "Existing work" }, { reply: "Fresh coordinated result" }] };
     await start(target, "Existing unrelated work"); await start(source);
-    await expect.poll(() => childNode(source, target)?.status).toBe("queued");
+    await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
+    writeFileSync(release, "continue");
     await settled(source);
     expect(childNode(source, target)).toMatchObject({ status: "completed", result: "Fresh coordinated result" });
     expect((await messages(target.threadId)).some(message => message.text === "Existing work")).toBe(true);
@@ -253,7 +259,7 @@ describe("comms e2e (fake ACP fleet)", () => {
     // A queued child can exist while its source still finishes the MCP call.
     // Reload only after the source yields ownership to the durable coordinator.
     await expect.poll(() => nodes().find(node => !node.parentId && node.botId === source.id)?.status, { timeout: 15_000 }).toBe("waiting");
-    await expect.poll(() => childNode(source, target)?.status).toBe("queued");
+    await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
     const id = childNode(source, target).id;
     await api("PUT", "/api/config", { composio: { apiKey: "" } });
     await settled(source);
@@ -278,9 +284,9 @@ describe("comms e2e (fake ACP fleet)", () => {
   it("finalizes a running coordinated turn interrupted by provider reload", async () => {
     const { source, target } = await pair(); plan[target.id].delayMs = 4000;
     plan[source.id].resumeReply = "The worker failed; reporting its failure";
-    await start(source); await expect.poll(() => childNode(source, target)?.status).toBe("running");
+    await start(source); await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("running");
     await api("PUT", "/api/config", { composio: { apiKey: "" } });
-    await expect.poll(() => ["failed", "cancelled"].includes(childNode(source, target)?.status)).toBe(true);
+    await expect.poll(() => ["failed", "cancelled"].includes(childNode(source, target)?.status), { timeout: 15_000 }).toBe(true);
     await expect.poll(async () => (await state(source.id)).busy || (await state(target.id)).busy, { timeout: 20_000 }).toBe(false);
     expect((await messages(source.threadId)).some(message => message.text === "The actual teammate report is verified")).toBe(false);
     expect(evidence().find(turn => turn.botId === source.id && turn.resumed).system).toContain('"status":"failed"');
@@ -294,10 +300,10 @@ describe("comms e2e (fake ACP fleet)", () => {
   }, 40_000);
   it("does not start queued work for a deleted recipient or recreate its task", async () => {
     const { source, target } = await pair(); plan[source.id].delayMs = 700;
-    await start(source); await expect.poll(() => childNode(source, target)?.status).toBe("queued");
+    await start(source); await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
     const recipientThread = childNode(source, target).threadId;
     expect((await api("DELETE", `/api/bots/${target.id}`)).status).toBe(200);
-    await expect.poll(() => ["failed", "cancelled"].includes(childNode(source, target)?.status)).toBe(true);
+    await expect.poll(() => ["failed", "cancelled"].includes(childNode(source, target)?.status), { timeout: 15_000 }).toBe(true);
     await expect.poll(async () => (await state(source.id)).busy, { timeout: 15_000 }).toBe(false);
     expect(await state(target.id)).toBeUndefined();
     expect(evidence().some(turn => turn.threadId === recipientThread)).toBe(false);
@@ -317,7 +323,7 @@ describe("comms e2e (fake ACP fleet)", () => {
     const { source, target } = await pair(); await api("PATCH", `/api/bots/${source.id}`, { approvePeerComms: true });
     plan[source.id].steps[0].expectError = true;
     await start(source); await respond(source, await approval(source), "deny");
-    await expect.poll(async () => (await state(source.id)).busy).toBe(false);
+    await expect.poll(async () => (await state(source.id)).busy, { timeout: 15_000 }).toBe(false);
     expect(childNode(source, target)).toBeUndefined();
     expect((await state(target.id)).tasks).toHaveLength(1);
     expect(evidence().some(turn => turn.botId === target.id)).toBe(false);
