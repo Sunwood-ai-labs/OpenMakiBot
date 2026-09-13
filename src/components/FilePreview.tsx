@@ -13,6 +13,9 @@ const OfficePreview = lazy(() => import('./OfficePreview'));
 
 interface LoadedPreview { data: Uint8Array; url: string; name: string }
 
+/** Own one authorized load and its blob URL; hide results as soon as request identity
+ * changes. Cleanup aborts queued/active work and revokes the URL, so replacement
+ * loads unmount document viewers before exposing their new bytes. */
 function usePreviewFile(path: string, name: string, message: MessageAttachmentContext, kind: FilePreviewKind, enabled: boolean) {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; file?: LoadedPreview; error?: string } | null>(null);
@@ -45,6 +48,8 @@ function usePreviewFile(path: string, name: string, message: MessageAttachmentCo
   };
 }
 
+/** Load when near the viewport or explicitly opened, sharing bytes between the card
+ * and dialog. Callers must first establish a supported filePreviewKind for path. */
 export function PreviewableFile({ path, name, message, children, compact = false }: {
   path: string; name?: string; message: MessageAttachmentContext; children?: ReactNode; compact?: boolean;
 }) {
@@ -67,6 +72,8 @@ export function PreviewableFile({ path, name, message, children, compact = false
   </span>;
 }
 
+/** Present the shared resource in a focus-trapped modal and restore background/focus
+ * state on close. Keyed by path; document children unmount while a load is pending. */
 function FilePreviewDialog({ path, name, message, resource, onClose }: { path: string; name: string; message: MessageAttachmentContext; resource: ReturnType<typeof usePreviewFile>; onClose: () => void }) {
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);

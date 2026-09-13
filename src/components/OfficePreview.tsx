@@ -3,6 +3,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { t } from '@/lib/i18n';
 import type { OfficePreviewResult } from '@/lib/file-preview';
 
+/** Transfer a copy to a disposable worker, then show bounded static results. Slide
+ * SVGs remain image resources rather than application DOM; unmount revokes URLs
+ * and terminates the worker. The parent remounts this viewer for replacement data. */
 export default function OfficePreview({ data, kind, onError }: { data: Uint8Array; kind: 'presentation' | 'spreadsheet'; onError: (message: string) => void }) {
   const [result, setResult] = useState<OfficePreviewResult | null>(null);
   const [selected, setSelected] = useState(0);

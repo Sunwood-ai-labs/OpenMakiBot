@@ -4,6 +4,8 @@ const MAX_PART_BYTES = 25 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 interface Part { name: string; method: number; start: number; compressed: number; size: number }
 
+/** Validate ZIP directory/local-header agreement and declared budgets without inflating.
+ * Return null for legacy non-ZIP formats; reject malformed or unsupported ZIPs. */
 function archiveParts(data: Uint8Array): Part[] | null {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let end = -1;

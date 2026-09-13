@@ -7,6 +7,9 @@ import { createPreviewBinaryDataFactory } from '@/lib/pdf-preview-assets';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
+/** Render a single document with page/zoom controls and cancellable PDF.js work.
+ * The parent unmounts before replacement bytes arrive; copied input preserves the
+ * shared download/thumbnail buffer when PDF.js transfers data to its worker. */
 export default function PdfPreview({ data, onError }: { data: Uint8Array; onError: (error: string) => void }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);

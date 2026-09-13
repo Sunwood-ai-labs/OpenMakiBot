@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { OfficePreviewResult } from '@/lib/file-preview';
 import { acquirePreviewSlot } from '@/lib/preview-queue';
 
+/** Render a queued first-page/slide/sheet preview using private parser work. Cleanup
+ * cancels parsers and revokes SVG URLs; callbacks refer only to committed props. */
 export default function DocumentThumbnail({ data, kind, onReady, onError }: {
   data: Uint8Array; kind: 'pdf' | 'presentation' | 'spreadsheet';
   onReady: () => void; onError: () => void;

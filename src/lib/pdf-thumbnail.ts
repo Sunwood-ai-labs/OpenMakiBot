@@ -4,6 +4,9 @@ import { createPreviewBinaryDataFactory } from './pdf-preview-assets';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
+/** Draw page one within 480 by 260 pixels without transferring the caller's buffer.
+ * Cancellation and the 30-second deadline stop document and auxiliary-resource
+ * work; all exit paths destroy the PDF.js task. The caller owns the canvas. */
 export async function renderPdfThumbnail(data: Uint8Array, canvas: HTMLCanvasElement, signal: AbortSignal) {
   const controller = new AbortController();
   const resourceSignal = AbortSignal.any([signal, controller.signal]);

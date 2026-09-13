@@ -1,11 +1,13 @@
 /** Match the actual path, never a model-supplied display label. */
 export type FilePreviewKind = 'image' | 'pdf' | 'video' | 'spreadsheet' | 'presentation';
 
+/** Decode only the basename for display; malformed escapes retain their original text. */
 export function previewDisplayName(path: string): string {
   const basename = path.split(/[\\/]/).at(-1) || 'file';
   try { return decodeURIComponent(basename); } catch { return basename; }
 }
 
+/** Select a supported decoder from the actual path, never the display label. */
 export function filePreviewKind(path: string): FilePreviewKind | null {
   if (/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(path)) return 'image';
   if (/\.pdf$/i.test(path)) return 'pdf';
@@ -15,6 +17,7 @@ export function filePreviewKind(path: string): FilePreviewKind | null {
   return null;
 }
 
+/** Require the response MIME to match the chosen decoder before consuming its bytes. */
 export function previewMimeAllowed(kind: FilePreviewKind, mime: string): boolean {
   const type = mime.split(';', 1)[0].trim().toLowerCase();
   if (kind === 'image') return ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'].includes(type);
@@ -28,6 +31,7 @@ export type SpreadsheetPreview = { kind: 'spreadsheet'; sheets: Array<{ name: st
 export type PresentationPreview = { kind: 'presentation'; slides: Array<{ svg: string; text: string }>; truncated: boolean };
 export type OfficePreviewResult = SpreadsheetPreview | PresentationPreview;
 
+/** Address the message-scoped file endpoint; the server authorizes the requested path. */
 export function fileRequestUrl(message: { threadId: string; messageId: string }): string {
   return `/api/threads/${encodeURIComponent(message.threadId)}/messages/${encodeURIComponent(message.messageId)}/file`;
 }

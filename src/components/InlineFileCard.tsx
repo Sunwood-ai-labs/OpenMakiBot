@@ -6,6 +6,8 @@ import { FileExtensionBadge } from './FileExtensionBadge';
 
 const DocumentThumbnail = lazy(() => import('./DocumentThumbnail'));
 
+/** Show media readiness and document thumbnails without starting video playback.
+ * Only a user click starts playback; leaving view or opening the dialog pauses it. */
 export function InlineFileCard({ kind, path, label, caption, file, error, visible, expanded, onExpand }: {
   kind: FilePreviewKind; path: string; label: string; caption?: ReactNode;
   file?: { data: Uint8Array; url: string }; error?: string; visible: boolean;

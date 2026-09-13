@@ -1,4 +1,6 @@
-/** Bound file loads and thumbnail parsers; full document rendering has its own lifecycle. */
+/** Bound file loads and thumbnail parsers with FIFO admission. Aborting removes a
+ * waiter; an admitted caller must release its slot in finally, even after abort.
+ * Release is idempotent. Full document rendering has its own lifecycle. */
 export function createPreviewQueue(limit: number) {
   let active = 0;
   const waiting: Array<() => void> = [];

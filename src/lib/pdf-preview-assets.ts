@@ -9,6 +9,7 @@ const assets = {
 /** Bind auxiliary PDF resources to one preview; PDF.js does not supply a signal. */
 export function createPreviewBinaryDataFactory(signal: AbortSignal) {
   return class PreviewBinaryDataFactory {
+    /** Resolve only bundled filenames and cancel both request and body reads with this preview. */
     async fetch({ kind, filename }: { kind: keyof typeof assets; filename: string }): Promise<Uint8Array> {
       signal.throwIfAborted();
       const entries = assets[kind];

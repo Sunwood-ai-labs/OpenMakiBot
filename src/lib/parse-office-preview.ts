@@ -1,6 +1,9 @@
 import type { OfficePreviewResult } from './file-preview';
 import { prepareOfficeArchive } from './office-preview-limits';
 
+/** Produce bounded static slides or cached cell values after validating actual ZIP output.
+ * Thumbnail mode reads only the first slide or a small first-sheet region. Formulas
+ * are never evaluated; callers must isolate parsing in a worker with a deadline. */
 export async function parseOfficePreview(data: Uint8Array, kind: 'presentation' | 'spreadsheet', thumbnail = false): Promise<OfficePreviewResult> {
     data = prepareOfficeArchive(data);
     let result: OfficePreviewResult;
