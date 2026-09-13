@@ -132,7 +132,11 @@ describe("control-omb ui drives the real renderer", () => {
       openaiCompat: { key: "fixture-saved-key", url: "http://127.0.0.1:1/v1" },
     });
     const evaluate = async (js: string) => (await ui("eval", info.ui, "--js", js)).result;
-    const click = (name: string) => ui("click", info.ui, "--name", name);
+    const click = async (name: string) => {
+      await expect.poll(async () => refsNamed(await ui("snapshot", info.ui), name).length,
+        { timeout: 10_000, message: `one visible control named ${name}` }).toBe(1);
+      return ui("click", info.ui, "--name", name);
+    };
     const input = `document.querySelector('input[aria-label="OpenAI-compatible API key"]')`;
     const testButton = `[...${input}.parentElement.querySelectorAll('button')].find(b => b.textContent === 'Test')`;
     const verdict = () => evaluate(`${input}.parentElement.parentElement.querySelector('[role="status"]')?.textContent`);
