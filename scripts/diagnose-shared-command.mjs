@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -12,8 +13,10 @@ const minimal = Object.fromEntries(allowed.filter(k => process.env[k]).map(k => 
 const started = Date.now();
 try {
   const result = await sharedCommand('echo shared-desktop-ok', fixtureHome, AbortSignal.timeout(12_000));
+  assert.equal(JSON.parse(result.content[0].text).exitCode, 0);
+  assert.match(JSON.parse(result.content[0].text).output, /shared-desktop-ok/);
   console.log(JSON.stringify({name:'production', elapsed:Date.now()-started, result}));
-} catch(error) { console.log(JSON.stringify({name:'production',elapsed:Date.now()-started,error:error.message})); }
+} catch(error) { process.exitCode=1; console.log(JSON.stringify({name:'production',elapsed:Date.now()-started,error:error.message})); }
 
 async function probe(name, command, extra = {}) {
   const start = Date.now();

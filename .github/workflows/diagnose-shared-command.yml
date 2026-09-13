@@ -17,3 +17,4 @@ jobs:
         with:
           node-version: 24
       - run: node scripts/diagnose-shared-command.mjs
+      - run: node --test electron/shared-computer-access.node-test.mjs
