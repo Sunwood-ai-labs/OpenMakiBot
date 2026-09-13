@@ -1,6 +1,9 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setLocale } from "@/lib/i18n";
+
+beforeEach(() => setLocale('en'));
 
 import {
   AttachedFileChips,
@@ -153,12 +156,12 @@ describe("attachment preview surfaces", () => {
     expect(html).not.toContain("type=\"button\"");
   });
 
-  it("makes message-authorized transcript files explicit save actions", () => {
+  it("opens message-authorized PDF attachments in a preview", () => {
     const html = renderToStaticMarkup(createElement(AttachedFileChips, {
       files: [{ path: "/store/123e4567-e89b-42d3-a456-426614174000.pdf", name: "Final report.pdf", private: true }],
       message: { threadId: "thread-1", messageId: "message-1" },
     }));
-    expect(html).toContain("Save a copy of Final report.pdf");
+    expect(html).toContain("Preview Final report.pdf");
     expect(html).toContain("type=\"button\"");
   });
 });

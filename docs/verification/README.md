@@ -53,6 +53,9 @@ The [live browser fixture](browser-live.md) mounts the real Browser panel with
 an explicitly selected native engine and Chrome in a disposable home, covering
 watching, takeover, input, and profile switching.
 
+The [file preview fixture](file-preview.md) checks Web PDF, video, workbook, and
+slide previews against message-authorized downloads on an isolated fake engine.
+
 The [bot settings fixture](bot-settings.md) checks profile saves, standing
 instructions, history restore, skill/memory refresh, and stale-response isolation.
 

@@ -288,6 +288,7 @@ export async function launchVerificationServer(
   signal?: AbortSignal,
   localVm?: { binDir: string; host: string; sshKey: string; staticDir: string },
   browser?: { binaryPath: string; executablePath: string },
+  fakeReplies?: readonly string[],
 ): Promise<VerificationServer> {
   if (localVm) {
     const endpoint = new URL(localVm.host);
@@ -341,6 +342,7 @@ export async function launchVerificationServer(
     OMB_WEBHOOK_PORT: String(port + 1),
     FAKE_CLAUDE_MODE: "happy",
     FAKE_CLAUDE_DUMP: fixtureDumpPath,
+    ...(fakeReplies ? { FAKE_CLAUDE_REPLIES: JSON.stringify(fakeReplies) } : {}),
     // Keep the environment hermetic while allowing POSIX to resolve the
     // fake CLI's `#!/usr/bin/env node` shebang. Windows resolves that same
     // fixture through spawnCli without a shell.

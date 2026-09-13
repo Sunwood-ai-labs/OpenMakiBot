@@ -92,6 +92,10 @@ const FILE_MIMES: Readonly<Record<string, string>> = {
   "audio/flac": ".flac",
   "audio/x-flac": ".flac",
   "audio/webm": ".webm",
+
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "video/quicktime": ".mov",
   "text/plain": ".txt",
   "text/markdown": ".md",
   "text/csv": ".csv",
