@@ -268,7 +268,9 @@ describe("peer allow-list", () => {
       expect(systemPrompt).toContain("- Quill — General assistant (available)");
       expect(systemPrompt).toContain("- Patch — General assistant (available)");
       // and is told nothing about creating bots or directing them
-      expect(systemPrompt).toContain("peers, not staff");
+      expect(systemPrompt).toContain("Use coordinate_bots");
+      expect(systemPrompt).toContain("They use their own permissions");
+      expect(systemPrompt).toContain("you cannot grant them your access, answer on their behalf or create bots unless you are a Chief of Staff");
       expect(systemPrompt).not.toContain("create_bot");
       // The harness keeps appending its own rules with a bare leading space
       // (index.ts: `${coordinationPrompt}` then credentialPrompt). The last

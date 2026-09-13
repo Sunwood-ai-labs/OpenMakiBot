@@ -111,18 +111,26 @@ describe("independent bot tasks through the isolated control surface", () => {
     expect(roster.body.bots.find((bot: any) => bot.id === peer.id)).toMatchObject({
       status: "waiting-on-user", statusText: "waiting on the user", busy: true,
     });
-    const queued = await internal(token, "POST", "/api/internal/delegate-bot", {
-      toBotId: peer.id, message: "MAILBOX_REVIEW: check the release notes.",
+    const queued = await internal(token, "POST", "/api/internal/coordinate-bots", {
+      botIds: [peer.id], requestKey: "mailbox-review", message: "MAILBOX_REVIEW: check the release notes.",
     });
-    expect(queued.body.queued).toBe(true);
+    expect(queued.status).toBe(200);
+    expect(queued.body.errors).toEqual([]);
+    expect(queued.body.accepted).toHaveLength(1);
+    const requestId = queued.body.accepted[0].requestId;
     // Finish only the Chief. Its peer remains parked on the actual approval
-    // broker, and the handoff must be visible once without occupying the Chief.
+    // broker. The source's provider can finish, but the coordinator keeps
+    // the source task waiting until its pinned recipient task returns.
     writeFileSync(modelFile(models[0], "gate"), "finish");
-    expect((await control(["wait", "--bot", chief.id, "--timeout", "15"])).status).toBe("settled");
     await expect.poll(async () => {
       const current = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === chief.id);
-      return current.messages.filter((message: any) => message.tool?.name?.includes("who's waiting on you")).length;
+      return current.messages.filter((message: any) => message.tool?.name === "Sent to Mailbox Peer").length;
     }).toBe(1);
+    expect((await botState(chief.id)).busy).toBe(true);
+    const coordinationNodes = () => JSON.parse(readFileSync(join(session.info.dataDir, "room-handoffs.json"), "utf8")) as any[];
+    const recipient = coordinationNodes().find(node => node.id === requestId);
+    expect(recipient.status).toBe("queued");
+    expect(recipient.threadId).not.toBe(peer.activeTaskId);
     expect(answers).toEqual([]);
     await control(["messages", "--bot", chief.id, "--limit", "10"]);
     const allowed = await api("POST", `/api/threads/${peer.activeTaskId}/respond`, { requestId: "mailbox-approval", behavior: "allow" });
@@ -133,11 +141,14 @@ describe("independent bot tasks through the isolated control surface", () => {
       const bots = (await api("GET", "/api/bots")).body.bots;
       const current = bots.find((bot: any) => bot.id === chief.id);
       return !current.busy && current.messages.some((message: any) =>
-        message.from?.botId === peer.id && message.text?.includes("MAILBOX_REVIEW"));
+        message.from?.botId === peer.id && message.roomRequest?.id === requestId && message.tool?.ok === true);
     }, { timeout: 20_000 }).toBe(true);
     const bots = (await api("GET", "/api/bots")).body.bots;
     const peerState = bots.find((bot: any) => bot.id === peer.id);
-    expect(peerState.messages.filter((message: any) => message.role === "user" && message.text?.includes("MAILBOX_REVIEW"))).toHaveLength(1);
+    expect(peerState.messages.some((message: any) => message.text?.includes("MAILBOX_REVIEW"))).toBe(false);
+    const delivered = (await api("GET", `/api/threads/${recipient.threadId}/messages`)).body.messages;
+    expect(delivered.filter((message: any) => message.roomRequest?.id === requestId && message.roomRequest.phase === "request")).toHaveLength(1);
+    expect(coordinationNodes().find(node => node.id === requestId).status).toBe("completed");
     expect((await control(["wait", "--bot", peer.id, "--timeout", "15"])).status).toBe("settled");
     await control(["messages", "--bot", peer.id, "--limit", "10"]);
     await control(["messages", "--bot", chief.id, "--limit", "15"]);
