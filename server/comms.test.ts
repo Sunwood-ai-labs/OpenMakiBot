@@ -176,14 +176,16 @@ describe("comms e2e (fake ACP fleet)", () => {
   });
   it("carries a question through the real ACP agents proxy and returns the actual peer result", async () => {
     const { source, target } = await pair();
+    const originalMessages = await messages(target.threadId);
     await start(source); await settled(source);
     const node = childNode(source, target);
     expect(node).toMatchObject({ status: "completed", result: "Helper verified the report" });
+    expect(node.threadId).not.toBe(target.threadId);
     expect(evidence().filter(turn => [source.id, target.id].includes(turn.botId)).map(turn => turn.botId)).toEqual([source.id, target.id, source.id]);
     const receipt = (await messages(source.threadId)).find(message => message.roomRequest?.id === node.id);
     expect(receipt).toMatchObject({ from: { botId: target.id }, tool: { ok: true }, threadRef: { botId: target.id, threadId: node.threadId } });
     expect((await messages(node.threadId)).find(message => message.roomRequest?.phase === "request")).toMatchObject({ from: { botId: source.id } });
-    expect(await messages(target.threadId)).toEqual((await state(target.id)).messages);
+    expect(await messages(target.threadId)).toEqual(originalMessages);
     expect((await messages(target.threadId)).some(message => message.roomRequest)).toBe(false);
     expect((await api("GET", "/api/bots")).body.groups).toEqual([]);
     expect(evidence().find(turn => turn.botId === source.id && turn.resumed).system).toContain("Helper verified the report");
@@ -203,7 +205,7 @@ describe("comms e2e (fake ACP fleet)", () => {
     await start(chief, "Create the specialist");
     await expect.poll(async () => (await bots()).some(bot => bot.name === "Pixel"), { timeout: 15_000 }).toBe(true);
     const operator = (await bots()).find(bot => bot.name === "Pixel"); created.push(operator.id);
-    expect(operator).toMatchObject({ title: "Product designer", section: "Launch", composio: false, autoApprove: false, approvePeerComms: false, modelSelection: { instanceId: "grok", model: "fake-model" } });
+    expect(operator).toMatchObject({ title: "Product designer", description: "Design and review the user experience.", section: "Launch", composio: false, autoApprove: false, approvePeerComms: false, modelSelection: { instanceId: "grok", model: "fake-model" } });
     expect(operator.chiefOfStaff).toBeFalsy();
     await expect.poll(async () => (await state(chief.id)).busy).toBe(false);
     plan = { [chief.id]: { steps: [{ arguments: { bot_ids: [operator.id], request_key: "design", message: "Review the new onboarding flow" } }] }, [operator.id]: { reply: "Onboarding reviewed" } };
