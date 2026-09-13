@@ -21,6 +21,7 @@ let bot: any;
 let sequence = 0;
 const waiting = new Map<number, (value: any) => void>();
 const evidence: string[] = [];
+const transportEvents: string[] = [];
 const api = async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
   const response = await fetch(`${fixture.info.url}${path}`, {
     method, headers: { "content-type": "application/json", origin: fixture.info.url, ...headers },
@@ -30,8 +31,20 @@ const api = async (method: string, path: string, body?: unknown, headers: Record
 };
 const rpc = (method: string, params?: unknown): Promise<any> => new Promise((resolve, reject) => {
   const id = ++sequence;
-  const timeout = setTimeout(() => { waiting.delete(id); reject(new Error(`MCP ${method} timed out`)); }, 15_000);
-  waiting.set(id, value => { clearTimeout(timeout); resolve(value); });
+  const call = params as { name?: string; arguments?: { action?: string } } | undefined;
+  const label = [method, call?.name, call?.arguments?.action].filter(Boolean).join(" ");
+  const started = Date.now();
+  transportEvents.push(`${id}: ${label} started`);
+  const timeout = setTimeout(() => {
+    waiting.delete(id);
+    const state = connector.state(env.id);
+    reject(new Error(`MCP ${label} timed out after ${Date.now() - started}ms; connector connected=${state.connected}, proxy exit=${proxy.exitCode}; transport: ${transportEvents.slice(-12).join("; ")}`));
+  }, 15_000);
+  waiting.set(id, value => {
+    clearTimeout(timeout);
+    transportEvents.push(`${id}: ${label} replied after ${Date.now() - started}ms`);
+    resolve(value);
+  });
   proxy.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
 });
 const tool = async (name: string, args: unknown = {}) => (await rpc("tools/call", { name, arguments: args })).result;
@@ -53,7 +66,21 @@ beforeAll(async () => {
   expect(pairing.token).toMatch(/^omb_sess_/);
   connector = createComputerSharing({
     file: grantFile, environments: () => [env], cuaConnection: async () => null,
-    fetch: (url: string, init: RequestInit) => fetch(url, { ...init, headers: { ...init.headers, authorization: `Bearer ${pairing.token}` } }),
+    fetch: async (url: string, init: RequestInit) => {
+      // Log route names and timing only: pairing tokens, connector secrets,
+      // file contents and command text must never enter timeout diagnostics.
+      const route = new URL(url).pathname.split("/").at(-1);
+      const started = Date.now();
+      transportEvents.push(`connector ${route} started`);
+      try {
+        const response = await fetch(url, { ...init, headers: { ...init.headers, authorization: `Bearer ${pairing.token}` } });
+        transportEvents.push(`connector ${route} status=${response.status} after ${Date.now() - started}ms`);
+        return response;
+      } catch (error) {
+        transportEvents.push(`connector ${route} failed after ${Date.now() - started}ms`);
+        throw error;
+      }
+    },
   });
   bot = (await api("POST", "/api/bots", { name: "Shared desktop tester" })).body.bot;
   expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "Inspect the folder shared by my desktop; do not use files on the server." })).status).toBe(202);
@@ -72,7 +99,7 @@ afterAll(async () => {
   connector?.close(); proxy?.kill();
   if (fixture) {
     const receipt = `${fixture.info.logPath}.computer-sharing.json`;
-    writeFileSync(receipt, JSON.stringify({ fixture: fixture.info, checks: evidence, limitation: "Fake model; real MCP, HTTP pairing and filesystem. OS screen control is tested with a separate transport stand-in, never the user's screen." }, null, 2));
+    writeFileSync(receipt, JSON.stringify({ fixture: fixture.info, checks: evidence, transportEvents, limitation: "Fake model; real MCP, HTTP pairing and filesystem. OS screen control is tested with a separate transport stand-in, never the user's screen." }, null, 2));
     console.info(`Computer-sharing evidence: ${receipt}`);
     await fixture.close();
   }
