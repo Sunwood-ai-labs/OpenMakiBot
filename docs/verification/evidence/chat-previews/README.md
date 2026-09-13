@@ -230,3 +230,35 @@ while adding `PSModulePath` completed at 265ms. Local validation passed the same
 eight Node tests plus nine shared-computer unit/end-to-end tests, typecheck and
 lint. The separate diagnostic branch/workflow stays out of the upstream PR.
 The full three-OS PR CI still needs to confirm the repair in the entire suite.
+
+### Upstream coordination and locale integration
+
+Upstream `ab66e55f` includes #1166 (self-owned thread authorization and
+coordination provenance) and #1164 (removing 23 stale Ukrainian translations).
+The refreshed translations and their matching hashes are retained here; the
+locale checker passes all ten catalogs against 2,105 English strings.
+
+The upstream `comms` and `thread-aware-bots` suites are retained, while the
+previous ACP coordination and legacy-capability scenarios move to dedicated
+test files. Both paths remain covered; the ordinary-chat refusal now targets a
+teammate and checks the self-owned-thread capability separately. Direct
+coordination, steer queue, shared computers, gallery and Markdown validation
+passed 90 tests. Typecheck, lint and production build pass.
+
+The first seven-suite coordination run passed 64 tests with one existing
+macOS-only skip, failed five legacy-helper prompt assertions, and lost the
+`comms` worker unexpectedly on local Node 24.15.0. The helper was corrected to
+retain the prompt restriction and assert `OMB_OWN_THREAD_CREATION=1` instead;
+all ten legacy cases then passed. Repeating the full `comms` file with Node
+24.20.0 passed all 27 cases in 52.67 seconds. Together these runs cover the
+final seven-suite set: 87 passing cases and the existing macOS-only skip.
+
+The full HTTP API run on local Node 24.15.0 encountered native process exits:
+the first run cascaded into 123 failed tests, and the second recorded exit
+`3221226505` (`0xC0000409`) before cascading into 93 failures. The first affected
+routine case passed alone. Exit diagnostics were added without changing any
+assertion. Repeating the full API suite with CI's Node 24.20.0 passed 208 tests
+with one existing skip in 311.81 seconds, without unhandled errors. That runtime
+was downloaded from nodejs.org and checked against its published SHA-256.
+This comparison does not claim to identify the underlying Node 24.15.0 native
+crash; no application assertion was relaxed to absorb it.

@@ -97,7 +97,7 @@ describe("independent bot tasks through the isolated control surface", () => {
     await session.close();
   });
 
-  it("holds a delegation behind an approval and delivers it once without another user prompt", async () => {
+  it("queues coordinated work behind a peer's approval and delivers it once without another user prompt", async () => {
     const chief = (await tool("create_bot", { name: "Mailbox Chief", instance_id: "claude", model: models[0] })).bot;
     const peer = (await tool("create_bot", { name: "Mailbox Peer", instance_id: "claude", model: models[1] })).bot;
     await api("PATCH", `/api/bots/${peer.id}/tasks/${peer.activeTaskId}`, { approvalMode: "ask" });
@@ -141,13 +141,15 @@ describe("independent bot tasks through the isolated control surface", () => {
       const bots = (await api("GET", "/api/bots")).body.bots;
       const current = bots.find((bot: any) => bot.id === chief.id);
       return !current.busy && current.messages.some((message: any) =>
-        message.from?.botId === peer.id && message.roomRequest?.id === requestId && message.tool?.ok === true);
+        message.from?.botId === peer.id && message.roomRequest?.id === requestId && message.roomRequest.phase === "result" && message.tool?.ok === true);
     }, { timeout: 20_000 }).toBe(true);
     const bots = (await api("GET", "/api/bots")).body.bots;
     const peerState = bots.find((bot: any) => bot.id === peer.id);
+    expect(peerState.threadId).toBe(peer.activeTaskId);
     expect(peerState.messages.some((message: any) => message.text?.includes("MAILBOX_REVIEW"))).toBe(false);
     const delivered = (await api("GET", `/api/threads/${recipient.threadId}/messages`)).body.messages;
     expect(delivered.filter((message: any) => message.roomRequest?.id === requestId && message.roomRequest.phase === "request")).toHaveLength(1);
+    expect(delivered.some((message: any) => message.text?.includes("MAILBOX_REVIEW"))).toBe(true);
     expect(coordinationNodes().find(node => node.id === requestId).status).toBe("completed");
     expect((await control(["wait", "--bot", peer.id, "--timeout", "15"])).status).toBe("settled");
     await control(["messages", "--bot", peer.id, "--limit", "10"]);

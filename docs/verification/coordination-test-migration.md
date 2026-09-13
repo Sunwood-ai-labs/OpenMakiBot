@@ -2,14 +2,19 @@
 
 Ordinary chats use `coordinate_bots`: the source finishes its provider turn,
 the harness dispatches a pinned recipient task, and the result resumes the
-source conversation. `ask_bot`, `delegate_bot` and `start_thread` remain on
-the separate legacy completion path used by routines. Calling those legacy
-endpoints with an ordinary-chat capability is rejected.
+source conversation. `ask_bot`, `delegate_bot` and teammate `start_thread`
+remain on the separate legacy completion path used by routines. Ordinary
+direct user turns can open bounded self-owned jobs with `start_thread`, as
+restored by upstream #1166. Coordinated child turns cannot recursively open
+self-owned jobs, and ordinary teammate handoffs use `coordinate_bots`.
 
 The former ordinary-chat tests still called those hidden legacy tools. This
-migration keeps all 25 cases in `server/comms.test.ts` (9 pure tests and 16
-server/MCP tests). Shared fixture code replaces repeated setup and polling;
-no case is removed or skipped. The 15 changed scenarios map as follows:
+migration originally kept all 25 cases together (9 pure tests and 16 server/MCP
+tests). After upstream #1166, `server/comms.test.ts` retains the upstream pure
+and actual-routine legacy tests, including removed-tool protocol errors.
+`server/coordination-acp.e2e.test.ts` retains the 16 ordinary ACP coordination
+cases separately. Shared fixture code replaces repeated setup and polling;
+no behavioral scenario is removed or skipped. The 15 changed scenarios map as follows:
 
 | Previous scenario | Current contract and retained checks |
 | --- | --- |
@@ -39,11 +44,13 @@ peers and creating bots; all existing endpoint/allow-list checks remain.
 request in a finished routine's execution thread now uses coordination and
 must not alter that routine's recorded output or completion timestamp.
 
-`server/thread-aware-bots.e2e.test.ts` retains its nine existing admission,
+`server/thread-aware-bots.e2e.test.ts` retains upstream's nine cases for
+self-owned ordinary jobs and coordinated teammate work. The separate
+`server/legacy-thread-tools.e2e.test.ts` retains ten legacy admission,
 concurrency, approval, notification, deletion and visibility cases. Before
 testing retained legacy endpoints with its existing scoped-capability fixture,
 it verifies that a real ordinary-chat capability cannot create a legacy
-thread. An additional case obtains a **real routine provider capability**,
+teammate thread. An additional case obtains a **real routine provider capability**,
 verifies `start_thread` delivery and result return, and verifies that the
 routine cannot invoke `coordinate_bots`. The synthetic capability does not
 replace this real mode-boundary check.
@@ -58,7 +65,7 @@ disposable fixture homes.
 Run the migrated cases with:
 
 ```sh
-pnpm exec vitest run server/comms.test.ts server/independent-threads-api.test.ts server/peer-allowlist.e2e.test.ts server/routine-delegation.e2e.test.ts server/thread-aware-bots.e2e.test.ts
+pnpm exec vitest run server/comms.test.ts server/coordination-acp.e2e.test.ts server/legacy-thread-tools.e2e.test.ts server/independent-threads-api.test.ts server/peer-allowlist.e2e.test.ts server/routine-delegation.e2e.test.ts server/thread-aware-bots.e2e.test.ts
 ```
 
 The scheduler's depth, request and execution budgets remain covered by
