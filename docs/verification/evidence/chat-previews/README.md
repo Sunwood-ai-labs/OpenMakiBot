@@ -313,3 +313,52 @@ pnpm lint
 pnpm i18n:check
 git diff --check
 ```
+
+### Complete Windows repair confirmation and next upstream integration
+
+Head `58e88ced` completed [CI run 34769120750](https://github.com/milind-soni/OpenMausBot/actions/runs/34769120750)
+with all ten jobs successful, including the full macOS, Ubuntu and Windows
+pipelines, renderer smoke, native builds and Ubuntu packaging. The separate
+build/typecheck/lint and contributor checks also passed. CodeRabbit reviewed
+that exact head in run `ba3ebb26-01cb-4e50-a38d-e75e7f364d24`, with no actionable
+findings and all seven threads resolved. Vercel authorization and the docstring
+coverage advisory remain separate outstanding checks.
+
+The Windows job passed 6,379 Vitest cases (206 existing skips and one todo),
+including all six shared-computer E2E cases and all ten registry cases. Thus
+the local file-symlink `EPERM` limitation did not recur on the runner. Broker
+tests passed eight cases; Electron Node tests passed 194 with zero failures;
+the packaged server started and all twelve spawned proxy paths resolved. The
+`PSModulePath` repair is now confirmed in the complete Windows pipeline.
+
+While that run was completing, upstream advanced to `b2f6e9d0` with timezone-aware
+cron schedules and owned Windows CUA hosts. Only the adjacent `croner` and
+`fflate` manifest/lockfile entries conflicted; both dependencies are retained.
+The frozen-lockfile install passed. Fifteen related Vitest files passed all
+371 cases, covering scheduler/parser/API/proxy/export behavior, calendar labels,
+Windows CUA isolation, capabilities and preview detection. Build, typecheck,
+lint and locale validation passed.
+
+The new upstream cron UI fixture initially tried to click Tools before React
+had rendered the sidebar. A snapshot diagnostic run passed; replacing that
+timing side effect with an explicit accessible-name readiness poll also passed
+the complete UI case in 32.55 seconds. The fixture now uses the existing IPC
+stop protocol on Windows and asserts exit code zero and removal of its own
+temporary data directory. All original UI assertions remain, including custom
+cron preservation, call exclusions and no browser-console errors. The final
+fixture run and subsequent typecheck/lint passed. The new Windows native-host
+smoke is retained in upstream's CI workflow; it was not run locally.
+
+These integration results do not transfer the earlier head's full CI or review
+approval to the next pushed head. Fresh complete CI and review remain required.
+
+```sh
+pnpm install --frozen-lockfile --ignore-scripts
+node node_modules/vitest/vitest.mjs run server/routine-cron.e2e.test.ts server/routine-requests.test.ts server/routines-startup.test.ts server/routines.test.ts server/bot-package.test.ts server/package-export.test.ts server/drivers/agents-proxy.test.ts shared/routine-schedule.test.ts src/components/routines/cron-editor.test.ts src/lib/routine-calendar.test.ts src/lib/schedule-label.test.ts src/lib/local-computer.test.ts electron/capabilities.test.mjs electron/cua-windows-isolation.test.mjs src/lib/file-preview.test.ts
+# With OMB_UI_E2E=1 and Node 24.20.0 first on PATH:
+node node_modules/vitest/vitest.mjs run scripts/testing/cron-routines-ui.e2e.test.ts --silent=false
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm i18n:check
+```
