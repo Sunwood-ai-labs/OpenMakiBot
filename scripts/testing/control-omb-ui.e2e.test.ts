@@ -1,5 +1,5 @@
 // The first asserted renderer recipe: docs/verification/chat-ui.md, run by a
-// machine. It spawns the real `control-omb ui launch` (a child it can Ctrl-C),
+// machine. It spawns the real `control-omb ui launch` with graceful IPC shutdown,
 // drives the real <App/> through the ui verbs, and reads the outcome back from
 // the accessibility tree — the same evidence a person would collect by hand.
 //
@@ -56,9 +56,13 @@ function launch(args: string[]): Promise<Launched> {
     // Own process group: a timeout must take the launch AND whatever it is
     // running (an `agent-browser install` mid-download) down with it.
     const child = spawn(process.execPath, ["--experimental-strip-types", CLI, "ui", "launch", ...args], {
-      cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32",
+      cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe", "ipc"], detached: process.platform !== "win32",
     });
     const killGroup = (signal: NodeJS.Signals) => {
+      if (process.platform === "win32" && signal === "SIGINT" && child.connected) {
+        child.send("control-omb:stop", () => {});
+        return;
+      }
       if (child.pid && process.platform !== "win32") {
         try { process.kill(-child.pid, signal); return; } catch { /* group already gone */ }
       }
@@ -115,7 +119,7 @@ describe("control-omb ui drives the real renderer", () => {
 
   afterAll(async () => {
     if (launched && launched.child.exitCode === null && launched.child.signalCode === null) {
-      await waitForExit(launched.child, { signal: "SIGINT", graceMs: 30_000 });
+      await waitForExit(launched.child, { message: "control-omb:stop", graceMs: 30_000 });
     }
     if (ownsEvidenceDir) await removeTempDir(evidenceDir);
   });
@@ -273,8 +277,8 @@ describe("control-omb ui drives the real renderer", () => {
     const title = await ui("eval", info.ui, "--js", "document.title");
     expect(title).toMatchObject({ ok: true, result: "Isolated OpenMaus Chat" });
 
-    // Ctrl-C: browser, preview and fixture close; only the fixture's data goes.
-    await waitForExit(launched.child, { signal: "SIGINT", graceMs: 30_000 });
+    // Graceful stop: browser, preview and fixture close; only the fixture's data goes.
+    await waitForExit(launched.child, { message: "control-omb:stop", graceMs: 30_000 });
     expect(launched.child.exitCode).toBe(0);
     expect(existsSync(info.dataDir)).toBe(false);
     expect(existsSync(info.logPath)).toBe(true);
