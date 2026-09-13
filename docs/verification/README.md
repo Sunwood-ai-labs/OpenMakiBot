@@ -44,6 +44,7 @@ Use only mapped, tested commands:
 - [Welcome flow and guided tour](onboarding.md)
 - [Channels](channels.md)
 - [In-chat team coordination](room-coordination.md)
+- [Coordination regression coverage and migration](coordination-test-migration.md)
 - [Optional addressed room routes](room-handoffs.md)
 - [Required discussion in each layer](room-discussion.md)
 - [Branching three-layer organization](room-pyramid.md)
