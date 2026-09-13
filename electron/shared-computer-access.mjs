@@ -36,6 +36,14 @@ function killTree(child) {
   }
 }
 
+/** Shell plumbing only: keep PowerShell's module search path so built-in
+ * commands load without default-path discovery hanging on Windows hosts. */
+export function sharedCommandEnvironment(environment = process.env, platform = process.platform) {
+  const names = ["PATH", "HOME", "USERPROFILE", "SystemRoot", "TEMP", "TMP", "LANG"];
+  if (platform === "win32") names.push("PSModulePath");
+  return Object.fromEntries(names.filter(key => environment[key]).map(key => [key, environment[key]]));
+}
+
 /** No inherited API keys, model-provider credentials or shell startup files.
  * This is still UNRESTRICTED host execution when the user enables terminal. */
 export function sharedCommand(command, cwd, signal) {
@@ -45,7 +53,7 @@ export function sharedCommand(command, cwd, signal) {
     const windows = process.platform === "win32";
     const child = spawn(windows ? "powershell.exe" : "/bin/sh", windows ? ["-NoProfile", "-NonInteractive", "-Command", command] : ["-c", command], {
       cwd, detached: !windows, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-      env: Object.fromEntries(["PATH", "HOME", "USERPROFILE", "SystemRoot", "TEMP", "TMP", "LANG"].filter(key => process.env[key]).map(key => [key, process.env[key]])),
+      env: sharedCommandEnvironment(),
     });
     const chunks = []; let bytes = 0; let reason;
     const stop = message => { reason = message; killTree(child); };
