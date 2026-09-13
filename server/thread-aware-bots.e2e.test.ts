@@ -100,6 +100,22 @@ const mintedToken = async (botId: string, threadId: string, depth = 0): Promise<
   return { authorization: `Bearer ${minted.body.token}` };
 };
 
+/** Ordinary chats now use coordinate_bots. Pin that rejection with the real
+ * provider capability before exercising the retained legacy thread API with
+ * the same scoped synthetic capability used by this file's admission tests.
+ * Routines still use that legacy surface (routine-delegation.e2e.test.ts).
+ * No production feature flag or permission check is disabled. */
+const legacyThreadToken = async (bot: { id: string; threadId: string }) => {
+  const ordinary = await liveToken(bot.threadId);
+  const refused = await api("POST", "/api/internal/threads", { title: "Must not open", message: "Ordinary chat uses coordination" }, ordinary);
+  expect(refused.status).toBe(409);
+  expect(refused.body.error).toContain("Use coordinate_bots");
+  expect((await botState(bot.id)).tasks.some((task: any) => task.title === "Must not open")).toBe(false);
+  expect(dumpOf(bot.threadId)?.systemPrompt).toContain("coordinate_bots");
+  expect(dumpOf(bot.threadId)?.systemPrompt).not.toContain("start_thread");
+  return mintedToken(bot.id, bot.threadId);
+};
+
 const bots = async () => (await api("GET", "/api/bots?messages=0")).body.bots as any[];
 const botState = async (botId: string) => (await bots()).find((bot) => bot.id === botId);
 const taskOf = async (botId: string, threadId: string) => (await botState(botId))?.tasks.find((task: any) => task.threadId === threadId);
@@ -222,12 +238,50 @@ afterAll(async () => {
 });
 
 describe("start_thread on yourself", () => {
+  it("retains the legacy thread handoff for a real routine capability without exposing coordination", async () => {
+    const pm = await createBot("Routine owner", "gated");
+    const peer = await createBot("Routine worker", "gated");
+    let routineId: string | undefined;
+    let runId: string | undefined;
+    try {
+      const created = await api("POST", "/api/routines", {
+        name: "Legacy thread contract", botId: pm.id, prompt: "Ask the worker for a report and summarize it.", enabled: false,
+        schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 3_600_000 },
+      });
+      expect(created.status).toBe(201);
+      routineId = created.body.routine.id;
+      const started = await api("POST", `/api/routines/${routineId}/run`);
+      expect(started.status).toBe(201);
+      runId = started.body.run.id;
+      const runState = async () => (await api("GET", "/api/routines")).body.runs.find((run: any) => run.id === runId);
+      await expect.poll(async () => (await runState())?.threadId, { timeout: 15_000 }).toBeTruthy();
+      const threadId = (await runState()).threadId;
+      const token = await liveToken(threadId);
+      expect(dumpOf(threadId)?.mcpConfig.mcpServers.agents.env.OMB_ROOM_TURN).toBe("0");
+      expect(dumpOf(threadId)?.systemPrompt).toContain("start_thread");
+      expect((await api("POST", "/api/internal/coordinate-bots", { botIds: [peer.id], requestKey: "wrong-owner", message: "Must use the routine's owner" }, token)).status).toBe(403);
+      const opened = await api("POST", "/api/internal/threads", { toBotId: peer.id, title: "Routine report", message: "Produce the report [[gate:routine-worker]]" }, token);
+      expect(opened.status).toBe(201);
+      expect(opened.body.self).toBe(false);
+      release(threadId);
+      await expect.poll(async () => (await taskOf(peer.id, opened.body.threadId))?.busy, { timeout: 15_000 }).toBe(true);
+      expect((await messages(peer.threadId)).some(message => message.role === "user")).toBe(false);
+      release("routine-worker");
+      await expect.poll(async () => (await runState())?.status, { timeout: 20_000 }).toBe("completed");
+      expect((await messages(threadId)).some(message => message.text?.includes("replied to the delegated task"))).toBe(true);
+    } finally {
+      if (runId) await api("POST", `/api/routine-runs/${runId}/cancel`).catch(() => undefined);
+      if (routineId) await api("DELETE", `/api/routines/${routineId}`).catch(() => undefined);
+      await cleanup([pm.id, peer.id]);
+    }
+  }, 60_000);
+
   it("opens a quiet thread that runs like a person's message, or waits its turn", async () => {
     const pm = await createBot("Pam", "gated");
     try {
       // the opener's own turn holds one of its two slots
       expect((await api("POST", `/api/bots/${pm.id}/messages`, { text: "Plan the QA round." })).status).toBe(202);
-      const token = await liveToken(pm.threadId);
+      const token = await legacyThreadToken(pm);
       const folder = (await api("POST", `/api/bots/${pm.id}/projects`, { name: "QA" })).body.project;
 
       const first = await api("POST", "/api/internal/threads", { title: "QA: PR #1", message: "Review the login fix." }, token);
@@ -314,7 +368,7 @@ describe("start_thread on a teammate", () => {
     const stream = await openSse(`${base}/api/events`);
     try {
       expect((await api("POST", `/api/bots/${pm.id}/messages`, { text: "Hand the pull requests to QA." })).status).toBe(202);
-      const token = await liveToken(pm.threadId);
+      const token = await legacyThreadToken(pm);
       const opened: any[] = [];
       for (let index = 1; index <= 3; index++) {
         const response = await api("POST", "/api/internal/threads", { toBotId: qa.id, title: `QA: PR #${index}`, message: `Test pull request ${index}. [[gate:pr-${index}]]`, depth: 0 }, token);
@@ -361,7 +415,8 @@ describe("start_thread on a teammate", () => {
       // the handoffs are running, with elapsed time, and nothing has come back
       const readBack = await heldTurn(pm, "How is QA going?");
       // the paragraph that tells a bot what a thread is rides with the tools
-      expect(dumpOf(pm.threadId)?.systemPrompt ?? "").toContain("start_thread");
+      expect(dumpOf(pm.threadId)?.systemPrompt ?? "").toContain("coordinate_bots");
+      expect(dumpOf(pm.threadId)?.systemPrompt ?? "").not.toContain("start_thread");
       const running = (await api("GET", `/api/internal/delegations/${opened[0].delegationId}`, undefined, readBack)).body;
       expect(running).toMatchObject({ status: "running", toBotName: "Quinn" });
       expect(running.elapsedMs).toBeGreaterThanOrEqual(0);
@@ -435,7 +490,7 @@ describe("start_thread on a teammate", () => {
     try {
       expect((await api("PATCH", `/api/bots/${pm.id}`, { approvePeerComms: true })).status).toBe(200);
       expect((await api("POST", `/api/bots/${pm.id}/messages`, { text: "Hand it to QA." })).status).toBe(202);
-      const token = await liveToken(pm.threadId);
+      const token = await legacyThreadToken(pm);
       const opened = await api("POST", "/api/internal/threads", { toBotId: qa.id, title: "QA: PR #9", message: "Test it." }, token);
       expect(opened.status).toBe(201);
       expect(opened.body.approvalRequired).toBe(true);
@@ -462,7 +517,7 @@ describe("start_thread on a teammate", () => {
     const qa = await createBot("Quinn", "gated");
     try {
       expect((await api("POST", `/api/bots/${pm.id}/messages`, { text: "Hand it to QA." })).status).toBe(202);
-      const token = await liveToken(pm.threadId);
+      const token = await legacyThreadToken(pm);
       const opened = await api("POST", "/api/internal/threads", { toBotId: qa.id, title: "QA: PR #10", message: "Test it." }, token);
       expect(opened.status).toBe(201);
       expect((await api("DELETE", `/api/bots/${qa.id}/tasks/${opened.body.threadId}`)).status).toBe(200);
@@ -485,7 +540,7 @@ describe("start_thread on a teammate", () => {
     const stream = await openSse(`${base}/api/events`);
     try {
       expect((await api("POST", `/api/bots/${pm.id}/messages`, { text: "Ask Sage." })).status).toBe(202);
-      const token = await liveToken(pm.threadId);
+      const token = await legacyThreadToken(pm);
       const opened = await api("POST", "/api/internal/threads", { toBotId: sage.id, title: "Colour choice", message: "Which colour?" }, token);
       expect(opened.status).toBe(201);
       release(pm.threadId);

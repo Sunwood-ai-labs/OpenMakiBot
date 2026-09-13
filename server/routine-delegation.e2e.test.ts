@@ -168,11 +168,24 @@ describe("routine delegation through the isolated harness", () => {
     unlinkSync(file(run.threadId, "gate"));
     unlinkSync(file(run.threadId, "json"));
     await api("POST", `/api/bots/${source.id}/messages`, { threadId: run.threadId, text: "A new request: ask the peer for a fresh report." });
-    await delegate(run.threadId);
+    const launched = await dump(run.threadId);
+    expect(launched.mcpConfig.mcpServers.agents.env.OMB_ROOM_TURN).toBe("1");
+    const coordinated = await api("POST", "/api/internal/coordinate-bots", {
+      botIds: [peer.id], requestKey: "fresh-report", message: "Produce a fresh report for this new user request.",
+    }, launched.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN);
+    expect(coordinated.errors).toEqual([]);
+    expect(coordinated.accepted).toHaveLength(1);
+    const requestId = coordinated.accepted[0].requestId;
+    const nodes = () => JSON.parse(readFileSync(join(fixture.info.dataDir, "room-handoffs.json"), "utf8")) as any[];
+    const recipient = nodes().find(node => node.id === requestId);
     finish(run.threadId);
+    await dump(recipient.threadId);
+    finish(recipient.threadId);
     await expect.poll(async () => (await messages(run.threadId)).some(
-      (message) => message.role === "bot" && message.text?.includes("[A delegated task just completed]"),
+      message => message.roomRequest?.id === requestId && message.roomRequest.phase === "result" && message.tool?.ok,
     ), { timeout: 20_000 }).toBe(true);
+    await expect.poll(() => nodes().find(node => !node.parentId && node.threadId === run.threadId)?.status).toBe("completed");
+    expect((await dump(run.threadId)).systemPrompt).toContain("Your downstream room requests have settled");
     expect(await runState(run.id)).toMatchObject({ status: "completed", finishedAt: finished.finishedAt, output: finished.output });
     evidence.push({ reusedCompletedExecution: true, transcript: await messages(run.threadId) });
   }, 45_000);
