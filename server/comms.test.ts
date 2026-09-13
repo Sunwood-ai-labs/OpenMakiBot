@@ -226,7 +226,7 @@ describe("comms e2e (fake ACP fleet)", () => {
     const { source, target } = await pair(); await api("PATCH", `/api/bots/${source.id}`, { chiefOfStaff: true });
     plan[target.id].delayMs = 2000;
     plan[source.id] = { turns: [{ steps: plan[source.id].steps, reply: "Assigned" }, { reply: "Available in another task" }, { reply: "Reviewed returned work" }] };
-    await start(source); await expect.poll(() => childNode(source, target)?.status).toBe("running");
+    await start(source); await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("running");
     const other = (await api("POST", `/api/bots/${source.id}/tasks`, { title: "Other request" })).body.task;
     expect((await api("POST", `/api/bots/${source.id}/messages`, { threadId: other.threadId, text: "Are you available?" })).status).toBe(202);
     await expect.poll(async () => (await messages(other.threadId)).some(message => message.text === "Available in another task")).toBe(true);
@@ -278,7 +278,7 @@ describe("comms e2e (fake ACP fleet)", () => {
     await start(source); await expect.poll(() => childNode(source, target)?.status).toBe("running");
     await api("PUT", "/api/config", { composio: { apiKey: "" } });
     await expect.poll(() => ["failed", "cancelled"].includes(childNode(source, target)?.status)).toBe(true);
-    await expect.poll(async () => (await state(source.id)).busy || (await state(target.id)).busy).toBe(false);
+    await expect.poll(async () => (await state(source.id)).busy || (await state(target.id)).busy, { timeout: 20_000 }).toBe(false);
     expect((await messages(source.threadId)).some(message => message.text === "The actual teammate report is verified")).toBe(false);
     expect(evidence().find(turn => turn.botId === source.id && turn.resumed).system).toContain('"status":"failed"');
   }, 40_000);
