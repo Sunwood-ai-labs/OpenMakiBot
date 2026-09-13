@@ -58,7 +58,7 @@ export async function verifyRoomDiscussion(output: string, preview = false, live
     await control("room-routes", "--channel", rooms[1].id, "--from", rooms[0].id);
     await control("room-routes", "--channel", rooms[2].id, "--from", rooms[1].id);
     const planPath = join(session.info.dataDir, "room-plan.json");
-    const send = (index: number, bot: any, message: string, expectError = false) => ({ tool: "send_room_message", arguments: { group_id: rooms[index].id, bot_id: bot.id, message, request_key: `assign-${index}` }, expectError });
+    const send = (index: number, bot: any, message: string, expectError = false) => ({ tool: "coordinate_bots", arguments: { group_id: rooms[index].id, bot_ids: [bot.id], message, request_key: `assign-${index}` }, expectError });
     const discuss = (members: any[], topic: string) => ({ tool: "discuss_room", arguments: { member_ids: members.map(b => b.id), topic, request_key: "design-discussion" } });
     const business = "顧客のExcel利用を優先し、初版はCSV出力のみ。個人情報は対象外、上限1万件。対象範囲を絞り短納期とする。設計と受入条件を部内で議論してください。";
     const design = "経営決定を受け、UTF-8 BOM付きCSVを採用。個人情報を除外し上限1万件、引用符をエスケープ。失敗時は途中ファイルを残さない。実装・テスト計画をチームで議論してください。";

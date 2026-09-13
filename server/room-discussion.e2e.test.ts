@@ -11,6 +11,7 @@ it("discusses with existing members in every layer, revises decisions and only t
     const evidence = await verifyRoomDiscussion(join(folder, "verification.json"));
     expect(evidence.nodes.filter((node: any) => node.kind === "discussion")).toHaveLength(3);
     expect(evidence.provider).toHaveLength(14);
+    expect(evidence.nodes.find((node: any) => !node.parentId)?.text).toContain("CSV出力の新機能を検討してください");
     expect(evidence.checks).toContain("premature forwarding rejected before and during discussion");
   } finally { await removeTempDir(folder); }
 }, 150_000);

@@ -1,8 +1,8 @@
 # A three-layer organization with member-owned branches
 
 The recipient chairs a discussion with existing members, revises the proposal,
-and assigns concrete responsibility with `assign_room_member`. An assigned member
-then uses `send_room_message` to ask a named member of a downstream group, reviews
+and assigns concrete responsibility with `coordinate_bots`. An assigned member
+then uses `coordinate_bots` to ask a named member of a downstream group, reviews
 the returned work, and reports to the chair. Speaking in a discussion does not
 implicitly start an execution assignment.
 
@@ -58,8 +58,8 @@ orchestration assertions.
 
 - Assignment addresses another existing member of the same conversation after a
   successful discussion. Pending discussion prevents assignment.
-- An assigned member cannot recursively assign another member of the same room;
-  it executes the responsibility or asks an allowed downstream room.
+- Assignments use the existing bounded coordinator. The pyramid recipe gives each
+  member its own downstream responsibility; returning work to an ancestor is refused.
 - Same-room assignment does not increase cross-room depth. Ancestor-room cycles
   remain forbidden. Bounds are 4 cross-room edges, 24 child requests, 48 coordinated
   executions and a 30-minute lifetime.

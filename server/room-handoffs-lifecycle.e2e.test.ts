@@ -18,7 +18,7 @@ async function withRooms(test: (f: any) => Promise<void>) {
     await cli("room-routes", "--channel", destination.id, "--from", source.id);
     const planPath = join(session.info.dataDir, "room-plan.json");
     const plan: Record<string, any> = {
-      [sender.id]: { steps: [{ arguments: { group_id: destination.id, bot_id: target.id, request_key: "work", message: "Please build CSV" } }], reply: "Assigned", resumeReply: "Reviewed downstream outcome" },
+      [sender.id]: { steps: [{ arguments: { group_id: destination.id, bot_ids: [target.id], request_key: "work", message: "Please build CSV" } }], reply: "Assigned", resumeReply: "Reviewed downstream outcome" },
       [target.id]: { reply: "Built CSV" },
     };
     const savePlan = () => writeFileSync(planPath, JSON.stringify(plan));
@@ -48,6 +48,26 @@ it("normalizes duplicate route IDs through the real MCP handler and server", () 
   expect(group.incomingGroupIds).toEqual([f.source.id]);
 }), 45_000);
 
+it("restores standard permitted-team coordination when route restrictions are cleared", () => withRooms(async f => {
+  await f.tool("update_channel", { channel_id: f.destination.id, incoming_group_ids: [] });
+  await f.tool("update_channel", { channel_id: f.destination.id, incoming_group_ids: null });
+  const group = (await f.api("/api/bots")).groups.find((g: any) => g.id === f.destination.id);
+  expect(group.incomingGroupIds).toBeNull();
+  await f.start(); expect((await f.wait()).status).toBe("settled");
+  expect(f.nodes().find((n: any) => n.parentId).status).toBe("completed");
+}), 45_000);
+
+it("does not lend a Chief's team grants to discussion participants", () => withRooms(async f => {
+  await f.api(`/api/bots/${f.target.id}`, { section: "Engineering" }, "PATCH");
+  await f.api(`/api/bots/${f.sender.id}`, { chiefOfStaff: true, managedSections: ["Engineering"], acknowledgePeerScope: true }, "PATCH");
+  await f.tool("update_channel", { channel_id: f.source.id, member_ids: [f.sender.id, f.target.id], require_room_discussion: true });
+  f.plan[f.sender.id].steps = [{ tool: "discuss_room", expectError: true,
+    arguments: { member_ids: [f.target.id], topic: "Private planning discussion", request_key: "discussion" } }];
+  await f.start(); expect((await f.wait()).status).toBe("settled");
+  expect(f.nodes()).toEqual([]);
+  expect(f.provider().map((turn: any) => turn.botId)).toEqual([f.sender.id]);
+}), 45_000);
+
 it.each(["recipient", "source-reader", "destination-reader"])("refuses cross-section work involving a %s even with an incoming route", role => withRooms(async f => {
   if (role === "recipient") await f.api(`/api/bots/${f.target.id}`, { section: "Other company" }, "PATCH");
   else {
@@ -65,12 +85,12 @@ it.each(["recipient", "source-reader", "destination-reader"])("refuses cross-sec
   else expect(JSON.parse(discovery.result.content[0].text).rooms).toEqual([]);
 }), 45_000);
 
-it.each(["discuss_room", "assign_room_member"])("refuses cross-section %s inside a mixed room", tool => withRooms(async f => {
+it.each(["discuss_room", "coordinate_bots"])("refuses cross-section %s inside a mixed room", tool => withRooms(async f => {
   await f.api(`/api/bots/${f.target.id}`, { section: "Other company" }, "PATCH");
-  await f.tool("update_channel", { channel_id: f.source.id, member_ids: [f.sender.id, f.target.id] });
+  await f.tool("update_channel", { channel_id: f.source.id, member_ids: [f.sender.id, f.target.id], require_room_discussion: tool === "discuss_room" });
   f.plan[f.sender.id].steps = [{ tool, expectError: true, arguments: tool === "discuss_room"
     ? { member_ids: [f.target.id], topic: "Discuss CSV", request_key: "discussion" }
-    : { member_id: f.target.id, message: "Build CSV", request_key: "assignment" } }];
+    : { bot_ids: [f.target.id], message: "Build CSV", request_key: "assignment" } }];
   await f.start(); expect((await f.wait()).status).toBe("settled");
   expect(f.nodes()).toEqual([]);
 }), 45_000);
@@ -86,7 +106,7 @@ it("rechecks section membership before queued work dispatch and withholds its re
   expect((await f.wait()).status).toBe("settled");
   expect(f.nodes().find((n: any) => n.parentId).status).toBe("failed");
   expect(await f.messages(f.destination.activeTaskId)).toEqual([]);
-  expect((await f.messages(f.source.activeTaskId)).some((m: any) => m.text?.includes("Result withheld"))).toBe(true);
+  expect((await f.messages(f.source.activeTaskId)).some((m: any) => m.tool?.name?.includes("Result withheld"))).toBe(true);
   await f.cli("wait", "--bot", f.target.id, "--timeout", "15");
 }), 45_000);
 
@@ -117,7 +137,7 @@ it("returns a provider failure to the sender and resumes it to handle the failur
   const child = f.nodes().find((n: any) => n.parentId);
   expect(child.status).toBe("failed");
   const source = await f.messages(f.source.activeTaskId);
-  expect(source.some((m: any) => m.roomRequest?.phase === "result" && m.text.includes("failed"))).toBe(true);
+  expect(source.some((m: any) => m.roomRequest?.phase === "result" && m.tool?.name?.includes("failed"))).toBe(true);
   expect(source.some((m: any) => m.text === "Reviewed downstream outcome")).toBe(true);
 }), 45_000);
 
@@ -152,7 +172,7 @@ it.each(["allow", "deny"])("honors %s on the sender's peer-approval card", behav
   await f.start();
   let card: any;
   await expect.poll(async () => {
-    card = (await f.messages(f.source.activeTaskId)).find((m: any) => m.card?.tool === "send_room_message");
+    card = (await f.messages(f.source.activeTaskId)).find((m: any) => m.card?.tool === "delegate_bot");
     return Boolean(card);
   }, { timeout: 10_000 }).toBe(true);
   expect(await f.messages(f.destination.activeTaskId)).toEqual([]);

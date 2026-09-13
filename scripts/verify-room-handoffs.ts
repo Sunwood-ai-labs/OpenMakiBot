@@ -41,7 +41,7 @@ export async function verifyRoomHandoffs(outputPath?: string, preview = false) {
     await control("room-routes", "--channel", executive.id, "--from", implementation.id);
     const planPath = join(session.info.dataDir, "room-plan.json");
     const send = (groupId: string, botId: string, key: string, message: string, expectError = false) => ({
-      arguments: { group_id: groupId, bot_id: botId, request_key: key, message }, expectError,
+      arguments: { group_id: groupId, bot_ids: [botId], request_key: key, message }, expectError,
     });
     const plan = {
       [ceo.id]: {
@@ -56,7 +56,7 @@ export async function verifyRoomHandoffs(outputPath?: string, preview = false) {
       },
       [engineer.id]: {
         steps: [send(executive.id, ceo.id, "loop", "経営会議への循環依頼", true),
-          { tool: "delegate_bot", arguments: { bot_id: leafBystander.id, message: "旧経路の制限確認" }, expectError: true }],
+          { tool: "delegate_bot", arguments: { bot_ids: [leafBystander.id], message: "旧経路の制限確認" }, expectError: true }],
         reply: "実装完了：CSV出力と文字コードのテストを確認しました。",
       },
     };

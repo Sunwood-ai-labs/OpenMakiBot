@@ -16,6 +16,52 @@ async function fixture(test: (engine: RoomHandoffs, hooks: RoomHandoffHooks, fil
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
 describe("addressed room request tree", () => {
+  it("allows bounded same-room discussion but never recursive discussion or another-room participants", () => fixture(async (engine, hooks) => {
+    const discussion = engine.enqueue(addr("A"), "turn", undefined, addr("A"), "debate", "Evaluate the plan", false, false, "", ["reviewer", "qa"]).node;
+    expect(discussion.kind).toBe("discussion");
+    expect(() => engine.enqueue(addr("A"), "other", undefined, addr("B"), "bad", "Evaluate", false, false, "", ["qa"])).toThrow("same conversation");
+    discussion.status = "running";
+    expect(() => engine.enqueue(addr("A"), "t", discussion.id, addr("B"), "recurse", "Again")).toThrow("cannot delegate");
+    discussion.status = "queued";
+    engine.sourceSettled("turn", true);
+    for (let i = 0; i < 5; i++) { engine.tick(); await flush(); }
+    expect(hooks.run).toHaveBeenCalledTimes(2);
+    expect(engine.nodes.get("turn")?.executions).toBe(3);
+  }));
+
+  it("treats group-less tasks as bounded work, deduplicates pinned threads and rejects direct or mixed cycles", () => fixture(engine => {
+    const source = { botId: "clive", threadId: "clive-chat" };
+    const target = { botId: "lead", threadId: "lead-task" };
+    const first = engine.enqueue(source, "turn", undefined, target, "build", "Build CSV").node;
+    expect(first.kind).toBe("work");
+    expect(engine.enqueue(source, "turn", undefined, { ...target, threadId: "changed" }, "build", "Build CSV").node.threadId).toBe("lead-task");
+    expect(engine.nodes.size).toBe(2);
+    expect(() => engine.enqueue(source, "turn", undefined, target, "build", "Changed work")).toThrow("different work");
+    first.status = "running";
+    expect(() => engine.enqueue(first, "unused", first.id, { ...source, threadId: "new-chat" }, "cycle", "repeat")).toThrow("ancestor");
+    expect(() => engine.enqueue(first, "unused", first.id, { ...source, groupId: "room", threadId: "room-chat" }, "mixed", "repeat")).toThrow("ancestor");
+    let parent = first;
+    for (let depth = 2; depth <= ROOM_HANDOFF_LIMITS.depth; depth++) {
+      parent.status = "running";
+      parent = engine.enqueue(parent, "unused", parent.id, { botId: `bot-${depth}`, threadId: `task-${depth}` }, "next", "do work").node;
+    }
+    parent.status = "running";
+    expect(() => engine.enqueue(parent, "unused", parent.id, { botId: "too-deep", threadId: "too-deep" }, "next", "do work")).toThrow("depth limit");
+  }));
+  it("cancels only the selected direct tree and records interruption without replay on restart", () => fixture((engine, hooks, file) => {
+    const one = { botId: "clive", threadId: "one" };
+    const two = { botId: "clive", threadId: "two" };
+    engine.enqueue(one, "first", undefined, { botId: "lead", threadId: "lead-one" }, "work", "build");
+    const other = engine.enqueue(two, "second", undefined, { botId: "lead", threadId: "lead-two" }, "work", "build").node;
+    engine.cancelDirect("one");
+    expect(engine.activeDirect("one")).toBe(false);
+    expect(engine.activeDirect("two")).toBe(true);
+    expect(other.status).toBe("queued");
+    const restarted = new RoomHandoffs(file, hooks); restarted.tick();
+    expect(restarted.nodes.get(other.id)?.status).toBe("failed");
+    expect(restarted.nodes.get(other.id)?.result).toContain("restart");
+    expect(hooks.run).not.toHaveBeenCalled();
+  }));
   it("publishes only changed groups, including their final idle and cancelled states", () => fixture(async (engine, hooks) => {
     const updates: Array<{ id: string; active: boolean }[]> = [];
     hooks.changed = ids => updates.push([...ids].map(id => ({ id, active: [...engine.nodes.values()]
@@ -34,6 +80,9 @@ describe("addressed room request tree", () => {
     engine.enqueue(addr("C"), "cancel", undefined, addr("D"), "work", "cancel work");
     updates.length = 0; engine.cancelRoom("C");
     expect(updates.flat()).toEqual([{ id: "D", active: false }, { id: "C", active: false }]);
+    updates.length = 0;
+    engine.cancelTree(engine.nodes.get("cancel")!, "Late provider rejection", "failed");
+    expect(updates).toEqual([]);
   }));
   it("splits responsibility between existing members who send their own downstream work and return to the chair", () => fixture(async (engine, hooks) => {
     const member = (id: string) => ({ ...addr("A"), botId: id });
@@ -45,8 +94,8 @@ describe("addressed room request tree", () => {
       }
       return { ok: true, text: `${node.botId} done` };
     };
-    engine.enqueue(addr("A"), "turn", undefined, member("engineer"), "engineering", "own engineering", false, undefined, false, true);
-    engine.enqueue(addr("A"), "turn", undefined, member("sales"), "sales", "own sales", false, undefined, false, true);
+    engine.enqueue(addr("A"), "turn", undefined, member("engineer"), "engineering", "own engineering");
+    engine.enqueue(addr("A"), "turn", undefined, member("sales"), "sales", "own sales");
     engine.sourceSettled("turn", true);
     for (let i = 0; i < 12; i++) { engine.tick(); await flush(); }
     expect(engine.children("turn").map(n => n.botId)).toEqual(["engineer", "sales"]);
@@ -54,11 +103,10 @@ describe("addressed room request tree", () => {
     expect(order.at(-1)).toBe("A-bot:true");
     expect([...engine.nodes.values()].every(n => n.status === "completed")).toBe(true);
   }));
-  it("rejects cross-room member assignment and recursive reassignment, but preserves ancestor-loop protection", () => fixture(engine => {
-    expect(() => engine.enqueue(addr("A"), "turn", undefined, addr("B"), "bad", "task", false, undefined, false, true)).toThrow("conversation");
-    const local = engine.enqueue(addr("A"), "turn", undefined, { ...addr("A"), botId: "owner" }, "own", "task", false, undefined, false, true).node;
+  it("allows same-room consultation without a discussion ceremony, but refuses returning to an ancestor", () => fixture(engine => {
+    const local = engine.enqueue(addr("A"), "turn", undefined, { ...addr("A"), botId: "owner" }, "own", "Review the plan").node;
+    expect(local.kind).toBe("assignment");
     local.status = "running";
-    expect(() => engine.enqueue(local, "unused", local.id, addr("A"), "loop", "task", false, undefined, false, true)).toThrow("recursively");
     expect(() => engine.enqueue(local, "unused", local.id, addr("A"), "loop", "task")).toThrow("ancestor");
   }));
   it("deduplicates retries, pins the destination thread, and refuses changed work", () => fixture(engine => {
@@ -66,6 +114,14 @@ describe("addressed room request tree", () => {
     const again = engine.enqueue(addr("A"), "turn", undefined, { ...addr("B"), threadId: "new-active" }, "csv", "build");
     expect(again.duplicate).toBe(true); expect(again.node.id).toBe(first.node.id); expect(again.node.threadId).toBe("B-thread");
     expect(() => engine.enqueue(addr("A"), "turn", undefined, addr("B"), "csv", "different")).toThrow("different work");
+  }));
+  it("retains the original request while descendants work and bounds its stored length", () => fixture(engine => {
+    engine.enqueue(addr("A"), "turn", undefined, addr("B"), "work", "build", false, false, "original request");
+    expect(engine.nodes.get("turn")?.text).toBe("original request");
+    engine.enqueue(addr("A"), "turn", undefined, addr("C"), "review", "check", false, false, "later brief");
+    expect(engine.nodes.get("turn")?.text).toBe("original request");
+    engine.enqueue(addr("X"), "other", undefined, addr("Y"), "work", "build", false, false, "x".repeat(20_000));
+    expect(engine.nodes.get("other")?.text).toHaveLength(12_000);
   }));
   it("releases the middle turn before starting its child, then returns and resumes both ancestors", () => fixture(async (engine, hooks) => {
     const order: string[] = [];
@@ -87,13 +143,13 @@ describe("addressed room request tree", () => {
     completed.status = "completed";
     expect(engine.enqueue(addr("A"), "turn", undefined, addr("B"), "build", "build").duplicate).toBe(true);
     expect(() => engine.enqueue(addr("A"), "turn", undefined, addr("B"), "ack", "approved")).toThrow("already completed");
-    expect(engine.enqueue(addr("A"), "turn", undefined, addr("B"), "fix", "Fix the missing boundary case", false, undefined, true).node.status).toBe("queued");
+    expect(engine.enqueue(addr("A"), "turn", undefined, addr("B"), "fix", "Fix the missing boundary case", false, true).node.status).toBe("queued");
   }));
   it("resumes the parent only after all sibling results have been delivered", () => fixture(async (engine, hooks) => {
     const delivered: string[] = [];
     let finishSlow!: (result: { ok: boolean; text: string }) => void;
     const resumed: string[][] = [];
-    hooks.report = child => { delivered.push(child.groupId); };
+    hooks.report = child => { delivered.push(child.groupId!); };
     hooks.run = async (node, resume) => {
       if (resume) resumed.push([...delivered]);
       if (node.groupId === "C") return new Promise(resolve => { finishSlow = resolve; });
@@ -115,18 +171,6 @@ describe("addressed room request tree", () => {
     expect(() => engine.enqueue(addr("B"), "t2", node.id, addr("A"), "loop", "again")).toThrow("ancestor");
     expect(() => engine.enqueue(addr("X"), "t2", node.id, addr("C"), "spoof", "again")).toThrow("speaker");
     expect(() => engine.enqueue(addr("B"), "t2", "missing", addr("C"), "missing", "again")).toThrow("no longer running");
-  }));
-  it("allows bounded same-room discussion but never recursive discussion or another-room participants", () => fixture(async (engine, hooks) => {
-    const discussion = engine.enqueue(addr("A"), "turn", undefined, addr("A"), "debate", "Evaluate the plan", false, ["reviewer", "qa"]).node;
-    expect(discussion.kind).toBe("discussion");
-    expect(() => engine.enqueue(addr("A"), "other", undefined, addr("B"), "bad", "Evaluate", false, ["qa"])).toThrow("same conversation");
-    discussion.status = "running";
-    expect(() => engine.enqueue(addr("A"), "t", discussion.id, addr("B"), "recurse", "Again")).toThrow("cannot delegate");
-    discussion.status = "queued";
-    engine.sourceSettled("turn", true);
-    for (let i = 0; i < 5; i++) { engine.tick(); await flush(); }
-    expect(hooks.run).toHaveBeenCalledTimes(2);
-    expect(engine.nodes.get("turn")?.executions).toBe(3);
   }));
   it("bounds fan-out and depth across the entire root", () => fixture(engine => {
     for (let i = 0; i < ROOM_HANDOFF_LIMITS.requests; i++) engine.enqueue(addr("A"), "turn", undefined, addr(`B${i}`), `work${i}`, "build");

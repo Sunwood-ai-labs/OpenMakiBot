@@ -298,7 +298,7 @@ export const TOOLS: McpToolDefinition[] = [
       type: "object",
       properties: {
         channel_id: { type: "string", description: "The ID of the channel." },
-        incoming_group_ids: { type: "array", items: { type: "string" }, maxItems: 100, description: "Groups allowed to send addressed work here. Duplicates are normalized. Empty disables incoming requests." },
+        incoming_group_ids: { type: ["array", "null"], items: { type: "string" }, maxItems: 100, description: "Groups allowed to send addressed work here. Duplicates are normalized. Empty disables incoming requests; null restores the standard permitted-team behavior." },
         require_room_discussion: { type: "boolean", description: "Require member discussion before cross-room delegation or concluding incoming work." },
         name: { type: "string" },
         member_ids: { type: "array", items: { type: "string" }, minItems: 1, uniqueItems: true },
@@ -961,8 +961,8 @@ export async function handleToolCall(
         patch.requireRoomDiscussion = args.require_room_discussion;
       }
       if (args.incoming_group_ids !== undefined) {
-        if (!Array.isArray(args.incoming_group_ids) || args.incoming_group_ids.length > 100 || args.incoming_group_ids.some(id => typeof id !== "string" || !/^[\w-]+$/.test(id))) throw new ToolInputError("incoming_group_ids must be an array of group IDs");
-        patch.incomingGroupIds = [...new Set(args.incoming_group_ids)];
+        if (args.incoming_group_ids !== null && (!Array.isArray(args.incoming_group_ids) || args.incoming_group_ids.length > 100 || args.incoming_group_ids.some(id => typeof id !== "string" || !/^[\w-]+$/.test(id)))) throw new ToolInputError("incoming_group_ids must be an array of group IDs");
+        patch.incomingGroupIds = args.incoming_group_ids === null ? null : [...new Set(args.incoming_group_ids)];
       }
       if (args.section !== undefined) patch.section = args.section === null ? null : stringArg(args, "section", { max: 60 });
       if (args.bulletin !== undefined) patch.bulletin = stringArg(args, "bulletin", { trim: false, allowEmpty: true, max: 12_000 });

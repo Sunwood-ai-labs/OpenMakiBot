@@ -13,16 +13,19 @@ before delegating or concluding incoming work** to require it. See
 
 ## Configure and use
 
-In the destination group's **Incoming work** panel, select the source groups
-allowed to send work. Existing groups accept no cross-room work by default.
-Routes are directional; enabling Planning -> Engineering does not enable the
-reverse direction. The automatic result return does not require a reverse route.
-Routes stay within a section, the existing Bot communication boundary. Every
-member of both rooms must belong to that section, including silent readers.
-Use one company section with separate groups for organizational layers. Route
-opt-in does not grant cross-section access. The sender's peer allow-list and
-peer-approval setting still apply, and section changes revoke queued work and
-withhold results from an incompatible return destination.
+The default remains upstream's standard `coordinate_bots` behavior: permitted
+teammates can collaborate without configuring routes or requiring a discussion.
+In **Group collaboration settings**, optionally enable **Restrict incoming requests
+to selected groups** and select the permitted source groups. An enabled restriction
+with no sources blocks incoming group requests; disabling it restores the default.
+The automatic result return does not require a reverse route.
+
+Routes never grant additional team access. The existing sender/recipient peer
+allow-lists, approvals, and Chief's explicitly selected team grants still apply.
+Each recipient and discussion participant must be allowed to read the entire
+receiving room; specialists do not inherit their Chief's access. Permissions and
+routes are rechecked before dispatch and before returning results. The hierarchy
+recipe uses one company section and separate groups for organizational layers.
 
 From a source group, ask its agent, for example:
 
@@ -35,10 +38,10 @@ The agents integration exposes:
 ```text
 list_room_targets()
 discuss_room(member_ids, topic, request_key)
-send_room_message(group_id, bot_id, message, request_key)
+coordinate_bots(group_id?, bot_ids, message, request_key)
 ```
 
-The destination list contains permitted group names and member IDs, not their
+The destination list contains permitted bot/group names and member IDs, not their
 history. The request forwards only the supplied brief. Each task is pinned to
 the chosen conversation at acceptance, even if a user changes the active task.
 The tool returns immediately. The source must finish its turn before queued

@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import { api, useStore, formatTime, visibleMessages, currentTaskBot, type AppState, type Bot, type Group } from "@/state/store";
+import { peerLine } from "@/lib/peer-message";
 
 import { BotAvatar, InitialsAvatar } from "./Avatar";
 import { stateForBot } from "@/lib/mascot";
@@ -42,6 +43,7 @@ import { nextRename } from "@/lib/rename";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { MIN_QUERY, SearchResults } from "./SearchResults";
 import { TeamLibraryPanel } from "./TeamLibraryPanel";
+import { TeamDialog } from "./TeamDialog";
 import { RenameTitle } from "./RenameTitle";
 import { BotPickerList } from "./BotPickerList";
 import { BotProjectDialog, FolderActions, FolderIcon, navigateThreadMenu, NewThreadButton } from "./BotProjects";
@@ -111,6 +113,8 @@ function preview(bot: Bot): string {
   if (last.kind === "options" && last.card) return last.card.title;
   if (last.kind === "activity" && last.tool) return last.tool.name;
   if (last.kind === "screen") return t("sidebar.preview.screenFrame");
+  const peer = peerLine(last);
+  if (peer) return `${peer.name}: ${peer.body}`;
   return last.text ?? "";
 }
 
@@ -527,6 +531,7 @@ function SectionPicker({
   // Channels and bots share one namespace, so Work or Personal can hold both.
   const sections = [
     ...new Set([
+      ...(state.sections ?? []),
       ...state.bots.filter((b) => !b.hidden && b.section).map((b) => b.section!),
       ...state.groups.filter((g) => g.section).map((g) => g.section!),
     ]),
@@ -1367,6 +1372,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   const cancelConfirm = useCallback(() => setConfirm(null), []);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [sectionPicker, setSectionPicker] = useState<MenuState | null>(null);
+  const [newTeam, setNewTeam] = useState(false);
+  const [moveToTeam, setMoveToTeam] = useState<string | null>(null);
   const [roomMenu, setRoomMenu] = useState<{ groupId: string; x: number; y: number } | null>(null);
   const [roomSectionPicker, setRoomSectionPicker] = useState<{ groupId: string; x: number; y: number } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -1540,7 +1547,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 
   // User sections keep first-appearance order. The saved layout keeps an
   // empty section's former slot so it returns there when content comes back.
-  const sectionNames: string[] = [];
+  const sectionNames: string[] = (state.sections ?? []).filter((name) => !q || name.toLowerCase().includes(q.toLowerCase()));
   for (const bot of sectionedBots) {
     if (!sectionNames.includes(bot.section!)) sectionNames.push(bot.section!);
   }
@@ -1762,6 +1769,12 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                   <Users size={16} className="text-ink-secondary" />
                   {t("sidebar.newChannel.title")}
                 </button>
+                {!remoteClient && <button
+                  onClick={() => { setPlusOpen(false); setNewTeam(true); }}
+                  className="flex w-full items-center gap-3 px-3.5 py-2 text-left text-[14px] text-ink hover:bg-raised/70"
+                >
+                  <FolderPlus size={16} className="text-ink-secondary" /> {t("team.create")}
+                </button>}
                 {!remoteClient && <>
                 <button
                   onClick={() => {
@@ -1919,6 +1932,12 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                         onMenu={setMenu}
                       />
                     ))}
+                    {!remoteClient && sectionName && layoutInteractive && sectionChiefItems.length + sectionGroupItems.length + sectionBotItems.length === 0 && (
+                      <button onClick={() => setMoveToTeam(sectionName)} aria-label={t("team.addBotsTo", { name: sectionName })}
+                        className="mx-3 my-1 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-ink-secondary hover:bg-raised hover:text-ink">
+                        <Plus size={13} /> {t("team.addBots")}
+                      </button>
+                    )}
                   </>
                 )}
                 {dropTarget?.id === id && dropTarget.place === "after" && draggingSectionId !== id && (
@@ -2066,6 +2085,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           else dispatch({ type: "deleteBot", botId: bot.id });
         }}
       />
+      {newTeam && <TeamDialog onClose={() => setNewTeam(false)} />}
+      {moveToTeam && <TeamDialog section={moveToTeam} onClose={() => setMoveToTeam(null)} />}
       {sectionPicker && (
         <SectionPicker
           current={state.bots.find((b) => b.id === sectionPicker.botId)?.section}

@@ -7,6 +7,7 @@ import { existsSync, readFileSync, mkdirSync, rmSync, unlinkSync } from "node:fs
 import { join } from "node:path";
 
 import { writeFileAtomic } from "./atomic.ts";
+import { ensureSections, readSections, changeEmptySection } from "./section-context.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
@@ -21,6 +22,7 @@ import { approvalModeFor, isApprovalMode, type ApprovalMode } from "../shared/ap
 import type { MascotBodyId } from "../shared/mascot-bodies.ts";
 import type { QuestionRequestCardData } from "../shared/ask-question.ts";
 import type { ProfileRequestCardData, ProfileRequestChanges } from "../shared/profile-request.ts";
+import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts";
 import type { RoutineRequestCardData } from "../shared/routine-request.ts";
 import type { RoutineRunCardData } from "../shared/routine-run.ts";
 import type { SkillRequestCardData } from "../shared/skill-request.ts";
@@ -83,6 +85,7 @@ export interface OptionCardData {
   /** A durable profile-change proposal (propose_profile). The change lands
    * only after this card is explicitly confirmed by the user. */
   profileRequest?: ProfileRequestCardData;
+  teamSetupRequest?: TeamSetupRequest;
   /** A durable learned-skill proposal. The skill stays staged until the
    * user confirms this card — it never rides the prompt before that. */
   skillRequest?: SkillRequestCardData;
@@ -202,7 +205,7 @@ export interface Message {
   reactions?: Array<{ emoji: string; by: string }>;
   /** comm chips: "Messaged @X" in the caller's chat, linking to the
    * bot⇄bot channel where the exchange is mirrored. */
-  comm?: { groupId: string; withBotId: string; withName: string; withColor: string };
+  comm?: { groupId: string; threadId?: string; withBotId: string; withName: string; withColor: string };
   /** thread chips: "Opened thread #Title on @X" in the opener's chat,
    * linking to the thread a bot started with start_thread. Carries the
    * title so the chip still reads after a rename or a deletion. */
@@ -241,7 +244,7 @@ export interface GroupTaskRecord {
 export interface GroupRecord {
   id: string;
   /** Explicit incoming work routes; grants addressed turns, never history access. */
-  incomingGroupIds?: string[];
+  incomingGroupIds?: string[] | null;
   requireRoomDiscussion?: boolean;
   /** The active task's thread. Direct-message channels remain single-threaded. */
   threadId: ThreadId;
@@ -312,6 +315,17 @@ export interface TaskOpenedBy {
   at: number;
 }
 
+/** Which bot closed a thread with close_thread. Set once the thread's result
+ * has been read; the sidebar folds a closed thread out of the default list
+ * (still reachable under "all threads", never deleted) and list_threads
+ * reports it as closed. Cleared the moment a new turn starts there, so a
+ * thread the person picks back up is simply open again. */
+export interface TaskClosedBy {
+  botId: string;
+  name: string;
+  at: number;
+}
+
 export interface TaskRecord {
   threadId: ThreadId;
   title: string;
@@ -323,6 +337,9 @@ export interface TaskRecord {
   /** Set when a bot, not a person, opened this thread. Persisted with the
    * task so the sidebar and a backup keep the attribution. */
   openedBy?: TaskOpenedBy;
+  /** Set by close_thread; absent while the thread is open. Runtime clears
+   * it on the next turn. Persisted with the task like openedBy. */
+  closedBy?: TaskClosedBy;
   /** Defaults are copied when a task is created; older records fall back
    * to the bot until migration seeds their model selection. */
   modelSelection?: ModelSelection;
@@ -542,6 +559,7 @@ export type BotActivity = "working" | "waiting-on-you" | "idle" | "no-signal" | 
 export const ACTIVITY_BUSY: ReadonlySet<BotActivity> = new Set(["working", "waiting-on-you", "no-signal"]);
 
 export type StoreChange =
+  | { type: "sections" }
   | { type: "message"; threadId: string; message: Message }
   | { type: "message.patch"; threadId: string; message: Message }
   | { type: "thread"; threadId: string; activeLeafId: string }
@@ -586,6 +604,8 @@ export interface BotRecord {
   soulDrift?: boolean;
   /** Receipt committed with a confirmed profile, for retrying card settlement. */
   lastProfileRequestId?: string;
+  /** Receipt committed with a reviewed team batch; prevents replay after a lost response. */
+  lastTeamSetupReceipt?: { requestId: string; result: TeamSetupResult };
   notifications: boolean;
   color: MausColor;
   mascotExpression?: MausExpression | null;
@@ -654,6 +674,9 @@ export interface BotRecord {
   /** The coordinator for this bot's sidebar section. The store enforces
    * at most one Chief per section (including the unsectioned area). */
   chiefOfStaff?: boolean;
+  /** Owner-selected additional teams this Chief may coordinate and propose
+   * configuration for. Ordinary bots and imported personas gain no reach. */
+  managedSections?: string[];
   /** Pause for human approval before this bot talks to a peer (ask_bot,
    * delegate_bot). Off by default: a chief-of-staff-style bot is most
    * useful when it can coordinate without nagging. */
@@ -818,6 +841,8 @@ export class Store {
   private threads = new Map<string, ThreadState>();
   private defaultSelection: () => ModelSelection;
   private listeners = new Set<(change: StoreChange) => void>();
+  /** A broken team registry must not prevent loading independent chat data. */
+  private registeringInitialSections = true;
   /** Room turns and old callers have their own activity slot. Clearing
    * that slot must not clear a concurrently running independent task. */
   private legacyActivities = new Map<string, BotActivity>();
@@ -835,6 +860,7 @@ export class Store {
     } catch {
       this.groups = [];
     }
+    this.rememberSections([...this.bots, ...this.groups].map((record) => record.section));
     // busy never survives a restart — no turn does either. Rooms saved
     // before default responders existed adopt their first member as lead.
     let botsMigrated = false;
@@ -876,6 +902,11 @@ export class Store {
       }
       if (b.autoStartVps !== undefined && b.autoStartVps !== true && b.autoStartVps !== false) {
         delete b.autoStartVps;
+        botsMigrated = true;
+      }
+      if (b.managedSections !== undefined && (!b.chiefOfStaff || !Array.isArray(b.managedSections) ||
+          b.managedSections.length > 100 || b.managedSections.some(section => typeof section !== "string" || section.length > 60))) {
+        delete b.managedSections;
         botsMigrated = true;
       }
       if (b.approvalMode !== undefined && !isApprovalMode(b.approvalMode)) {
@@ -921,6 +952,7 @@ export class Store {
         continue;
       }
       b.chiefOfStaff = false;
+      delete b.managedSections;
       botsMigrated = true;
     }
     // Peer grants originally used mutable display names (ask_bot:@Helper).
@@ -1055,9 +1087,11 @@ export class Store {
       const legacyFile = messagesFile(threadId);
       if (existsSync(legacyFile)) mdb.readThread(threadId, legacyFile);
     }
+    this.registeringInitialSections = false;
   }
 
   private saveBots(bots: BotRecord[] = this.bots) {
+    this.rememberSections([...this.bots, ...bots].map((bot) => bot.section));
     writeFileAtomic(BOTS_FILE, JSON.stringify(bots.map(({ busy: _busy, activity: _activity, ...bot }) => ({
       ...bot,
       tasks: bot.tasks?.map(({ busy: _taskBusy, activity: _taskActivity, ...task }) => task),
@@ -1065,7 +1099,44 @@ export class Store {
   }
 
   private saveGroups() {
+    this.rememberSections(this.groups.map((group) => group.section));
     writeFileAtomic(GROUPS_FILE, JSON.stringify(this.groups.map(({ busyBotId: _busyBotId, ...g }) => g), null, 2));
+  }
+
+  get sections(): string[] { return readSections(); }
+
+  private rememberSections(names: (string | undefined)[]) {
+    try {
+      if (ensureSections(names)) this.emit({ type: "sections" });
+    } catch (error) {
+      if (!this.registeringInitialSections) throw error;
+      console.warn(`[teams] Startup could not register team names; saved teams and shared instructions were left unchanged: ${(error as Error).message}`);
+    }
+  }
+
+  /** Empty-only changes cannot merge teams or silently change anybody's access. */
+  changeEmptySection(name: string, nextName: string | null): string | undefined {
+    if (!this.sections.includes(name)) return "No such team";
+    if ([...this.bots, ...this.groups].some((record) => sectionKey(record.section) === name)) {
+      return "Move all bots (including archived bots) and group chats out of this team first";
+    }
+    if (nextName !== null && nextName !== name && this.sections.includes(nextName)) {
+      return "A team with that name already exists";
+    }
+    if (nextName === name) return undefined;
+    const revoked = this.bots.filter((bot) => bot.managedSections?.some((section) => sectionKey(section) === name));
+    if (revoked.length) {
+      const grants = new Map(revoked.map((bot) => [bot.id, bot.managedSections!.filter((section) => sectionKey(section) !== name)]));
+      // Revoke durably before freeing the name. If the registry write then
+      // fails, authority stays narrowed; recreating a name can never revive
+      // its old grants. Update existing objects so in-flight checks see it.
+      this.saveBots(this.bots.map((bot) => grants.has(bot.id) ? { ...bot, managedSections: grants.get(bot.id)! } : bot));
+      for (const bot of revoked) bot.managedSections = grants.get(bot.id)!;
+      for (const bot of revoked) this.emit({ type: "bot", botId: bot.id });
+    }
+    changeEmptySection(name, nextName);
+    this.emit({ type: "sections" });
+    return undefined;
   }
 
   // ── groups ────────────────────────────────────────────────────────────
@@ -1107,6 +1178,7 @@ export class Store {
       completed?: boolean;
     },
   ): GroupRecord {
+    this.rememberSections([section]);
     const threadId = newId();
     const createdAt = Date.now();
     const group: GroupRecord = {
@@ -1145,6 +1217,9 @@ export class Store {
   patchGroup(id: string, patch: Partial<Pick<GroupRecord, "name" | "memberIds" | "defaultResponder" | "bulletin" | "unread" | "busyBotId" | "cwd" | "pinnedMessageId" | "section" | "setupCompletedAt" | "setupSkippedAt" | "incomingGroupIds" | "requireRoomDiscussion">>): GroupRecord | null {
     const group = this.group(id);
     if (!group) return null;
+    if (Object.prototype.hasOwnProperty.call(patch, "section")) {
+      this.rememberSections([patch.section]);
+    }
     Object.assign(group, patch);
     if (!group.dm && Object.prototype.hasOwnProperty.call(patch, "pinnedMessageId")) {
       const active = this.activeGroupTask(group.id);
@@ -1326,11 +1401,20 @@ export class Store {
   }
 
   private thread(threadId: string): ThreadState {
-    let t = this.threads.get(threadId);
+    const t = this.threads.get(threadId);
     if (t) return t;
     // SQLite is the source of truth; a thread with no rows imports its
     // legacy messages-<threadId>.json once, inside readThread
-    const { messages, activeLeafId: storedLeaf } = mdb.readThread(threadId, messagesFile(threadId));
+    return this.cacheThread(threadId, mdb.readThread(threadId, messagesFile(threadId)));
+  }
+
+  /** Finish hydrating a full set of thread rows into the cache: chain any
+   * legacy (pre-branching) rows' parentId in array order, default the
+   * active leaf to the newest message, and store it. Shared by a full load
+   * and by messagesTail() when its bounded read turns out to be the whole
+   * thread anyway. */
+  private cacheThread(threadId: string, rows: mdb.ThreadRows): ThreadState {
+    const { messages, activeLeafId: storedLeaf } = rows;
     let activeLeafId = storedLeaf;
     // legacy rows carry no parentId — chain them in array order
     let prev: string | null = null;
@@ -1339,13 +1423,44 @@ export class Store {
       prev = m.id;
     }
     if (!activeLeafId) activeLeafId = messages.at(-1)?.id ?? null;
-    t = { messages, activeLeafId };
+    const t = { messages, activeLeafId };
     this.threads.set(threadId, t);
     return t;
   }
 
   messagesFor(threadId: string): Message[] {
     return this.thread(threadId).messages;
+  }
+
+  /** A bounded page of a thread's newest messages, for callers that only
+   * need a display page — the startup/reconnect hydrate and a fresh
+   * scrollback view. Reads just `limit` rows at the SQL boundary instead of
+   * the whole transcript, unless the thread is already cached from other
+   * work (then it's a plain in-memory slice, no extra SQL) or the bounded
+   * read comes back as the complete thread anyway (short thread, or a
+   * one-time legacy import) — that gets cached like any other full load so
+   * a later messagesFor() doesn't re-read it. Legacy rows that predate
+   * per-message parentId are only chained correctly on a full load, so a
+   * bounded page missing that context falls back to one rather than
+   * returning messages with a broken parent chain. */
+  messagesTail(threadId: string, limit: number): { messages: Message[]; hasMore: boolean; activeLeafId: string | null } {
+    let state = this.threads.get(threadId);
+    if (!state) {
+      const tail = mdb.readThreadTail(threadId, messagesFile(threadId), limit);
+      const legacyRows = tail.hasMore !== undefined && tail.messages.some((m) => m.parentId === undefined);
+      if (tail.hasMore !== true || legacyRows) {
+        state = this.cacheThread(threadId, legacyRows ? mdb.readThread(threadId, messagesFile(threadId)) : tail);
+      } else {
+        return {
+          messages: tail.messages,
+          hasMore: tail.hasMore,
+          activeLeafId: tail.activeLeafId ?? tail.messages.at(-1)?.id ?? null,
+        };
+      }
+    }
+    const { messages, activeLeafId } = state;
+    const start = Math.max(0, messages.length - limit);
+    return { messages: messages.slice(start), hasMore: start > 0, activeLeafId };
   }
 
   /** Used only with newly allocated import threads. No live actions are
@@ -1541,6 +1656,7 @@ export class Store {
       seedMessages?: boolean;
     } = {},
   ): BotRecord {
+    this.rememberSections([profile.section]);
     const name = profile.name?.trim() || pickBotName(this.bots.map((b) => b.name));
     const section = sectionKey(profile.section);
     const bot: BotRecord = {
@@ -1595,10 +1711,89 @@ export class Store {
     return bot;
   }
 
-  deleteBot(id: string): boolean {
+  /** All setup fields and the Chief's receipt commit before publishing any
+   * mutation. Model defaults never rewrite saved thread selections. */
+  applyTeamSetup(request: TeamSetupRequest): TeamSetupResult {
+    const chief = this.bot(request.botId);
+    if (!chief) throw new Error("The requesting Chief no longer exists");
+    if (chief.lastTeamSetupReceipt?.requestId === request.requestId) return chief.lastTeamSetupReceipt.result;
+    const managedSections = [...new Set([...(chief.managedSections ?? []), ...request.newTeams])];
+    if (managedSections.length > 100 || managedSections.some((name) => name.trim() !== name || name.length > 60) ||
+        request.newTeams.some((name) => !name) || (request.newTeams.length && !chief.chiefOfStaff)) throw new Error("Invalid reviewed Chief team scope");
+    const nextBots = [...this.bots];
+    const changed: BotRecord[] = [];
+    for (const operation of request.operations) {
+      const at = nextBots.findIndex((bot) => bot.id === operation.botId);
+      let next: BotRecord;
+      if (operation.action === "create") {
+        if (at >= 0 || !operation.threadId || !operation.fields.name || !operation.fields.modelSelection) throw new Error("Invalid new bot in team setup");
+        const createdAt = Date.now();
+        next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
+          title: "", description: "", soul: "", notifications: true, color: COLORS[nextBots.length % COLORS.length], unread: false,
+          modelSelection: operation.fields.modelSelection, resumeCursors: {}, createdAt, ...operation.fields,
+          approvalMode: "ask", autoApprove: false, composio: false, approvePeerComms: false,
+          tasks: [{ threadId: operation.threadId, title: UNTITLED_THREAD, createdAt, resumeCursors: {},
+            modelSelection: structuredClone(operation.fields.modelSelection), approvalMode: "ask", autoApprove: false,
+            unread: false, activity: "idle", busy: false }],
+        };
+        nextBots.unshift(next);
+      } else {
+        if (at < 0) throw new Error("A setup target no longer exists");
+        const previous = nextBots[at];
+        next = { ...previous, ...operation.fields };
+        if (operation.fields.modelSelection) next.tasks = previous.tasks?.map((task) => ({
+          ...task,
+          modelSelection: structuredClone(task.modelSelection ?? previous.modelSelection),
+          approvalMode: approvalModeFor(this.projectBotForTask(previous.id, task.threadId)!),
+          autoApprove: task.autoApprove ?? previous.autoApprove,
+          alwaysAllow: structuredClone(task.alwaysAllow ?? previous.alwaysAllow ?? []),
+        }));
+        nextBots[at] = next;
+      }
+      next.section = sectionKey(next.section) || undefined;
+      if (operation.fields.soul !== undefined) { next.soulHash = soulHash(operation.fields.soul); next.soulDrift = false; }
+      changed.push(next);
+    }
+    const result: TeamSetupResult = { state: "applied", newTeams: request.newTeams, bots: changed.map((bot, index) => ({
+      id: bot.id, name: bot.name, section: bot.section, modelSelection: structuredClone(bot.modelSelection),
+      action: request.operations[index].action === "create" ? "created" : "updated",
+    })) };
+    const chiefAt = nextBots.findIndex((bot) => bot.id === chief.id);
+    const nextChief = { ...nextBots[chiefAt], lastTeamSetupReceipt: { requestId: request.requestId, result } };
+    // Only the newly-created teams explicitly named in the human review may
+    // extend this Chief's reach. Existing teams require owner settings.
+    if (request.newTeams.length) {
+      nextChief.managedSections = managedSections;
+    }
+    nextBots[chiefAt] = nextChief;
+    this.saveBots(nextBots);
+    this.bots = nextBots;
+    for (const bot of changed) {
+      try { writeSoulMirror(bot.id, bot.soul ?? ""); } catch (error) {
+        console.warn(`[bot-folder] could not refresh reviewed setup mirror for ${bot.id}: ${(error as Error).message}`);
+      }
+      this.emit({ type: "bot", botId: bot.id });
+    }
+    this.emit({ type: "bot", botId: chief.id });
+    return result;
+  }
+
+  deleteBot(id: string, setupRequest?: TeamSetupRequest): boolean {
     const bot = this.bot(id);
     if (!bot) return false;
-    this.bots = this.bots.filter((b) => b.id !== id);
+    let nextBots = this.bots.filter((b) => b.id !== id);
+    if (setupRequest) {
+      const chief = this.bot(setupRequest.botId);
+      if (!chief || chief.id === id || setupRequest.deletion?.botId !== id) throw new Error("The reviewed deletion no longer has a valid owner");
+      const lastTeamSetupReceipt: NonNullable<BotRecord["lastTeamSetupReceipt"]> = { requestId: setupRequest.requestId, result: { state: "applied", newTeams: [], bots: [
+        { id: bot.id, name: bot.name, action: "deleted" },
+      ] } };
+      nextBots = nextBots.map((candidate) => candidate.id === chief.id ? { ...candidate, lastTeamSetupReceipt } : candidate);
+    }
+    // Persist removal and the review receipt before deleting conversation or
+    // workspace data. A failed save must leave the bot recoverable in place.
+    this.saveBots(nextBots);
+    this.bots = nextBots;
     this.legacyActivities.delete(id);
     // every task's transcript goes with the bot, not just the open one
     for (const threadId of new Set([bot.threadId, ...(bot.tasks ?? []).map((t) => t.threadId)])) {
@@ -1619,7 +1814,6 @@ export class Store {
     } catch {}
     // The bot folder (SOUL.md mirror) is the bot's too.
     removeBotFolder(id);
-    this.saveBots();
     this.emit({ type: "bot.deleted", botId: id });
     return true;
   }
@@ -1718,6 +1912,7 @@ export class Store {
       }
       for (const botId of changedIds) this.emit({ type: "bot", botId });
     }
+    this.rememberSections([targetSection]);
     return { ok: true, bots: ids.map((id) => this.bot(id)!) };
   }
 
@@ -1771,6 +1966,7 @@ export class Store {
         bot.hidden = false;
       } else {
         bot.chiefOfStaff = false;
+        delete bot.managedSections;
       }
       changed.push(bot);
     }
@@ -2006,6 +2202,37 @@ export class Store {
     return task;
   }
 
+  /** Model/provider changes are one configuration transaction: never publish
+   * a new provider before its confirmed approval downgrade, or change the
+   * default while leaving the selected thread behind after a write failure. */
+  switchTaskModel(botId: string, threadId: string, selection: ModelSelection,
+    updateBotDefault: boolean, resetApprovalToAsk: boolean, taskPatch: TaskPatch = {}): TaskRecord | null {
+    const bot = this.bot(botId);
+    const task = this.taskByThread(botId, threadId);
+    if (!bot || !task) return null;
+    const patch = { modelSelection: structuredClone(selection),
+      ...(resetApprovalToAsk ? { approvalMode: "ask" as const, autoApprove: false, alwaysAllow: [] } : {}) };
+    const nextTask = { ...task, ...taskPatch, ...patch,
+      ...(typeof taskPatch.title === "string" ? { title: taskPatch.title.trim().slice(0, 80) || UNTITLED_THREAD } : {}) };
+    // Older threads may still inherit settings. Freeze their effective
+    // values before updating the default so "other threads unchanged" also
+    // holds for workspaces created before per-thread approval settings.
+    const nextTasks = bot.tasks!.map((candidate) => candidate === task ? nextTask : !updateBotDefault ? candidate : {
+      ...candidate,
+      modelSelection: structuredClone(candidate.modelSelection ?? bot.modelSelection),
+      approvalMode: approvalModeFor(this.projectBotForTask(botId, candidate.threadId)!),
+      autoApprove: candidate.autoApprove ?? bot.autoApprove,
+      alwaysAllow: structuredClone(candidate.alwaysAllow ?? bot.alwaysAllow ?? []),
+    });
+    const next = { ...bot, ...(updateBotDefault ? patch : {}),
+      tasks: nextTasks };
+    this.saveBots(this.bots.map((candidate) => candidate === bot ? next : candidate));
+    bot.tasks!.forEach((candidate, index) => Object.assign(candidate, nextTasks[index]));
+    if (updateBotDefault) Object.assign(bot, patch);
+    this.emit({ type: "bot", botId });
+    return task;
+  }
+
   private mirrorActiveTask(bot: BotRecord, task: TaskRecord) {
     bot.threadId = task.threadId;
     bot.resumeCursors = structuredClone(task.resumeCursors);
@@ -2057,6 +2284,21 @@ export class Store {
     return task;
   }
 
+  /** Stamp or clear the closer record. `null` reopens: the next turn in a
+   * closed thread calls this so the row comes back to the sidebar. Never
+   * reachable from the HTTP task PATCH: closedBy is not a TASK_PATCH_FIELD. */
+  setTaskClosedBy(botId: string, threadId: string, closedBy: TaskClosedBy | null): TaskRecord | null {
+    const bot = this.bot(botId);
+    const task = this.taskByThread(botId, threadId);
+    if (!bot || !task) return null;
+    if (closedBy) task.closedBy = structuredClone(closedBy);
+    else if (!task.closedBy) return task;
+    else delete task.closedBy;
+    this.saveBots();
+    this.emit({ type: "bot", botId });
+    return task;
+  }
+
   switchTask(botId: string, threadId: string): BotRecord | null {
     const bot = this.bot(botId);
     const task = bot?.tasks?.find((t) => t.threadId === threadId);
@@ -2081,10 +2323,10 @@ export class Store {
   }
 
   /** Delete a task and its transcript, retaining generated project files.
-   * A bot always keeps one. */
+   * When no visible tasks remain, replace it with a fresh conversation. */
   deleteTask(botId: string, threadId: string): BotRecord | null {
     const bot = this.bot(botId);
-    if (!bot || !bot.tasks || bot.tasks.length < 2) return null;
+    if (!bot?.tasks) return null;
     if (!bot.tasks.some((t) => t.threadId === threadId)) return null;
     bot.tasks = bot.tasks.filter((t) => t.threadId !== threadId);
     const visible = bot.tasks.find((task) => !task.routineRunId)

@@ -90,7 +90,13 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
       <div className="flex justify-start">
         <button
           type="button"
-          onClick={() => dispatch({ type: "select", id: comm.groupId })}
+          onClick={() => {
+            dispatch({ type: "select", id: comm.groupId });
+            const destination = state.groups.find(g => g.id === comm.groupId);
+            if (comm.threadId && destination?.tasks?.some(task => task.threadId === comm.threadId)) {
+              dispatch({ type: "switchGroupTask", groupId: comm.groupId, threadId: comm.threadId });
+            }
+          }}
           title={t("room.openBot", { name: comm.withName })}
           className="flex items-center gap-2 rounded-full border border-hairline/40 bg-panel px-3 py-1.5 text-[13px] text-ink-secondary hover:bg-raised hover:text-ink"
         >
@@ -109,7 +115,8 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
           tool.ok === false ? "text-danger" : "text-ink-secondary",
         )}
       >
-        <span className="max-w-[480px] truncate font-mono">{tool.name}</span>
+        {comm && <BotAvatar bot={state.bots.find(b => b.id === comm.withBotId) ?? { name: comm.withName, color: comm.withColor }} state="happy" size={16} />}
+        <span className={cn("max-w-[480px] truncate", !comm && "font-mono")}>{tool.name}</span>
       </div>
     </div>
   );
@@ -219,7 +226,7 @@ const Transcript = memo(function Transcript({
         const m = item.message;
         const user = m.role === "user";
         const attachments = user && m.text ? splitTranscriptAttachments(m.text) : null;
-        const newCluster = !prev || prev.role !== m.role || prev.from?.botId !== m.from?.botId || newDay;
+        const newCluster = !prev || prev.role !== m.role || prev.from?.botId !== m.from?.botId || Boolean(prev.comm) || newDay;
         const routineOwner = m.kind === "routine.run" ? memberOf(m.from?.botId) : undefined;
         const routineExecutionThreadId = m.routineRun?.executionThreadId;
         const routineTarget = routineOwner && hasRoutineExecutionTask(routineOwner.tasks, routineExecutionThreadId)
@@ -369,7 +376,7 @@ const Transcript = memo(function Transcript({
                 {dayLabel(m.at)} {formatTime(m.at)}
               </div>
             )}
-            {!user && m.from && newCluster && (
+            {!user && m.from && newCluster && !(m.kind === "activity" && m.comm) && (
               <ClusterLabel bot={memberOf(m.from.botId)} name={m.from.name} color={m.from.color} />
             )}
             {row}
@@ -1176,14 +1183,19 @@ export function GroupView({ group }: { group: Group }) {
 
       {!remoteClient && !group.dm && !setupPending && (
         <details className="mx-5 mb-2 rounded-lg border border-hairline/40 bg-panel px-3 py-2 text-[12.5px]">
-          <summary className="cursor-pointer text-ink-secondary">{t("room.incoming.summary", { count: group.incomingGroupIds?.length ?? 0 })}</summary>
+          <summary className="cursor-pointer text-ink-secondary">{t("room.incoming.summary")}</summary>
           <p className="mt-2 text-ink-secondary">{t("room.incoming.description")}</p>
           <label className="mt-3 mb-2 flex items-center gap-2 text-ink">
             <input type="checkbox" checked={group.requireRoomDiscussion ?? false}
               onChange={event => dispatch({ type: "patchGroup", groupId: group.id, patch: { requireRoomDiscussion: event.target.checked } })} />
             {t("room.incoming.discussion")}
           </label>
-          <div className="mt-2 flex max-h-36 flex-col gap-2 overflow-y-auto">
+          <label className="mt-3 mb-2 flex items-center gap-2 text-ink">
+            <input type="checkbox" checked={Array.isArray(group.incomingGroupIds)}
+              onChange={event => dispatch({ type: "patchGroup", groupId: group.id, patch: { incomingGroupIds: event.target.checked ? [] : null } })} />
+            {t("room.incoming.restrict")}
+          </label>
+          {Array.isArray(group.incomingGroupIds) && <div className="mt-2 flex max-h-36 flex-col gap-2 overflow-y-auto">
             {state.groups.filter(candidate => candidate.id !== group.id && !candidate.dm).map(candidate => (
               <label key={candidate.id} className="flex min-w-0 items-center gap-2 text-ink">
                 <input type="checkbox" checked={group.incomingGroupIds?.includes(candidate.id) ?? false}
@@ -1195,7 +1207,7 @@ export function GroupView({ group }: { group: Group }) {
                 <span className="truncate">{candidate.name}</span>
               </label>
             ))}
-          </div>
+          </div>}
         </details>
       )}
 

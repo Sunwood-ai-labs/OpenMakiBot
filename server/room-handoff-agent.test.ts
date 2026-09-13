@@ -20,7 +20,7 @@ it.each(["code", "signal"])("rejects pending MCP requests promptly after a child
     writeFileSync(system, "Fixture system instructions");
     writeFileSync(plan, JSON.stringify({ "fixture-bot": {} }));
     await expect(runRoomHandoffAgent(["--mcp-config", config, "--append-system-prompt-file", system], plan))
-      .rejects.toThrow("Fixture MCP process exited before responding");
+      .rejects.toThrow("Fixture MCP exited unexpectedly");
     const evidence = JSON.parse(readFileSync(`${plan}.evidence.jsonl`, "utf8"));
     expect(evidence).toMatchObject({ botId: "fixture-bot", threadId: "fixture-thread", evidence: [] });
   } finally { await removeTempDir(dir); }
