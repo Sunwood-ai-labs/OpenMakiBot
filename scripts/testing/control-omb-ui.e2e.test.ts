@@ -206,7 +206,7 @@ describe("control-omb ui drives the real renderer", () => {
       { provider: "openaiCompat" }, { provider: "openaiCompat", key: "fixture-draft-key" }, { provider: "openaiCompat" },
     ]);
     await expect.poll(verdict).toBe("Saved key: Model catalog reachable: fixture-model. Authentication and chat not verified.");
-    await waitForExit(launched.child, { signal: "SIGINT", graceMs: 30_000 });
+    await waitForExit(launched.child, { message: "control-omb:stop", graceMs: 30_000 });
     expect(launched.child.exitCode).toBe(0);
     expect(existsSync(info.dataDir)).toBe(false);
   }, LAUNCH_TIMEOUT_MS + 180_000);
