@@ -186,3 +186,20 @@ retained unchanged for CI.
 The production preview fixture reports `cleaned: true`. The comparison launcher
 lost writable stdin; automatic approval review rejected manual cleanup, so that
 local cleanup is not claimed complete. No live app or user data was used.
+
+### Windows shared-computer timeout investigation
+
+CI run `34763170650` at `7c6ad382` passed on Ubuntu and macOS. Windows
+reported 6,335 passing tests and one failure in the explicit-edit/terminal
+shared-computer scenario: its MCP client stopped waiting after 15 seconds.
+The old error did not identify which operation was pending. The same failure
+also appeared in the separate hierarchy PR, while local isolated reproduction
+passed all four shared-computer scenarios.
+
+The fixture now records the MCP action, elapsed time, connector state and
+recent HTTP route/status events on timeout. It does not log request bodies or
+credentials. All assertions and the original timeout remain unchanged; this is
+diagnostic instrumentation, not a claimed root-cause fix. A local run including
+shared-computer unit/end-to-end tests and team-setup tests passed all 32 tests
+in 22.80 seconds. The independently reproduced team-setup starter-name
+collision repair was imported from `5bf7667c` with its existing-bot protections.
