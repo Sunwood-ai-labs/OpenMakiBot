@@ -85,7 +85,8 @@ function killTree(child) {
  * commands load without default-path discovery hanging on Windows hosts. */
 export function sharedCommandEnvironment(environment = process.env, platform = process.platform) {
   const names = ["PATH", "HOME", "USERPROFILE", "SystemRoot", "TEMP", "TMP", "LANG"];
-  if (platform === "win32") names.push("PSModulePath");
+  // PATHEXT keeps native executables runnable; PSModulePath retains installed modules.
+  if (platform === "win32") names.push("PATHEXT", "PSModulePath");
   return Object.fromEntries(names.filter(key => environment[key]).map(key => [key, environment[key]]));
 }
 
@@ -96,7 +97,16 @@ export function sharedCommand(command, cwd, signal) {
   signal.throwIfAborted();
   return new Promise((resolve, reject) => {
     const windows = process.platform === "win32";
-    const child = spawn(windows ? "powershell.exe" : "/bin/sh", windows ? ["-NoProfile", "-NonInteractive", "-Command", command] : ["-c", command], {
+    // Windows PowerShell searches registered third-party modules before its
+    // own cmdlets. On a cold machine even `echo` can spend the entire deadline
+    // discovering Write-Output. Prioritize built-ins after startup constructs
+    // the path, preserving every existing module location. A child CLI executes
+    // the original text unchanged: a ScriptBlock wrapper loses native failure
+    // status. The existing process-tree cancellation covers both shells.
+    const script = windows
+      ? `$env:PSModulePath = "$PSHOME\\Modules;$env:PSModulePath"; & "$PSHOME\\powershell.exe" -NoProfile -NonInteractive -OutputFormat Text -EncodedCommand '${Buffer.from(command, "utf16le").toString("base64")}'; exit $LASTEXITCODE`
+      : command;
+    const child = spawn(windows ? "powershell.exe" : "/bin/sh", windows ? ["-NoProfile", "-NonInteractive", "-Command", script] : ["-c", script], {
       cwd, detached: !windows, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
       env: sharedCommandEnvironment(),
     });

@@ -362,3 +362,46 @@ pnpm typecheck
 pnpm lint
 pnpm i18n:check
 ```
+
+### Windows terminal and caption-button upstream integration
+
+Head `bef44712` subsequently completed all twelve Actions checks, including
+[full CI 34770746341](https://github.com/milind-soni/OpenMausBot/actions/runs/34770746341).
+Windows passed the staged CUA native-host smoke, 6,462 Vitest cases (207 existing
+or configuration-dependent skips and one todo), eight broker cases, 194 Electron
+cases with zero failures, and packaged-server smoke. Its browser-dependent cron
+UI case was skipped by the existing CI configuration; the explicit local run
+above passed. CodeRabbit covered that exact head without actionable findings.
+
+Upstream `0ddb4194` then added #1169 terminal semantics and #1134 Windows caption
+buttons. The terminal merge retains upstream's built-in-module priority, encoded
+original command, nested CLI output/exit behavior and process-tree cancellation.
+The environment helper now preserves both Windows `PATHEXT` and `PSModulePath`,
+while its regression still excludes credentials and startup-injection variables.
+Both ChatView and GroupView retain gallery ownership of previews without duplicate
+Markdown cards after the automatic caption-button merge.
+
+The new upstream built-in-module test initially failed because `SystemRoot` was
+spelled `C:\\WINDOWS`, while PowerShell returned `C:\\Windows`. Running the unchanged
+upstream implementation reproduced the same failed string-prefix check, although
+both paths resolved to the same directory. The assertion now resolves the first
+module-path entry and compares the complete directory, preserving its priority
+requirement and also excluding similarly prefixed sibling paths.
+
+With Node 24.20.0, shared-access/preload Node tests passed 21 cases with one
+existing filesystem-normalization skip, including original command syntax,
+native exit codes, pipeline output and actual inner-shell cancellation. Ten
+related Vitest files passed all 108 cases, including real shared-computer E2E,
+gates, caption capabilities, chat controls and galleries. Build/typecheck, lint,
+and all ten locale catalogs (2,109 English strings) passed. The added upstream
+shared-terminal smoke workflow retains read-only repository permissions and
+the real connector regression. Fresh CI/review must cover the merged head.
+
+```sh
+node --test electron/shared-computer-access.node-test.mjs electron/preload.node-test.mjs
+node node_modules/vitest/vitest.mjs run server/shared-computers.e2e.test.ts server/shared-computers.gate.test.ts electron/capabilities.test.mjs electron/window-chrome.test.mjs src/components/ChatView.controls.test.ts src/components/ChatView.verify.test.ts src/components/BotIdentityAvatars.test.ts src/components/RoutineResultsNavigation.test.ts src/components/AttachmentGallery.test.ts src/components/ChatMarkdown.test.ts
+pnpm build
+pnpm lint
+pnpm i18n:check
+git diff --check
+```
