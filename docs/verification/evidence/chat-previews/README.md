@@ -112,3 +112,30 @@ The CodeRabbit docstring-coverage warning remains an advisory documentation
 metric, not a failed executable check. Existing parser limits and cleanup are
 documented in code and the verification guide. The old CLA comment does not
 apply: the current proposal changes no enterprise files.
+
+
+### Upstream integration and documentation review (2026-09-13)
+
+Integrated upstream `f8cbc562` in `01b60c05`. The Box fixture endpoint remains
+argument 8 and preview replies move to argument 9; both preview callers were
+updated. The lifecycle test retains upstream failure evidence and graceful IPC
+cleanup. English preview strings and upstream canvas strings are both retained.
+
+Validation after integration:
+
+- Typecheck, production build, and lint passed.
+- 166 focused tests passed; the remaining local message-file symlink test failed
+  with Windows EPERM during setup. Its assertion is retained for CI.
+- An additional 18 archive-limit and locale-generator tests passed.
+- The complete API file passed 208 tests with one existing skip (295.46 seconds).
+- The real team-lifecycle fixture and original UI launcher case passed. The new
+  upstream OpenRouter fixture exposed another SIGINT cleanup call on Windows;
+  the shared IPC fix and a rerun are required before calling that check green.
+- Updated 23 stale Ukrainian translations and their source hashes in `b585d59c`;
+  locale checks pass for all 10 languages. Native-speaker human review was not
+  performed locally.
+
+`06bc9c08` adds JSDoc describing request identity, authority, buffer/URL ownership,
+parser budgets, cancellation, and queue release obligations. CodeRabbit must
+recompute coverage after push; the prior 31.11% warning is not yet cleared.
+The final integrated head still requires fresh cross-platform CI and review.
