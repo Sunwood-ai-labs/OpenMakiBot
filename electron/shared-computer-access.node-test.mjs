@@ -4,7 +4,7 @@ import { mkdtemp, realpath, writeFile, readFile, rm, symlink, link } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { executeSharedOperation, sharedCommand, createSharedCua } from "./shared-computer-access.mjs";
+import { executeSharedOperation, sharedCommand, sharedCommandEnvironment, createSharedCua } from "./shared-computer-access.mjs";
 import { createComputerSharing, validateSharedFolders } from "./computer-sharing.mjs";
 
 async function fixture(t) {
@@ -16,6 +16,20 @@ async function fixture(t) {
   return { dir, folder, grant, run };
 }
 const payload = result => JSON.parse(result.content[0].text);
+
+test("Windows shells retain module discovery without inheriting credentials or startup injection", () => {
+  const environment = {
+    PATH: "fixture-bin", HOME: "fixture-home", PSModulePath: "fixture-modules",
+    OPENAI_API_KEY: "fixture-secret", UNKNOWN_PROVIDER_TOKEN: "fixture-secret",
+    NODE_OPTIONS: "--require=fixture-injection", BASH_ENV: "fixture-startup",
+  };
+  assert.deepEqual(sharedCommandEnvironment(environment, "win32"), {
+    PATH: "fixture-bin", HOME: "fixture-home", PSModulePath: "fixture-modules",
+  });
+  assert.deepEqual(sharedCommandEnvironment(environment, "linux"), {
+    PATH: "fixture-bin", HOME: "fixture-home",
+  });
+});
 
 test("legacy insecure saved addresses never receive sharing credentials", async t => {
   const { dir } = await fixture(t);
