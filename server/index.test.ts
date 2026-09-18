@@ -363,6 +363,7 @@ beforeAll(async () => {
   mkdirSync(join(staticDir, "assets"), { recursive: true });
   writeFileSync(join(staticDir, "index.html"), "<!doctype html><title>Packaged OpenMausBot</title>");
   writeFileSync(join(staticDir, "assets", "smoke.css"), "body { color: white; }");
+  writeFileSync(join(staticDir, "assets", "smoke.worker.mjs"), "export {};");
   writeFileSync(
     join(home, ".openmausbot", "config.json"),
     JSON.stringify({
@@ -1035,6 +1036,12 @@ describe("harness HTTP API", () => {
     expect(asset.status).toBe(200);
     expect(asset.headers.get("content-type")).toBe("text/css");
     expect(await asset.text()).toContain("color: white");
+
+    // PDF.js ships its worker as .mjs; browsers reject module workers served
+    // as application/octet-stream, so the static map must know this extension.
+    const worker = await fetch(`${BASE}/assets/smoke.worker.mjs`);
+    expect(worker.status).toBe(200);
+    expect(worker.headers.get("content-type")).toBe("text/javascript");
 
     const spa = await fetch(`${BASE}/settings/desktop`);
     expect(spa.status).toBe(200);
