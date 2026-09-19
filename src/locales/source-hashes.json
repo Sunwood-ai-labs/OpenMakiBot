@@ -6832,6 +6832,8 @@
       "filePreview.fit": "953eba677de43bc8ff7000869aa12db65fb4030aa5c3635c9604cd19873e9346",
       "filePreview.invalidFile": "4e516053284dcb8ed331b274ce3f15f29abc26a2d711fae40345dd2bb38c7ad1",
       "filePreview.videoFailed": "b898a2f82047340ba3954a1553d7d95ae9caea2db4b7d2d07dd23fad34c8b85c",
+      "filePreview.audioFailed": "5175ef6dc4a21b8d4316d1d4f5eeb1f6c456e723fc103825231aeadd2810674e",
+      "filePreview.playAudio": "8915e145b5af24e9f386820e06cd3e4dce620e9f816ac45dce6813802b5ddddb",
       "filePreview.previousSlide": "bfb549220c60fc914ee07504fb05a09a509aa9311c718224b68fae34252a97e8",
       "filePreview.nextSlide": "cdc93d1c8fe9a2af342a761d7407ebb397693534dadaa4cdca8b3788ef64805a",
       "filePreview.slide": "b389e3e431dfcf1c2d7106837fa751af4aa01cf91e2d85d9c1ed3be770c642a5",

@@ -135,8 +135,13 @@ export interface Message {
   text?: string;
   /** Durable provider output stored by the harness. Paths always point into
    * OpenMausBot's private attachment directory; renderers receive only the
-   * existing allowlisted /api/attachments URL. */
-  attachments?: Array<{ kind: "image"; path: string; mime: string }>;
+   * existing allowlisted /api/attachments URL. `file` entries are documents,
+   * audio and video a bot attached with attach_file; they are opened through
+   * the message-scoped file route, never by path. */
+  attachments?: Array<
+    | { kind: "image"; path: string; mime: string }
+    | { kind: "file"; path: string; mime: string; name: string }
+  >;
   card?: OptionCardData;
   connector?: ConnectorCardData;
   secret?: SecretRequestCardData;

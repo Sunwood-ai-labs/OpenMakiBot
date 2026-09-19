@@ -1963,6 +1963,8 @@
   "filePreview.fit": "Fit to width",
   "filePreview.invalidFile": "This file could not be displayed. You can still download a copy.",
   "filePreview.videoFailed": "This browser cannot play this video. Download a copy to open it in a video app.",
+  "filePreview.audioFailed": "This browser cannot play this audio. Download a copy to open it in an audio app.",
+  "filePreview.playAudio": "Play {name}",
   "filePreview.previousSlide": "Previous slide",
   "filePreview.nextSlide": "Next slide",
   "filePreview.slide": "Slide {page} of {count}",

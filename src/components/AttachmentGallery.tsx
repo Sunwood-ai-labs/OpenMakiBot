@@ -77,20 +77,37 @@ export function isVideoAttachment(path: string): boolean {
   return /\.(?:mp4|m4v|webm|mov)$/i.test(fileIdentity(path));
 }
 
-const NO_GENERATED_ATTACHMENTS: readonly { path: string }[] = [];
+type MessageAttachmentEntry = { path: string; kind?: string; name?: string };
+const NO_GENERATED_ATTACHMENTS: readonly MessageAttachmentEntry[] = [];
+
+/** A bot message's stored attachments as the gallery wants them: image paths,
+ * plus documents, audio and video attached with attach_file as private files
+ * (authorized by the message itself, like a user's own upload). */
+export function splitMessageAttachments(attachments: readonly MessageAttachmentEntry[] = NO_GENERATED_ATTACHMENTS): { images: string[]; files: GalleryFile[] } {
+  const images: string[] = [];
+  const files: GalleryFile[] = [];
+  for (const attachment of attachments) {
+    if (attachment.kind === "file") files.push({ path: attachment.path, name: attachment.name || attachmentBasename(attachment.path), private: true });
+    else images.push(attachment.path);
+  }
+  return { images, files };
+}
 
 /** Group/room rows can share the gallery without parsing every old message
  * on unrelated state updates. Preserve the message's original attachment array. */
 export function MessageAttachmentGallery({ text, attachments = NO_GENERATED_ATTACHMENTS, message, eager, className }: {
   text: string;
-  attachments?: readonly { path: string }[];
+  attachments?: readonly MessageAttachmentEntry[];
   message: MessageAttachmentContext;
   eager?: boolean;
   className?: string;
 }) {
-  const images = useMemo(() => attachments.map((attachment) => attachment.path), [attachments]);
-  const files = useMemo(() => collectMessageFiles(text, images), [text, images]);
-  return <AttachmentGallery images={images} files={files} message={message} eager={eager} className={className} />;
+  const attached = useMemo(() => splitMessageAttachments(attachments), [attachments]);
+  const files = useMemo(
+    () => [...attached.files, ...collectMessageFiles(text, [...attached.images, ...attached.files.map((file) => file.path)])],
+    [text, attached],
+  );
+  return <AttachmentGallery images={attached.images} files={files} message={message} eager={eager} className={className} />;
 }
 
 /** A server-provided MIME is required as well as the filename hint. Old
@@ -257,19 +274,12 @@ export function AttachmentGallery({ images = [], files = [], message, eager = fa
   const previews = items.flatMap((item) => item.kind === "image" ? [item.image] : []);
 
   return (
-    <section aria-label={items.length === 1 ? t("attach.gallerySingle") : t("attach.galleryCount", { count: items.length })} className={cn("mb-2 w-[min(34rem,70vw)] max-w-full overflow-hidden rounded-xl border border-hairline/40 bg-inset/25 text-left whitespace-normal", className)}>
-      <header className="flex items-center gap-2 px-3 py-2 text-[11px] font-medium text-ink-secondary">
-        <span>{t("attach.gallery")}</span><span className="tabular-nums opacity-65">{items.length}</span>
-      </header>
+    <section aria-label={items.length === 1 ? t("attach.gallerySingle") : t("attach.galleryCount", { count: items.length })} className={cn("mb-1.5 w-[min(34rem,70vw)] max-w-full space-y-1.5 text-left whitespace-normal", className)}>
       {media.length > 0 && (
-        <div className={cn("grid gap-2 px-2 pb-2", media.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
+        <div className={cn("grid gap-2", media.length === 1 ? "grid-cols-1" : "grid-cols-2")}>
           {media.map((item) => item.kind === "image" ? (
-            <div key={item.key} className="min-w-0 overflow-hidden rounded-xl border border-hairline/30 bg-inset/40">
-              <AttachmentThumbnail key={item.image.src} image={item.image} eager={eager} onPreview={() => setSelected(item.image)} className="max-h-64 rounded-none border-0" />
-              <div className="flex items-center gap-2 px-2.5 py-2 text-[11px]">
-                <span className="min-w-0 flex-1 truncate text-ink" title={item.image.name}>{item.image.name}</span>
-                <span className="shrink-0 text-[10px] text-ink-secondary">{t("attach.image")}</span>
-              </div>
+            <div key={item.key} className="min-w-0" title={item.image.name}>
+              <AttachmentThumbnail key={item.image.src} image={item.image} eager={eager} onPreview={() => setSelected(item.image)} className="max-h-72 rounded-2xl border-0 bg-transparent" />
             </div>
           ) : item.kind === "video" && message ? (
             filePreviewKind(item.file.path) ? <PreviewableFile key={`${message.threadId}:${message.messageId}:${item.key}`} path={item.file.path} name={item.file.name} message={message} />
@@ -278,12 +288,12 @@ export function AttachmentGallery({ images = [], files = [], message, eager = fa
         </div>
       )}
       {documents.length > 0 && (
-        <div className="space-y-1 px-2 pb-2">
-          {documents.map((item) => item.kind === "file" && <AttachedFileChip key={item.key} file={item.file} linked={item.file.linked} message={message} className="max-w-none rounded-lg border-hairline/25 bg-transparent" />)}
+        <div className="flex flex-col items-start gap-1.5">
+          {documents.map((item) => item.kind === "file" && <AttachedFileChip key={item.key} file={item.file} linked={item.file.linked} message={message} className="max-w-none rounded-xl border-hairline/25 bg-transparent" />)}
         </div>
       )}
       {items.length > 4 && (
-        <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="flex min-h-8 w-full items-center justify-center gap-1 border-t border-hairline/30 px-3 py-1.5 text-[11px] text-ink-secondary transition-colors hover:bg-raised/60 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60">
+        <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="flex min-h-8 items-center gap-1 rounded-lg px-1 py-1 text-[11px] text-ink-secondary transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
           {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           {expanded ? t("attach.showLess") : t("attach.showMore", { count: items.length - 4 })}
         </button>

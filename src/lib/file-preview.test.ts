@@ -18,6 +18,17 @@ describe('file preview boundaries', () => {
     expect(fileRequestUrl({ threadId: 'a/b', messageId: '../c' })).toBe('/api/threads/a%2Fb/messages/..%2Fc/file');
   });
 
+  it('previews audio by suffix, and only when the response says it is audio', () => {
+    for (const name of ['song.mp3', 'voice.M4A', 'take.wav', 'a.ogg', 'a.opus', 'a.flac', 'a.aac']) expect(filePreviewKind(`/store/${name}`)).toBe('audio');
+    expect(filePreviewKind('/store/song.mp3.exe')).toBeNull();
+    expect(filePreviewKind('/store/notes.mid')).toBeNull();
+    expect(previewMimeAllowed('audio', 'audio/mpeg')).toBe(true);
+    expect(previewMimeAllowed('audio', 'audio/wav; charset=binary')).toBe(true);
+    expect(previewMimeAllowed('audio', 'video/mp4')).toBe(false);
+    expect(previewMimeAllowed('audio', 'application/octet-stream')).toBe(false);
+    expect(previewMimeAllowed('video', 'audio/mpeg')).toBe(false);
+  });
+
   it('parses both spreadsheet tabs, cached formula values and literal markup', async () => {
     const result = await parseOfficePreview(previewSpreadsheet(), 'spreadsheet');
     if (result.kind !== 'spreadsheet') throw new Error('wrong preview');

@@ -334,7 +334,7 @@ function containedBy(root: string, candidate: string): boolean {
   return suffix === "" || (suffix !== ".." && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix));
 }
 
-function mimeFor(path: string): string {
+export function mimeFor(path: string): string {
   switch (extname(path).toLowerCase()) {
     case ".mp4": return "video/mp4";
     case ".webm": return "video/webm";
@@ -354,6 +354,14 @@ function mimeFor(path: string): string {
     case ".avif": return "image/avif";
     case ".bmp": return "image/bmp";
     case ".m4v": return "video/x-m4v";
+    case ".mp3": return "audio/mpeg";
+    case ".m4a": return "audio/mp4";
+    case ".aac": return "audio/aac";
+    case ".wav": return "audio/wav";
+    case ".ogg":
+    case ".oga": return "audio/ogg";
+    case ".opus": return "audio/opus";
+    case ".flac": return "audio/flac";
     case ".doc": return "application/msword";
     case ".docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     case ".xls": return "application/vnd.ms-excel";
