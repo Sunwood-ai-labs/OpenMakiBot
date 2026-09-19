@@ -9099,15 +9099,15 @@ describe("bot memory API", () => {
       expect((await attach({ path: "" })).status).toBe(400);
       expect((await attach({ path: join(home, "outside.pdf") })).status).toBeGreaterThanOrEqual(403);
 
-      // A real file outside the bot's roots stays out of reach by ../ and by a symlink placed inside them.
+      // A real file outside the bot's roots stays out of reach by ../ and through a link placed inside them
+      // (a junction on Windows, which needs no privilege; a symlink elsewhere).
+      mkdirSync(join(home, "outside-dir"), { recursive: true });
       writeFileSync(join(home, "outside.pdf"), "%PDF-outside");
+      writeFileSync(join(home, "outside-dir", "secret.pdf"), "%PDF-secret");
       expect((await attach({ path: "../../../outside.pdf" })).status).toBeGreaterThanOrEqual(403);
-      let linked = false;
-      try {
-        symlinkSync(join(home, "outside.pdf"), join(workspace, "link.pdf"));
-        linked = true;
-      } catch { /* creating symlinks needs a privilege on Windows */ }
-      if (linked) expect((await attach({ path: "link.pdf" })).status).toBeGreaterThanOrEqual(403);
+      symlinkSync(join(home, "outside-dir"), join(workspace, "escape"), "junction");
+      expect(readFileSync(join(workspace, "escape", "secret.pdf"), "utf8")).toBe("%PDF-secret");
+      expect((await attach({ path: "escape/secret.pdf" })).status).toBeGreaterThanOrEqual(403);
       const afterRefusals = await api("GET", `/api/threads/${bot.threadId}/export?format=json`);
       expect((afterRefusals.body.messages as Array<{ attachments?: unknown[] }>).filter((message) => message.attachments?.length)).toHaveLength(2);
 

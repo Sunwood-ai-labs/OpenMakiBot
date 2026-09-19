@@ -73,6 +73,22 @@ real**: GLM-5.3 called `attach_file` for each and the server copied each out of 
 
 ![Video and audio after clicking](audio-video-playing.jpg)
 
+## A clip the browser cannot decode
+
+A 34-byte `broken.mp3` (not audio) was attached by the real bot, then played from the chat.
+The server hands it out as `audio/mpeg`, so the failure happens in the browser's decoder.
+
+| | Play button after the error | Retry possible |
+| --- | --- | --- |
+| Before the fix | gone (only a note icon and the download link remain) | no |
+| After the fix | back | yes (a second click loads it again and shows the same message) |
+
+Before:
+![No play button after a decode error](audio-error-before-fix.jpg)
+
+After:
+![The play button is back](audio-error-retry.jpg)
+
 ## Found only by running it for real
 
 - The first run returned "No file was found" for every file even though the VM could
