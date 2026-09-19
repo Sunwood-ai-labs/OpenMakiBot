@@ -314,7 +314,7 @@ function AudioAttachment({ file, message }: { file: GalleryFile; message: Messag
         {src && <a href={src} download={file.name} aria-label={t("attach.saveAria", { name: file.name })} title={t("attach.saveAria", { name: file.name })}
           className="shrink-0 rounded-lg p-1 text-ink-secondary hover:bg-raised hover:text-ink"><Download size={14} /></a>}
       </div>
-      {src && !error && <audio src={src} controls autoPlay preload="metadata" aria-label={t("attach.previewAudio", { name: file.name })} onError={() => setError(t("attach.audioUnavailable"))} className="h-9 w-full" />}
+      {src && !error && <audio src={src} controls autoPlay preload="metadata" aria-label={t("attach.previewAudio", { name: file.name })} onError={() => { setSrc(null); setError(t("attach.audioUnavailable")); }} className="h-9 w-full" />}
       {error && <p role="alert" className="text-[11px] text-danger">{error}</p>}
     </div>
   );

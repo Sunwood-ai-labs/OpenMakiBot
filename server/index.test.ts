@@ -8,7 +8,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { createServer, request, type Server } from "node:http";
 import { connect, type Socket } from "node:net";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9098,6 +9098,18 @@ describe("bot memory API", () => {
       expect(((await unsupported.json()) as { error: string }).error).toContain("Supported:");
       expect((await attach({ path: "" })).status).toBe(400);
       expect((await attach({ path: join(home, "outside.pdf") })).status).toBeGreaterThanOrEqual(403);
+
+      // A real file outside the bot's roots stays out of reach by ../ and by a symlink placed inside them.
+      writeFileSync(join(home, "outside.pdf"), "%PDF-outside");
+      expect((await attach({ path: "../../../outside.pdf" })).status).toBeGreaterThanOrEqual(403);
+      let linked = false;
+      try {
+        symlinkSync(join(home, "outside.pdf"), join(workspace, "link.pdf"));
+        linked = true;
+      } catch { /* creating symlinks needs a privilege on Windows */ }
+      if (linked) expect((await attach({ path: "link.pdf" })).status).toBeGreaterThanOrEqual(403);
+      const afterRefusals = await api("GET", `/api/threads/${bot.threadId}/export?format=json`);
+      expect((afterRefusals.body.messages as Array<{ attachments?: unknown[] }>).filter((message) => message.attachments?.length)).toHaveLength(2);
 
       // Running a command needs a Local VM this turn; a bot without one is told so.
       const exec = await fetch(`${BASE}/api/internal/vm-exec`, {
