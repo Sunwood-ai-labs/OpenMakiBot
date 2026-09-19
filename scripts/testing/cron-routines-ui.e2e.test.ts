@@ -54,6 +54,9 @@ afterAll(async () => {
   const callOptions = await repeatOptions();
   for (const choice of ["monthly", "yearly", "cron"]) expect(callOptions).not.toContain(choice);
   await click("Routine");
+  expect(await evaluate("document.body.innerText")).toContain("Bot’s current setup");
+  expect(await evaluate("document.body.innerText")).toContain("Box-hosted agent");
+  expect(await evaluate("document.body.innerText")).toContain("including a self-hosted VPS");
   expect(await repeatOptions()).toEqual(expect.arrayContaining(["monthly", "yearly", "cron"]));
   await select("Repeat", "monthly");
   await select("Day of month", "L");

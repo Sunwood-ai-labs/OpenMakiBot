@@ -59,10 +59,18 @@ export function createTeamBackup(store: Store, routines: Routine[], name: string
     const tasks = record.tasks?.length ? record.tasks : [{ threadId: record.threadId, title: "Conversation", createdAt: record.createdAt }];
     return tasks.map((task) => ({
       key: task.threadId, title: task.title, createdAt: task.createdAt,
+      // Whether the first message already named this task travels with it:
+      // without the marker a restore could re-arm one generated title on a
+      // row that had already used it.
+      titleFromFirstMessage: "titleFromFirstMessage" in task && task.titleFromFirstMessage || undefined,
       // Who opened the thread travels; the handoff id does not — the
       // delegation ledger is process-local and never part of a backup.
       openedBy: "openedBy" in task && task.openedBy
-        ? { botId: task.openedBy.botId, name: task.openedBy.name, at: task.openedBy.at }
+        ? { botId: task.openedBy.botId, name: task.openedBy.name, at: task.openedBy.at,
+            // What kind of conversation it is travels: a restored pair
+            // conversation is still the standing line between those two
+            // bots, so the import does not read as one more loose row.
+            ...(task.openedBy.kind ? { kind: task.openedBy.kind } : {}) }
         : undefined,
       closedBy: "closedBy" in task && task.closedBy
         ? { botId: task.closedBy.botId, name: task.closedBy.name, at: task.closedBy.at }
@@ -176,12 +184,13 @@ export function importTeamBackup(store: Store, routines: RoutineManager, input: 
         const record: TaskRecord = {
           threadId: i === 0 ? bot.threadId : newId(), title: task.title, createdAt: task.createdAt, resumeCursors: {},
           modelSelection: structuredClone(selection), activity: "idle" as const, busy: false, unread: false,
+          ...(task.titleFromFirstMessage ? { titleFromFirstMessage: true } : {}),
         };
         // Same rule as a message's `from`: the opener is remapped to its
         // imported twin, and an opener outside this backup leaves no record
         // rather than a bot id that resolves to a stranger.
         const opener = task.openedBy && botIds.get(task.openedBy.botId);
-        if (task.openedBy && opener) record.openedBy = { botId: opener, name: task.openedBy.name, at: task.openedBy.at };
+        if (task.openedBy && opener) record.openedBy = { botId: opener, name: task.openedBy.name, at: task.openedBy.at, ...(task.openedBy.kind ? { kind: task.openedBy.kind } : {}) };
         // A closed thread stays closed after import — the pile the person
         // tidied does not come back as a pile — with the closer remapped
         // the same way, or absent when it was a stranger.
@@ -211,7 +220,10 @@ export function importTeamBackup(store: Store, routines: RoutineManager, input: 
       });
       source.tasks.forEach((task, i) => restore(task, threads[i]));
       if (!source.dm) {
-        group.tasks = source.tasks.map((task, i) => ({ threadId: threads[i], title: task.title, createdAt: task.createdAt }));
+        group.tasks = source.tasks.map((task, i) => ({
+          threadId: threads[i], title: task.title, createdAt: task.createdAt,
+          ...(task.titleFromFirstMessage ? { titleFromFirstMessage: true } : {}),
+        }));
         store.switchGroupTask(group.id, threads[source.tasks.findIndex((task) => task.key === source.activeTask)]);
       }
     }

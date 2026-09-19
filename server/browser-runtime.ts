@@ -1,4 +1,5 @@
 import { killCliTree, spawnCli } from "./procs.ts";
+import { DEFAULT_BROWSER_RESULT_BUDGET, shapeBrowserToolResult, slimBrowserToolList, stripHarnessOwnedArguments } from "./browser-tool-shape.ts";
 
 export interface BrowserSpawnSpec {
   command: string;
@@ -132,12 +133,32 @@ class BrowserClient {
     if (!this.stopped && this.pending.size === 0) {
       // Only the stateless MCP transport expires; saved browser state and the
       // browser daemon itself belong to the profile, not this client.
-      this.idleTimer = setTimeout(() => { void this.stop(); }, this.idleMs);
+      this.idleTimer = setTimeout(() => { void this.stop(undefined, "transport"); }, this.idleMs);
       this.idleTimer.unref();
     }
   }
 
-  stop(error = new TransportError("Browser connection closed.")): Promise<void> {
+  /** Upstream's MCP loop exits on stdin EOF without closing the daemon.
+   * In particular, Windows taskkill /T would also kill that profile's Chrome,
+   * even when the daemon created a new process group. Idle is not shutdown. */
+  private retireTransport(): Promise<void> {
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timer);
+        this.child.off("exit", finish);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        try { this.child.kill("SIGKILL"); } catch { /* transport already exited */ }
+        finish();
+      }, 1_000);
+      this.child.once("exit", finish);
+      if (this.child.exitCode !== null || this.child.signalCode !== null) finish();
+      else this.child.stdin.end();
+    });
+  }
+
+  stop(error = new TransportError("Browser connection closed."), scope: "transport" | "tree" = "tree"): Promise<void> {
     if (this.stoppedPromise) return this.stoppedPromise;
     this.stopped = true;
     if (this.idleTimer) clearTimeout(this.idleTimer);
@@ -148,7 +169,7 @@ class BrowserClient {
     }
     this.pending.clear();
     this.onClose();
-    this.stoppedPromise = killCliTree(this.child, 1_000).then((stopped) => {
+    this.stoppedPromise = scope === "transport" ? this.retireTransport() : killCliTree(this.child, 1_000).then((stopped) => {
       if (stopped) return;
       try {
         if (process.platform !== "win32" && this.child.pid) process.kill(-this.child.pid, "SIGKILL");
@@ -173,10 +194,11 @@ interface Gate {
 export class BrowserRuntime {
   private gates = new Map<string, Gate>();
   private clients = new Map<string, { key: string; client: BrowserClient }>();
-  private options: { requestTimeoutMs: number; takeoverTimeoutMs: number; idleMs: number; maxPending: number };
+  private options: { requestTimeoutMs: number; takeoverTimeoutMs: number; idleMs: number; maxPending: number; resultBudget: number };
 
   constructor(options: Partial<BrowserRuntime["options"]> = {}) {
-    this.options = { requestTimeoutMs: 120_000, takeoverTimeoutMs: 15_000, idleMs: 60_000, maxPending: 16, ...options };
+    const budget = Number(process.env.OMB_BROWSER_RESULT_BUDGET);
+    this.options = { requestTimeoutMs: 120_000, takeoverTimeoutMs: 15_000, idleMs: 60_000, maxPending: 16, resultBudget: Number.isFinite(budget) && budget > 0 ? budget : DEFAULT_BROWSER_RESULT_BUDGET, ...options };
   }
 
   private gate(session: string): Gate {
@@ -231,14 +253,22 @@ export class BrowserRuntime {
       beforeDispatch?.();
       if (method === "tools/call" && this.gate(session).owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
       try {
-        const result = await entry.client.rpc(method, params);
+        // The model sees slimmed schemas and text-only, bounded results; the
+        // launch/session parameters OMB owns never reach the engine from a call.
+        const request = method === "tools/call" ? stripHarnessOwnedArguments(params) : params;
+        const result = await entry.client.rpc(method, request);
         beforeDispatch?.(); // A turn revoked while the tool ran receives no result.
-        return result;
+        if (method === "tools/list") return slimBrowserToolList(result);
+        const toolName = request && typeof request === "object" && typeof (request as { name?: unknown }).name === "string" ? (request as { name: string }).name : undefined;
+        return shapeBrowserToolResult(result, { toolName, budget: this.options.resultBudget });
       }
       catch (error) {
         // An MCP timeout cannot prove the independent daemon stopped an
         // accepted action. Recovery must close the browser, not just its pipe.
-        if (method === "tools/call" && error instanceof TransportError) this.gate(session).uncertain = true;
+        if (method === "tools/call" && error instanceof TransportError) {
+          const gate = this.gate(session);
+          gate.uncertain = true;
+        }
         throw error;
       }
     };
