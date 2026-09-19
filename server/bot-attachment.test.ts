@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // attachments.ts reads DATA_DIR at import time.
 const DATA_ROOT = mkdtempSync(join(tmpdir(), "omb-bot-attachment-"));
 process.env.OMB_DATA_DIR = join(DATA_ROOT, "data");
-const { guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
+const { attachForTurn, guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
 const { ATTACHMENTS_DIR } = await import("./attachments.ts");
 
 const WORK = join(DATA_ROOT, "work");
@@ -109,5 +109,89 @@ describe("saveBotAttachment", () => {
     await expect(saveBotAttachment({ path: "nope.pdf", roots: [WORK] })).rejects.toMatchObject({ status: 404 });
     await expect(saveBotAttachment({ path: "  ", roots: [WORK] })).rejects.toMatchObject({ status: 400 });
     expect(existsSync(ATTACHMENTS_DIR)).toBe(true);
+  });
+});
+
+describe("attachForTurn", () => {
+  /** A copy the test finishes by hand, so timing is never a guess. */
+  const deferred = <T>() => {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    return { promise, resolve, reject };
+  };
+  const hooks = (over: Partial<Parameters<typeof attachForTurn<string>>[2]> = {}) => {
+    const published: string[] = [];
+    const discarded: string[] = [];
+    return {
+      published,
+      discarded,
+      hooks: {
+        save: async () => "saved",
+        stillLive: () => true,
+        publish: (saved: string) => { published.push(saved); },
+        discard: (saved: string) => { discarded.push(saved); },
+        ...over,
+      },
+    };
+  };
+
+  it("holds the cap under parallel calls that are all still copying", async () => {
+    const turn: { attachedFiles?: number } = {};
+    const copies = Array.from({ length: 6 }, () => deferred<string>());
+    let started = 0;
+    const seen = hooks();
+    const calls = copies.map((copy, index) => attachForTurn(turn, 3, {
+      ...seen.hooks,
+      save: () => { started += 1; return copy.promise.then(() => `file-${index}`); },
+    }));
+    // Nothing has finished, yet only three may even start copying; the rest are refused at once.
+    expect(started).toBe(3);
+    expect(await Promise.all(calls.slice(3))).toEqual([{ status: "limit" }, { status: "limit" }, { status: "limit" }]);
+    copies.slice(0, 3).forEach((copy) => copy.resolve("done"));
+    const settled = await Promise.all(calls.slice(0, 3));
+    expect(settled.map((outcome) => outcome.status)).toEqual(["attached", "attached", "attached"]);
+    expect(seen.published).toHaveLength(3);
+    expect(turn.attachedFiles).toBe(3);
+    expect(await attachForTurn(turn, 3, seen.hooks)).toEqual({ status: "limit" });
+  });
+
+  it("gives the slot back when a copy fails, so a bad path does not use up the turn's budget", async () => {
+    const turn: { attachedFiles?: number } = {};
+    const seen = hooks({ save: async () => { throw Object.assign(new Error("not found"), { status: 404 }); } });
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(attachForTurn(turn, 2, seen.hooks)).rejects.toMatchObject({ status: 404 });
+    }
+    expect(turn.attachedFiles).toBe(0);
+    expect(seen.discarded).toEqual([]);
+    expect((await attachForTurn(turn, 2, hooks().hooks)).status).toBe("attached");
+  });
+
+  it("posts nothing and removes the copy when the turn ends while the file is being copied", async () => {
+    const turn: { attachedFiles?: number } = {};
+    const copy = deferred<string>();
+    let live = true;
+    const seen = hooks({ save: () => copy.promise, stillLive: () => live });
+    const call = attachForTurn(turn, 10, seen.hooks);
+    live = false; // stopped, replaced, deleted or moved mid-copy
+    copy.resolve("half-second-later.pdf");
+    expect(await call).toEqual({ status: "ended" });
+    expect(seen.published).toEqual([]);
+    expect(seen.discarded).toEqual(["half-second-later.pdf"]);
+    expect(turn.attachedFiles).toBe(0);
+  });
+
+  it("removes the copy when publishing itself fails", async () => {
+    const turn: { attachedFiles?: number } = {};
+    const seen = hooks({ publish: () => { throw new Error("thread is gone"); } });
+    await expect(attachForTurn(turn, 10, seen.hooks)).rejects.toThrow("thread is gone");
+    expect(seen.discarded).toEqual(["saved"]);
+    expect(turn.attachedFiles).toBe(0);
+  });
+
+  it("does not discard a copy it published", async () => {
+    const seen = hooks();
+    expect(await attachForTurn({}, 10, seen.hooks)).toEqual({ status: "attached", saved: "saved" });
+    expect(seen.discarded).toEqual([]);
   });
 });

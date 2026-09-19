@@ -113,7 +113,7 @@ import {
   type LocalVmTarget,
   type Runtime,
 } from "./container-computer.ts";
-import { saveBotAttachment } from "./bot-attachment.ts";
+import { attachForTurn, saveBotAttachment } from "./bot-attachment.ts";
 import {
   ensureDirs,
   instanceConfigs,
@@ -11287,29 +11287,43 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const source = connectorThread(from.id, threadId);
         if (!source) return json(res, 403, { error: "source conversation does not belong to sender" });
         const body = await readInternalBody();
-        if ((internalCapability.attachedFiles ?? 0) >= MAX_ATTACHED_FILES_PER_TURN) {
-          return json(res, 429, { error: `You already attached ${MAX_ATTACHED_FILES_PER_TURN} files this turn. Put the rest in one document or archive summary instead.` });
-        }
         const requestedPath = typeof body.path === "string" ? body.path : "";
         const requestedName = typeof body.name === "string" ? body.name : undefined;
         try {
-          // The agents capability carries no VM; the thread's claimed desktop does.
-          const vm = localVmThreadTargets.get(threadId);
-          const saved = await saveBotAttachment({
-            path: requestedPath,
-            name: requestedName,
-            // The attachment store is not a source: only the bot's own files are.
-            roots: messageFileRootsForThread(from.id, threadId).filter((root) => root !== ATTACHMENTS_DIR),
-            ...(vm ? { guest: { root: VM_WORKSPACE_GUEST, host: vm.workspaceDir } } : {}),
+          const outcome = await attachForTurn(internalCapability, MAX_ATTACHED_FILES_PER_TURN, {
+            save: () => {
+              // The agents capability carries no VM; the thread's claimed desktop does.
+              const vm = localVmThreadTargets.get(threadId);
+              return saveBotAttachment({
+                path: requestedPath,
+                name: requestedName,
+                // The attachment store is not a source: only the bot's own files are.
+                roots: messageFileRootsForThread(from.id, threadId).filter((root) => root !== ATTACHMENTS_DIR),
+                ...(vm ? { guest: { root: VM_WORKSPACE_GUEST, host: vm.workspaceDir } } : {}),
+              });
+            },
+            // The copy is awaited: the turn may have been stopped, replaced or
+            // deleted, or the bot removed from the room, before it finished.
+            stillLive: () => internalCapabilityIsActive(internalCapability) && connectorThread(from.id, threadId) !== null,
+            publish: (saved) => {
+              store.appendMessage(threadId, {
+                role: "bot",
+                kind: "text",
+                text: "",
+                attachments: [saved.attachment],
+                ...(source.group ? { from: { botId: from.id, name: from.name, color: from.color } } : {}),
+              });
+            },
+            // Each save gets its own stored file, so an unpublished one is ours to remove.
+            discard: (saved) => deleteAttachment(saved.attachment.path),
           });
-          internalCapability.attachedFiles = (internalCapability.attachedFiles ?? 0) + 1;
-          store.appendMessage(threadId, {
-            role: "bot",
-            kind: "text",
-            text: "",
-            attachments: [saved.attachment],
-            ...(source.group ? { from: { botId: from.id, name: from.name, color: from.color } } : {}),
-          });
+          if (outcome.status === "limit") {
+            return json(res, 429, { error: `You already attached ${MAX_ATTACHED_FILES_PER_TURN} files this turn. Put the rest in one document or archive summary instead.` });
+          }
+          if (outcome.status === "ended") {
+            return json(res, 409, { error: "This turn ended before the file could be attached, so nothing was posted." });
+          }
+          const { saved } = outcome;
           const label = saved.attachment.kind === "file"
             ? saved.attachment.name
             : (requestedName?.trim() || requestedPath.split(/[\\/]/).at(-1) || "image");
@@ -13210,7 +13224,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       // attachment store; the message itself is the grant, exactly as a
       // user's attachment tag is for their own uploads.
       const botAttachment = message.role === "bot"
-        ? message.attachments?.find((attachment) => attachment.kind === "file" && attachment.path === href)
+        ? message.attachments?.find((attachment) => attachment.path === href)
         : undefined;
       if (message.role === "user") {
         downloadName = messageAttachmentName(messageText, href) ?? undefined;
@@ -13218,8 +13232,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           return json(res, 403, { error: "that message does not share this file" });
         }
         roots = [ATTACHMENTS_DIR];
-      } else if (botAttachment?.kind === "file") {
-        downloadName = botAttachment.name;
+      } else if (botAttachment) {
+        // Files and images alike: the stored message is the grant, so the
+        // mobile clients can fetch an attached image through this route too.
+        downloadName = botAttachment.kind === "file" ? botAttachment.name : undefined;
         roots = [ATTACHMENTS_DIR];
       } else {
         if (!messageReferencesFile(messageText, href)) {
@@ -13236,7 +13252,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       }
 
       const file = await openMessageFile(href, roots);
-      if (streamsMessageImage && !file.mime.startsWith("image/")) {
+      if ((streamsMessageImage || botAttachment?.kind === "image") && !file.mime.startsWith("image/")) {
         await file.handle.close();
         return json(res, 415, { error: "only images can be previewed here" });
       }

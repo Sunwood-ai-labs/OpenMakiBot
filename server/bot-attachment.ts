@@ -96,3 +96,48 @@ export async function saveBotAttachment(input: SaveBotAttachmentInput): Promise<
     await file.handle.close().catch(() => undefined);
   }
 }
+
+export type AttachForTurnOutcome<S> =
+  | { status: "attached"; saved: S }
+  | { status: "limit" }
+  | { status: "ended" };
+
+/**
+ * Attach one file for one provider turn. Two things must hold while the copy
+ * is awaited, so both are handled here rather than in the route:
+ *
+ * - The per-turn count is exact under parallel calls: the slot is reserved
+ *   before the await, so simultaneous calls cannot all pass the same check.
+ *   A call that fails or is refused gives its slot back.
+ * - Nothing is published for a turn that ended (stopped, replaced, deleted, or
+ *   moved) while the copy ran. `stillLive` is asked again after the await,
+ *   just before `publish`, and the copy is discarded when it says no.
+ */
+export async function attachForTurn<S>(
+  turn: { attachedFiles?: number },
+  max: number,
+  hooks: {
+    save: () => Promise<S>;
+    stillLive: () => boolean;
+    publish: (saved: S) => void;
+    discard: (saved: S) => void;
+  },
+): Promise<AttachForTurnOutcome<S>> {
+  const used = turn.attachedFiles ?? 0;
+  if (used >= max) return { status: "limit" };
+  turn.attachedFiles = used + 1;
+  let saved: S | undefined;
+  let published = false;
+  try {
+    saved = await hooks.save();
+    if (!hooks.stillLive()) return { status: "ended" };
+    hooks.publish(saved);
+    published = true;
+    return { status: "attached", saved };
+  } finally {
+    if (!published) {
+      turn.attachedFiles = Math.max(0, (turn.attachedFiles ?? 1) - 1);
+      if (saved !== undefined) hooks.discard(saved);
+    }
+  }
+}
