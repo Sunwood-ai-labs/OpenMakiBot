@@ -73,6 +73,46 @@ real**: GLM-5.3 called `attach_file` for each and the server copied each out of 
 
 ![Video and audio after clicking](audio-video-playing.jpg)
 
+## The same request in English and in Japanese (final build)
+
+Re-run after the review fixes, with the build that carries them: the real Claude Code CLI
+on Z.ai `glm-5.3`, one Local VM desktop per bot, the UI language set to match each
+conversation. Nothing was staged: each bot made its own files with `vm_exec` and attached
+them with `attach_file`. Every attachment was then fetched through the message-scoped
+route and checked.
+
+| Conversation | Request | Result |
+| --- | --- | --- |
+| English (English UI, bot told to answer in English) | "Please create a financial statement for a fictional company, Neko Neko Company, and deliver it to me as a PDF." then "Now please make a bar chart of its monthly sales as a PNG image and attach it to the chat." | PDF 5,357 bytes (`%PDF-` ... `%%EOF`), PNG 53,024 bytes, both `200` |
+| Japanese (Japanese UI, bot told to answer in Japanese) | "架空のネコネコカンパニーの決算書を作成して、PDFで納品してください。" then "続けて、月別売上の棒グラフをPNG画像で作って、チャットに添付してください。" | PDF 43,243 bytes (`%PDF-` ... `%%EOF`), PNG 59,454 bytes, both `200` |
+
+English, PDF then PNG:
+
+![English: the PDF](real-en-1-pdf.jpg)
+![English: the PNG](real-en-2-png.jpg)
+
+Japanese, PDF then PNG:
+
+![Japanese: the PDF](real-ja-1-pdf.jpg)
+![Japanese: the PNG](real-ja-2-png.jpg)
+
+What happened that is not a clean pass:
+
+- **One approval card in the English run.** While starting the chart the model tried to
+  `Read` a non-existent path (`\\wsl.localhost\Ubuntu\tmp\nonexistent`) to load
+  "dataviz guidance". It is a host file tool, unrelated to `attach_file` and `vm_exec`. I
+  denied it (visible in the screenshot) and the bot finished the chart. The Japanese run
+  raised no card at all.
+- **An earlier English run, before one sentence was added to the VM prompt,** stopped at an
+  approval card because the model wrote its script with the host `Write` tool, which cannot
+  reach the VM. After denying it the bot switched to the VM and finished. The prompt now
+  also says to create files with `vm_exec` and that the host file tools cannot reach the
+  VM; the English PDF above ran without a card. That is one sample, not a guarantee.
+- Wall-clock times are not a benchmark: the two bots ran at the same time, and the English
+  chart turn includes the time the card waited for me (about 7 minutes). The Japanese PDF
+  turn took 5 minutes 16 seconds this time (about 70 seconds in the first run).
+- On this branch a PDF appears as a save chip; the in-chat preview comes with #959.
+
 ## A clip the browser cannot decode
 
 A 34-byte `broken.mp3` (not audio) was attached by the real bot, then played from the chat.
