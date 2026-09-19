@@ -405,3 +405,35 @@ pnpm lint
 pnpm i18n:check
 git diff --check
 ```
+
+### Production server `.mjs` MIME type for the PDF.js worker (2026-09-19)
+
+Review finding on `PdfPreview.tsx`: the built-in production server's MIME map in
+`server/index.ts` had no `.mjs` entry, so the hashed `pdf.worker.min-*.mjs` asset
+was served as `application/octet-stream`. Browsers reject module scripts with
+that type, so PDF thumbnails and the dialog both failed. `17635064` maps `.mjs`
+to `text/javascript`; `server/index.test.ts` ("serves packaged UI assets and
+preserves API 404s") now requests a `.mjs` asset and asserts that type.
+
+The earlier `verify-file-preview.ts --built` runs did not catch this: they served
+`dist/` through Vite's own `preview` server, which already knows `.mjs`, not the
+app's `serveStatic`. This check serves the production `dist/` through the real
+`server/index.ts` (`OMB_STATIC_DIR`) on a disposable data directory with the fake
+engine, then drives headless Chrome at 800 by 856. For the before capture only the
+single `.mjs` line was removed from the working tree, then restored to the
+committed state.
+
+| Before: worker served as `application/octet-stream` | After: worker served as `text/javascript` |
+| --- | --- |
+| ![Thumbnails fail with the broken-image placeholder](mjs-worker-before.jpg) | ![Thumbnails render PDF page 1](mjs-worker-after.jpg) |
+
+| Dialog, page 1 of 2 | Dialog, page 2 of 2 |
+| --- | --- |
+| ![PDF dialog page 1](mjs-worker-after-modal-page1.jpg) | ![PDF dialog page 2](mjs-worker-after-modal-page2.jpg) |
+
+Before: both PDF cards show the broken-image placeholder and the "preview
+unavailable" caption, and the console records three `Failed to load module
+script ... "application/octet-stream"` errors. After: both cards render the first
+page, the dialog navigates from page 1 to page 2 through the worker, and the
+console records no errors. Both fixtures reported `cleaned: true`. The fixture and
+capture scripts were local scratch files and are not part of this PR.
