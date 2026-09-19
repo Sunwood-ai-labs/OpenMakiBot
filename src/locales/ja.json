@@ -1345,6 +1345,8 @@
   "filePreview.fit": "幅に合わせる",
   "filePreview.invalidFile": "ファイルを表示できませんでした。コピーをダウンロードできます。",
   "filePreview.videoFailed": "このブラウザーで再生できない動画です。ダウンロードして動画アプリで開いてください。",
+  "filePreview.audioFailed": "このブラウザーで再生できない音声です。ダウンロードして音声アプリで開いてください。",
+  "filePreview.playAudio": "{name} を再生",
   "filePreview.previousSlide": "前のスライド",
   "filePreview.nextSlide": "次のスライド",
   "filePreview.slide": "スライド {page} / {count}",

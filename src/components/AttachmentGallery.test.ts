@@ -2,12 +2,40 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FILE_MAX_BYTES } from "@/lib/composer-attachments";
-import { AttachmentGallery, collectMessageFiles, isVideoAttachment, loadMessageVideo } from "./AttachmentGallery";
+import { AttachmentGallery, collectMessageFiles, isVideoAttachment, loadMessageVideo, MessageAttachmentGallery, splitMessageAttachments } from "./AttachmentGallery";
 
 const message = { threadId: "thread/one", messageId: "message two" };
 const file = { path: "/workspace/demo.mp4", name: "demo.mp4", linked: true };
 const image = { path: "/store/123e4567-e89b-42d3-a456-426614174000.png", name: "Overview.png", private: true };
 afterEach(() => vi.unstubAllGlobals());
+
+describe("bot-attached files", () => {
+  const attachments = [
+    { kind: "image" as const, path: "/store/aaaa.png", mime: "image/png" },
+    { kind: "file" as const, path: "/store/bbbb.mp3", mime: "audio/mpeg", name: "song.mp3" },
+    { kind: "file" as const, path: "/store/cccc.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", name: "deck.pptx" },
+  ];
+
+  it("splits a message's attachments into images and private files, keeping display names", () => {
+    expect(splitMessageAttachments(attachments)).toEqual({
+      images: ["/store/aaaa.png"],
+      files: [
+        { path: "/store/bbbb.mp3", name: "song.mp3", private: true },
+        { path: "/store/cccc.pptx", name: "deck.pptx", private: true },
+      ],
+    });
+    expect(splitMessageAttachments(undefined)).toEqual({ images: [], files: [] });
+  });
+
+  it("shows an attached clip and deck as cards, and does not repeat one the text also links", () => {
+    const render = (text: string) => renderToStaticMarkup(createElement(MessageAttachmentGallery, { text, attachments, message }));
+    const html = render("");
+    expect(html).toContain("song.mp3");
+    expect(html).toContain("deck.pptx");
+    // A link to a file that is already attached adds no second card.
+    expect(render("Done: [the deck](/store/cccc.pptx)")).toBe(html);
+  });
+});
 
 describe("message gallery", () => {
   it("collects only rendered local file links, including references, with generated files deduplicated", () => {

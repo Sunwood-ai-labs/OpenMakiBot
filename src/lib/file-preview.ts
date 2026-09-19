@@ -1,5 +1,5 @@
 /** Match the actual path, never a model-supplied display label. */
-export type FilePreviewKind = 'image' | 'pdf' | 'video' | 'spreadsheet' | 'presentation';
+export type FilePreviewKind = 'image' | 'pdf' | 'video' | 'audio' | 'spreadsheet' | 'presentation';
 
 /** Decode only the basename for display; malformed escapes retain their original text. */
 export function previewDisplayName(path: string): string {
@@ -12,6 +12,7 @@ export function filePreviewKind(path: string): FilePreviewKind | null {
   if (/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(path)) return 'image';
   if (/\.pdf$/i.test(path)) return 'pdf';
   if (/\.(mp4|webm|mov)$/i.test(path)) return 'video';
+  if (/\.(mp3|m4a|aac|wav|ogg|oga|opus|flac)$/i.test(path)) return 'audio';
   if (/\.(xlsx|xls|csv|tsv|ods)$/i.test(path)) return 'spreadsheet';
   if (/\.pptx$/i.test(path)) return 'presentation';
   return null;
@@ -23,6 +24,7 @@ export function previewMimeAllowed(kind: FilePreviewKind, mime: string): boolean
   if (kind === 'image') return ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'].includes(type);
   if (kind === 'pdf') return type === 'application/pdf';
   if (kind === 'video') return ['video/mp4', 'video/webm', 'video/quicktime'].includes(type);
+  if (kind === 'audio') return ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/ogg', 'audio/opus', 'audio/flac', 'audio/x-flac'].includes(type);
   if (kind === 'presentation') return type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
   return ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.oasis.opendocument.spreadsheet', 'text/csv', 'text/tab-separated-values'].includes(type);
 }

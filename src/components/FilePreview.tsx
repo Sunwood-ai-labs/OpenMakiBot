@@ -5,6 +5,7 @@ import { filePreviewKind, previewDisplayName, type FilePreviewKind } from '@/lib
 import { loadFilePreview } from '@/lib/load-file-preview';
 import { t } from '@/lib/i18n';
 import { InlineFileCard } from './InlineFileCard';
+import { AudioFileCard } from './AudioFileCard';
 import { acquirePreviewSlot } from '@/lib/preview-queue';
 import { canonicalDownloadFilename, useLocalFileSave, type MessageAttachmentContext } from './AttachmentPreview';
 
@@ -65,6 +66,12 @@ export function PreviewableFile({ path, name, message, children, compact = false
     return () => observer.disconnect();
   }, []);
   const resource = usePreviewFile(path, label, message, kind, open || visible);
+  if (kind === 'audio') {
+    // A clip plays inline; there is nothing to enlarge, so it has no dialog.
+    return <span ref={container} className="inline-flex max-w-full align-top">
+      <AudioFileCard key={path} label={label} file={resource.file} error={resource.error} onRetry={resource.retry} />
+    </span>;
+  }
   return <span ref={container} className="inline-flex max-w-full align-top">
     <InlineFileCard key={path} kind={kind} path={path} label={label} caption={compact ? children : undefined}
       file={resource.file} error={resource.error} visible={visible} expanded={open} onExpand={() => setOpen(true)} />
@@ -119,7 +126,7 @@ function FilePreviewDialog({ path, name, message, resource, onClose }: { path: s
         {file ? <a href={file.url} download={file.name} aria-label={t('filePreview.download')} title={t('filePreview.download')} className="rounded-lg p-2 hover:bg-raised"><Download size={18} /></a> : <button type="button" onClick={() => void save.save()} disabled={save.state === 'saving'} aria-label={t('filePreview.download')} className="rounded-lg p-2 hover:bg-raised"><Download size={18} /></button>}
         <button type="button" onClick={onClose} aria-label={t('filePreview.close')} className="rounded-lg p-2 hover:bg-raised"><X size={20} /></button>
       </header>
-      {error ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><FileText size={36} className="text-ink-secondary" /><p>{error}</p><button type="button" onClick={retry} className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2"><RotateCcw size={15} />{t('filePreview.retry')}</button></div> : file ? kind === 'video' ? <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4"><video src={file.url} tabIndex={0} controls playsInline preload="metadata" aria-label={file.name} onError={() => setError(t('filePreview.videoFailed'))} className="max-h-full max-w-full" /></div> : kind === 'image' ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-inset p-4"><img src={file.url} alt={file.name} onError={() => setError(t('filePreview.invalidFile'))} className="max-h-full max-w-full object-contain" /></div> : <PreviewBoundary onError={setError}><Suspense fallback={<PreviewLoading />}>{kind === 'pdf' ? <PdfPreview data={file.data} onError={setError} /> : <OfficePreview data={file.data} kind={kind} onError={setError} />}</Suspense></PreviewBoundary> : <PreviewLoading />}
+      {error ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><FileText size={36} className="text-ink-secondary" /><p>{error}</p><button type="button" onClick={retry} className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2"><RotateCcw size={15} />{t('filePreview.retry')}</button></div> : file ? kind === 'video' ? <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4"><video src={file.url} tabIndex={0} controls playsInline preload="metadata" aria-label={file.name} onError={() => setError(t('filePreview.videoFailed'))} className="max-h-full max-w-full" /></div> : kind === 'audio' ? <div className="flex min-h-0 flex-1 items-center justify-center bg-inset p-8"><audio src={file.url} tabIndex={0} controls preload="metadata" aria-label={file.name} onError={() => setError(t('filePreview.audioFailed'))} className="w-full max-w-xl" /></div> : kind === 'image' ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-inset p-4"><img src={file.url} alt={file.name} onError={() => setError(t('filePreview.invalidFile'))} className="max-h-full max-w-full object-contain" /></div> : <PreviewBoundary onError={setError}><Suspense fallback={<PreviewLoading />}>{kind === 'pdf' ? <PdfPreview data={file.data} onError={setError} /> : <OfficePreview data={file.data} kind={kind} onError={setError} />}</Suspense></PreviewBoundary> : <PreviewLoading />}
       {save.state === 'failed' && <p role="alert" className="p-3 text-sm text-danger">{save.reason}</p>}
     </div>
   </div>, document.body);
