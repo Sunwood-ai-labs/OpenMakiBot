@@ -98,6 +98,9 @@ describe("independent bot tasks through the isolated control surface", () => {
   });
 
   it("queues coordinated work behind a peer's approval and delivers it once without another user prompt", async () => {
+    // Fill the recipient's only slot: spare slots can run coordinated work
+    // even while another thread is waiting for approval. Each test owns a fresh server.
+    expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 1 } })).status).toBe(200);
     const chief = (await tool("create_bot", { name: "Mailbox Chief", instance_id: "claude", model: models[0] })).bot;
     const peer = (await tool("create_bot", { name: "Mailbox Peer", instance_id: "claude", model: models[1] })).bot;
     await api("PATCH", `/api/bots/${peer.id}/tasks/${peer.activeTaskId}`, { approvalMode: "ask" });
