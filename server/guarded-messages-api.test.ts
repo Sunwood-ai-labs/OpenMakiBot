@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
 
 type Bot = { id: string; activeTaskId: string };
-type Message = { id: string; role: string; kind: string; text?: string; sendId?: string; steered?: boolean; turnTerminal?: boolean };
+type Message = { id: string; role: string; kind: string; text?: string; sendId?: string; steered?: boolean; turnTerminal?: boolean; tool?: { name: string; ok?: boolean } };
 type Page = { messages: Message[]; activeLeafId: string | null };
 
 describe("guarded external messages through an isolated runtime", () => {
@@ -149,6 +149,12 @@ describe("guarded external messages through an isolated runtime", () => {
     expect(sibling.status).toBe(201);
     await control(["send", "--bot", bot.id, "--task", bot.activeTaskId, "--text", "NORMAL_TURN_OWNS_THE_THREAD"]);
     await launched(bot.activeTaskId);
+    // The launch dump precedes the fake provider's initial text/tool frames.
+    // Wait for their final result before pinning the leaf; the finish gate
+    // then keeps this turn busy without any further transcript changes.
+    await expect.poll(async () => (await page(bot.activeTaskId)).messages.some(message =>
+      message.kind === "activity" && message.tool?.name === "Bash" && message.tool.ok === true
+    ), { timeout: 15_000 }).toBe(true);
     const current = await page(bot.activeTaskId);
     const busy = await guarded(bot, payload(bot, "GUARDED_MUST_NOT_STEER", current.activeLeafId));
     expect(busy.status).toBe(409); expect(busy.body.code).toBe("guarded_busy");
