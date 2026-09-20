@@ -149,6 +149,8 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     expect((await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: deletion.requestId, behavior: "allow" })).result.bots).toEqual([{ id: engineer.id, name: "Patch", action: "deleted" }]);
     await continueOnce(deletion.requestId);
     expect((await state()).some((bot: any) => bot.id === engineer.id)).toBe(false);
+    expect((await state()).filter((bot: any) => existingIds.has(bot.id)).map((bot: any) => bot.id).sort())
+      .toEqual([...existingIds].sort());
     await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: deletion.requestId, behavior: "allow" });
     const room = (await control("new-channel", "--name", "Chief review", "--members", chief.id)).channel;
     unlinkSync(gate);

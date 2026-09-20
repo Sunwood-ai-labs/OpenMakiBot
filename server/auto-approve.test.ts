@@ -1,7 +1,7 @@
 // The harness's part in a provider's permission request: pass it through.
 // These pin that nothing here judges an action, that Full access is the one
 // synthesized answer, and that every note a card can show has a catalog key.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import englishCatalog from "../src/locales/en.json" with { type: "json" };
 
@@ -11,7 +11,29 @@ import {
   approvalHeldReason,
   approvalModeForOrigin,
   autoVerdict,
+  deliverFullAccessApproval,
+  delegationInheritsFullAccess,
 } from "./auto-approve.ts";
+
+describe("Full access delivery", () => {
+  it.each(["allowed-once", "rejected", "unavailable"] as const)("preserves %s without interrupting or inventing an approval", async outcome => {
+    const adapter = { respondToRequest: vi.fn().mockResolvedValue(outcome), interruptTurn: vi.fn() };
+    expect(await deliverFullAccessApproval(adapter, "thread", "request", "turn")).toBe(outcome);
+    expect(adapter.respondToRequest).toHaveBeenCalledWith("thread", "request", { behavior: "allow" });
+    expect(adapter.interruptTurn).not.toHaveBeenCalled();
+  });
+  it("reports transport failure and interrupts only the failed turn", async () => {
+    const adapter = { respondToRequest: vi.fn().mockRejectedValue(new Error("connection lost")), interruptTurn: vi.fn().mockResolvedValue(undefined) };
+    expect(await deliverFullAccessApproval(adapter, "thread", "request", "original-turn", () => true)).toBe("failed");
+    expect(adapter.interruptTurn).toHaveBeenCalledWith("thread", "original-turn");
+    adapter.interruptTurn.mockClear();
+    expect(await deliverFullAccessApproval(adapter, "thread", "request")).toBe("failed");
+    expect(adapter.interruptTurn).not.toHaveBeenCalled();
+    expect(await deliverFullAccessApproval(adapter, "thread", "request", "old-turn", () => false)).toBe("failed");
+    expect(adapter.interruptTurn).not.toHaveBeenCalled();
+    expect(await deliverFullAccessApproval(undefined, "thread", "request")).toBe("failed");
+  });
+});
 
 describe("autoVerdict", () => {
   it("answers only for Full access, and then answers everything", () => {
@@ -94,5 +116,24 @@ describe("tools that ask a person", () => {
 
   it("still answers an ordinary tool under Full access", () => {
     expect(autoVerdict("full", "Read").approve).toBeTruthy();
+  });
+});
+
+describe("delegationInheritsFullAccess", () => {
+  const base = { senderIsChief: true, senderHasFullAccess: true, sameBot: false, recipientDriverKind: "claudeAgent" };
+  it("passes a Full-access Chief's access to the teammate it delegates to", () => {
+    expect(delegationInheritsFullAccess(base)).toBe(true);
+    for (const recipientDriverKind of ["codex", "claudeAgent", "antigravityAgent", "cursorAgent", "grokAgent", "opencodeGo"]) {
+      expect(delegationInheritsFullAccess({ ...base, recipientDriverKind })).toBe(true);
+    }
+  });
+  it("passes nothing on from an ordinary bot, a Chief without Full access, or a bot to itself", () => {
+    expect(delegationInheritsFullAccess({ ...base, senderIsChief: false })).toBe(false);
+    expect(delegationInheritsFullAccess({ ...base, senderHasFullAccess: false })).toBe(false);
+    expect(delegationInheritsFullAccess({ ...base, sameBot: true })).toBe(false);
+  });
+  it("leaves a teammate whose engine has no Full mode on its own level", () => {
+    expect(delegationInheritsFullAccess({ ...base, recipientDriverKind: "hermes" })).toBe(false);
+    expect(delegationInheritsFullAccess({ ...base, recipientDriverKind: undefined })).toBe(false);
   });
 });

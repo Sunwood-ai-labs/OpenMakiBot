@@ -14,6 +14,7 @@ import {
   reducer,
   requestConfirmedBotDeletion,
   visibleNotificationThread,
+  type AppState,
   type Bot,
   type BotAnnouncement,
   type ConfigStatusFrame,
@@ -22,7 +23,17 @@ import {
   type Action,
 } from "./store";
 import { openLiveEvents, type LiveEventSourceLike, type LiveEventsPlatform } from "../lib/live-events";
+import type { ModelVariantState, RuntimeEvent } from "../../shared/runtime-events";
 import type { RoutineRun } from "../lib/routines";
+
+describe("screen frame ownership", () => {
+  it("retains the source thread so a sibling's frame cannot masquerade as the selected screen", () => {
+    const first = reducer(initialState, { type: "screenFrame", botId: "bot", threadId: "vm-thread", png: "vm", mime: "image/png" });
+    const second = reducer(first, { type: "screenFrame", botId: "bot", threadId: "browser-thread", png: "browser", mime: "image/jpeg" });
+    expect(first.screens.bot).toMatchObject({ threadId: "vm-thread", png: "vm" });
+    expect(second.screens.bot).toMatchObject({ threadId: "browser-thread", png: "browser" });
+  });
+});
 
 describe("composer thread approval persistence", () => {
   it.each(["ask", "edits", "auto", "full", "custom"] as const)("saves %s through the scoped bridge and returns its committed state", async mode => {
@@ -109,7 +120,7 @@ describe("independent bot threads", () => {
       { threadId: "first", title: "First", createdAt: 1, activity: "idle", busy: false, unread: false,
         modelSelection: { instanceId: "codex", model: "thread-model", effort: "high" }, approvalMode: "auto", alwaysAllow: ["Read"] },
       { threadId: "second", title: "Second", createdAt: 2, activity: "waiting-on-you", busy: true, unread: true,
-        modelSelection: { instanceId: "claude", model: "other-model" }, approvalMode: "ask" },
+        modelSelection: { instanceId: "claude", model: "other-model" }, approvalMode: "ask", turnStartedAt: 5_000 },
     ],
   };
   const start = () => ({ ...initialState, bots: [bot], selectedId: bot.id });
@@ -119,7 +130,9 @@ describe("independent bot threads", () => {
     expect(current).toMatchObject({ busy: false, activity: "idle", unread: false, approvalMode: "auto", alwaysAllow: ["Read"] });
     expect(current.modelSelection).toEqual(bot.tasks?.[0]?.modelSelection);
     expect(bot.busy).toBe(true);
-    expect(currentTaskBot(bot, "second")).toMatchObject({ busy: true, activity: "waiting-on-you", approvalMode: "ask" });
+    expect(currentTaskBot(bot, "second")).toMatchObject({ busy: true, activity: "waiting-on-you", approvalMode: "ask", turnStartedAt: 5_000 });
+    expect(currentTaskBot(bot).turnStartedAt).toBeNull();
+    expect(currentTaskBot({ ...bot, tasks: [{ threadId: "first", title: "Legacy", createdAt: 1 }] }).turnStartedAt).toBeNull();
     expect(currentTaskBot({ ...bot, tasks: [{ threadId: "first", title: "Legacy", createdAt: 1 }] }).modelSelection).toEqual(bot.modelSelection);
   });
 
@@ -1229,6 +1242,24 @@ describe("canonical message races", () => {
   });
 });
 
+describe("computer destination announcements", () => {
+  it.each(["botPatched", "taskSwitched", "botPatchedSwitch"] as const)("clears the old target on Auto via %s", (kind) => {
+    const bot: Bot = {
+      id: "computer-bot", threadId: "computer-thread", name: "Ziggy", title: "", description: "",
+      notifications: true, color: "green", unread: false,
+      modelSelection: { instanceId: "codex", model: "default" }, computer: "browser",
+      messages: [{ id: "message", role: "user", kind: "text", at: 1, text: "Keep this conversation" }],
+    };
+    const { computer: _oldComputer, ...announcement } = bot;
+    const next = reducer({ ...initialState, bots: [bot] }, {
+      type: kind === "taskSwitched" ? "taskSwitched" : "botPatched",
+      bot: { ...announcement, threadId: kind === "botPatchedSwitch" ? "replacement-thread" : bot.threadId },
+    });
+    expect(next.bots[0]?.computer).toBeUndefined();
+    expect(next.bots[0]?.messages).toEqual(bot.messages);
+  });
+});
+
 describe("browser profile announcements", () => {
   it.each([undefined, null, "guest", "another-profile"])("replaces an old shared profile with %s without losing chat", (profile) => {
     const bot: Bot = {
@@ -1611,6 +1642,104 @@ describe("pending queued chip", () => {
   });
 });
 
+describe("scrollback pages", () => {
+  const message = (id: string, at: number) =>
+    ({ id, at, role: "user", kind: "text", text: id }) as never as Message;
+  const bot = {
+    id: "bot-1",
+    threadId: "thread-1",
+    messages: [message("m3", 3), message("m4", 4)],
+    hasMore: true,
+  } as never as Bot;
+  const state = { ...initialState, bots: [bot] };
+
+  it("marks the thread loading so one click cannot ask twice", () => {
+    const loading = reducer(state, { type: "loadOlderMessages", threadId: "thread-1" });
+    expect(loading.loadingOlder["thread-1"]).toBe(true);
+    expect(reducer(loading, { type: "loadOlderMessages", threadId: "thread-1" })).toBe(loading);
+  });
+
+  it("prepends a page, keeps held copies, and clears the flag", () => {
+    const loading = reducer(state, { type: "loadOlderMessages", threadId: "thread-1" });
+    const next = reducer(loading, {
+      type: "olderMessages",
+      threadId: "thread-1",
+      generation: loading.transcriptGeneration["thread-1"] ?? 0,
+      // m3 overlaps the page this client already holds
+      messages: [message("m1", 1), message("m2", 2), message("m3", 3)],
+      hasMore: false,
+    });
+    expect(next.bots[0].messages.map((m) => m.id)).toEqual(["m1", "m2", "m3", "m4"]);
+    expect(next.bots[0].hasMore).toBe(false);
+    expect(next.loadingOlder).toEqual({});
+  });
+
+  it("drops a page that was in flight across a rewind, and stops the spinner", () => {
+    const withLeaf = { ...bot, activeLeafId: "m4" } as never as Bot;
+    const loading = reducer({ ...initialState, bots: [withLeaf] }, { type: "loadOlderMessages", threadId: "thread-1" });
+    const generation = loading.transcriptGeneration["thread-1"] ?? 0;
+
+    // an edit rewinds the visible branch while the page is on the wire
+    const rewound = reducer(loading, { type: "threadActive", threadId: "thread-1", activeLeafId: "m3" });
+    expect(rewound.transcriptGeneration["thread-1"]).not.toBe(generation);
+
+    const landed = reducer(rewound, {
+      type: "olderMessages",
+      threadId: "thread-1",
+      generation,
+      messages: [message("abandoned", 1)],
+      hasMore: false,
+    });
+    expect(landed.bots[0].messages.map((m) => m.id)).toEqual(["m3", "m4"]);
+    expect(landed.bots[0].hasMore).toBe(true);
+    expect(landed.loadingOlder).toEqual({});
+  });
+
+  it("still lands a page over messages that arrived while it was on the wire", () => {
+    const loading = reducer({ ...initialState, bots: [bot] }, { type: "loadOlderMessages", threadId: "thread-1" });
+    const generation = loading.transcriptGeneration["thread-1"] ?? 0;
+    const appended = reducer(loading, {
+      type: "messageAdded",
+      threadId: "thread-1",
+      message: message("m5", 5) as never as Message,
+    });
+    const landed = reducer(appended, {
+      type: "olderMessages",
+      threadId: "thread-1",
+      generation,
+      messages: [message("m2", 2)],
+      hasMore: true,
+    });
+    expect(landed.bots[0].messages.map((m) => m.id)).toEqual(["m2", "m3", "m4", "m5"]);
+    expect(landed.loadingOlder).toEqual({});
+  });
+
+  it("answers the scrollback question from a payload that carries a transcript", () => {
+    const group = {
+      id: "room",
+      threadId: "room-thread",
+      name: "Room",
+      memberIds: [],
+      defaultResponder: { kind: "mentions" },
+      createdAt: 1,
+      bulletin: "",
+      unread: false,
+      messages: [message("m9", 9)],
+      hasMore: true,
+    } as never as Group;
+    const withRoom = { ...initialState, groups: [group] };
+    // a frame that carries the whole thread and no page marker IS the thread
+    const complete = reducer(withRoom, {
+      type: "groupPatched",
+      group: { id: "room", threadId: "room-thread", messages: [message("m8", 8), message("m9", 9)] } as never as Group,
+    });
+    expect(complete.groups[0].hasMore).toBe(false);
+    // a patch with no transcript leaves the answer alone
+    const renamed = reducer(withRoom, { type: "groupPatched", group: { id: "room", name: "Renamed" } });
+    expect(renamed.groups[0].hasMore).toBe(true);
+  });
+});
+
 describe("messageAdded leaf adoption", () => {
   const baseBot = {
     id: "bot-1",
@@ -1864,5 +1993,86 @@ describe("live config frames", () => {
       budgets: { monthlyUsd: 10, warnAtPercent: 80 },
       billing: { currency: "USD" },
     });
+  });
+});
+
+
+describe("conversation model variant discoveries", () => {
+  const selection = { instanceId: "opencode", model: "provider/model", variant: "minimal" };
+  const owner: Bot = { id: "owner", threadId: "first", name: "Owner", title: "", description: "", notifications: true,
+    color: "green", unread: false, modelSelection: selection, messages: [],
+    tasks: ["first", "second"].map((threadId) => ({ threadId, title: threadId, createdAt: 1, modelSelection: selection })) };
+  const start = () => ({ ...initialState, bots: [owner], instances: [{ instanceId: "opencode", driverKind: "opencodeGo", displayName: "OpenCode",
+    snapshot: { state: "available" as const }, capabilities: { modelVariants: true }, models: { default: selection.model, options: [] } }] });
+  const base = (threadId = "first", turnId = "turn-1") => ({ eventId: `${threadId}-${turnId}`, provider: "opencodeGo" as const,
+    providerInstanceId: "opencode", threadId, turnId, createdAt: "2026-09-15T12:00:00Z" });
+  const run = (state: AppState, event: RuntimeEvent) => reducer(state, { type: "modelVariantRuntime", event });
+  const discovery = (variants: ModelVariantState = { options: [{ id: "minimal", label: "Minimal" }], currentValue: "minimal" }, threadId = "first", turnId = "turn-1"): RuntimeEvent =>
+    ({ ...base(threadId, turnId), type: "session.model-variants", model: selection.model, variants });
+
+  it("keeps capabilities on their thread, separate from catalog and persisted choices", () => {
+    let state = run(start(), { ...base(), type: "turn.started" });
+    state = run(state, discovery());
+    const first = state.modelVariantSessions.first;
+    state = run(state, { ...base("second"), type: "turn.started" });
+    state = run(state, discovery({ options: [], currentValue: "default" }, "second"));
+    expect(state.modelVariantSessions.first).toEqual(first);
+    expect(state.modelVariantSessions.second.variants).toEqual({ options: [], currentValue: "default" });
+    expect(state.instances[0].models.options).toEqual([]);
+    expect(state.bots).toEqual([owner]);
+  });
+
+  it("requires the current turn, account, and model, rejecting stale discoveries and start events", () => {
+    expect(run(start(), discovery()).modelVariantSessions).toEqual({});
+    let state = run(start(), { ...base(), type: "turn.started" });
+    state = run(state, { ...base("first", "turn-2"), createdAt: "2026-09-15T12:00:01Z", type: "turn.started" });
+    expect(run(state, { ...base(), type: "turn.started" })).toBe(state);
+    expect(run(state, discovery())).toBe(state);
+    const valid = discovery(undefined, "first", "turn-2");
+    expect(run(state, { ...valid, providerInstanceId: "other" })).toBe(state);
+    expect(run(state, { ...valid, type: "session.model-variants", model: "other-model", variants: { options: [] } })).toBe(state);
+    expect(run(state, { ...valid, threadId: "missing" })).toBe(state);
+    expect(run(state, { ...valid, turnId: undefined })).toBe(state);
+    state = run(state, valid);
+    expect(state.modelVariantSessions.first.variants?.currentValue).toBe("minimal");
+  });
+
+  it("retains the last session choices on completion but refuses late updates", () => {
+    let state = run(start(), { ...base(), type: "turn.started" });
+    state = run(state, discovery());
+    state = run(state, { ...base(), type: "turn.completed", ok: true });
+    expect(state.modelVariantSessions.first.variants?.options).toEqual([{ id: "minimal", label: "Minimal" }]);
+    expect(run(state, discovery({ options: [] }))).toBe(state);
+    state = run(state, { ...base("first", "turn-2"), type: "turn.started", createdAt: "2026-09-15T12:00:01Z" });
+    expect(state.modelVariantSessions.first.variants).toBeUndefined();
+  });
+
+  it("drops discoveries when a thread changes model, but preserves sibling choices", () => {
+    let state = run(start(), { ...base(), type: "turn.started" });
+    state = run(state, discovery());
+    state = run(state, { ...base("second"), type: "turn.started" });
+    state = run(state, discovery(undefined, "second"));
+    state = reducer(state, { type: "setModel", botId: owner.id, threadId: "first", selection: { ...selection, model: "other-model", variant: undefined } });
+    expect(state.modelVariantSessions.first).toBeUndefined();
+    expect(state.modelVariantSessions.second.variants?.currentValue).toBe("minimal");
+    expect(state.bots[0].tasks![1].modelSelection).toEqual(selection);
+    expect(run(state, discovery())).toBe(state);
+  });
+
+  it("accepts capabilities for a background thread while keeping them out of another selected conversation", () => {
+    let state = run(start(), { ...base(), type: "turn.started" });
+    state = reducer(state, { type: "taskSwitched", bot: { ...owner, threadId: "second" } });
+    state = run(state, discovery());
+    expect(state.bots[0].threadId).toBe("second");
+    expect(state.modelVariantSessions.first.variants?.currentValue).toBe("minimal");
+    expect(state.modelVariantSessions.second).toBeUndefined();
+  });
+
+  it("clears runtime capabilities on reload while preserving the saved variant", () => {
+    let state = run(start(), { ...base(), type: "turn.started" });
+    state = run(state, discovery());
+    state = reducer(state, { type: "hydrate", bots: [owner], groups: [], computerControl: {} });
+    expect(state.modelVariantSessions).toEqual({});
+    expect(state.bots[0].tasks![0].modelSelection?.variant).toBe("minimal");
   });
 });

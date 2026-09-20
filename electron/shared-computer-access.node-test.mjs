@@ -190,7 +190,8 @@ test("Windows terminal preserves command syntax, pipeline output and exit status
   // SystemRoot and PSHOME can spell the same directory with different casing.
   // Resolve the first entry exactly; a textual prefix also accepts sibling paths.
   assert.equal(await realpath(paths.output.trim().split(";")[0]), await realpath(path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules")), "built-in modules must be first");
-  assert.ok(paths.output.includes(path.join(process.env.ProgramFiles, "WindowsPowerShell", "Modules")), "installed modules must remain available");
+  const modulePaths = paths.output.trim().toLowerCase().split(";");
+  assert.ok(modulePaths.includes(path.join(process.env.ProgramFiles, "WindowsPowerShell", "Modules").toLowerCase()), "installed modules must remain available");
   const failed = await run("throw 'fixture-command-failed'");
   assert.notEqual(failed.exitCode, 0); assert.match(failed.output, /fixture-command-failed/);
 });

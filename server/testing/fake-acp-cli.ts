@@ -7,6 +7,12 @@
 //
 //   FAKE_ACP_LOAD_NULL  return null for session/load so the resume cursor is
 //                       ignored and the driver falls through to session/new
+//   FAKE_ACP_REJECT_LIVE_LOAD_FILE  while this file exists, session/load and
+//                       session/resume answer an error when the requested
+//                       session is already live in THIS process — the
+//                       real-agent shape that forces the driver's one-shot
+//                       re-spawn fallback. A fresh process holds no live
+//                       session, so its load succeeds.
 //   FAKE_ACP_MODE   happy (default) | image | empty-reply | exit-early | fail-after-text | hang | hang-initialize | no-auth | auth-required | permission | question
 //                   | interleave (message → tool → message → tool → message)
 //                   | no-session-config (reject session/set_mode + set_model
@@ -27,8 +33,20 @@
 //                     drained turn was sent)
 //                   | safe-agent-reads (simulate a native Auto reviewer around
 //                     the real injected agents MCP; not a real classifier test)
+//   FAKE_ACP_MCP_TRANSPORTS  comma list of remote MCP transports the agent
+//                       advertises in initialize (mcpCapabilities), e.g. "http,sse"
 //   FAKE_ACP_DUMP   path to write {argv, env} as JSON, so a test can assert
 //                   argv shape (agent/stdio flags) and env hygiene
+//   FAKE_ACP_LAUNCH_COUNT_FILE  read-increment-write a process counter at
+//                       startup, so a test can tell a reused pooled session
+//                       (one launch) from a fresh child per turn (many)
+//   FAKE_ACP_RPC_DUMP   rewrite, after every request, this process's full
+//                       method list as a JSON array — per process, so a
+//                       pooled child keeps one dump and a replacement child
+//                       starts its own
+//   FAKE_ACP_RPC_APPEND_FILE  append one {"pid","method"} JSON line per
+//                       request, so a test can count RPCs across a pooled
+//                       child and its replacement together
 //   FAKE_ACP_MODELS      comma-separated model ids. Enables the opencode-shaped
 //                        surface: session/new and session/load return
 //                        configOptions, and session/set_config_option switches
@@ -36,6 +54,10 @@
 //   FAKE_ACP_MODEL_STICKS  session/set_config_option succeeds but leaves the
 //                        model where it was, so the confirmation guard in
 //                        core.ts has something to catch
+//   FAKE_ACP_VARIANTS JSON map of model -> {id?, currentValue?, options} using
+//                        ACP select values/groups; never contacts a provider.
+//   FAKE_ACP_CONFIG_UPDATES JSON array of {after, sessionId?, configOptions,
+//                        replay?}, emitted after the named RPC response.
 //   FAKE_ACP_USAGE_ROOT  put the prompt result's usage at the root instead of
 //                        under _meta (what opencode 1.18.18 actually does)
 //
@@ -51,6 +73,12 @@ const ONE_PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42
 // identical to before.
 const models = (process.env.FAKE_ACP_MODELS ?? "").split(",").filter(Boolean);
 let currentModel: string | null = models[0] ?? null;
+const variantConfigs: Record<string, { id?: string; currentValue?: string; options: any[] }> =
+  JSON.parse(process.env.FAKE_ACP_VARIANTS ?? "{}");
+let currentVariant = variantConfigs[currentModel ?? ""]?.currentValue;
+const variantValues = (entries: any[]): string[] => entries.flatMap((entry) => (
+  typeof entry?.value === "string" ? [entry.value] : Array.isArray(entry?.options) ? variantValues(entry.options) : []
+));
 const modes = (process.env.FAKE_ACP_MODES ?? "").split(",").filter(Boolean);
 let currentMode: string | null = modes[0] ?? null;
 // task id captured from the last delegate_bot reply, for a later
@@ -58,6 +86,7 @@ let currentMode: string | null = modes[0] ?? null;
 // through a file (same state-passing pattern as FAKE_ACP_GATE_FILE).
 const taskIdFile = process.env.FAKE_ACP_TASKID_FILE ?? "";
 const logFile = process.env.FAKE_ACP_LOG_FILE ?? "";
+const rejectLiveLoadFile = process.env.FAKE_ACP_REJECT_LIVE_LOAD_FILE ?? "";
 function fakeLog(line: string): void {
   if (!logFile) return;
   try {
@@ -83,6 +112,7 @@ function savedDelegatedTaskId(): string {
   return chiefDelegatedTaskId;
 }
 const configOptions = () => {
+  const variant = variantConfigs[currentModel ?? ""];
   const options = [
     ...(models.length ? [
         {
@@ -94,6 +124,14 @@ const configOptions = () => {
           options: models.map((value) => ({ value, name: value })),
         },
       ] : []),
+    ...(variant ? [{
+      id: variant.id ?? "effort",
+      name: "Effort",
+      category: "thought_level",
+      type: "select",
+      currentValue: currentVariant,
+      options: variant.options,
+    }] : []),
     ...(modes.length ? [{
       id: "mode",
       name: "Mode",
@@ -132,12 +170,14 @@ const dumpEnv = Object.fromEntries(
     "FAKE_ACP_DUMP_PROMPT",
     "TEST_POLICY",
     "OPENCODE_API_KEY",
+    "OPENCODE_PERMISSION",
     "OPENAI_API_KEY",
     "OPENROUTER_API_KEY",
     "ANTHROPIC_API_KEY",
     "XAI_API_KEY",
     "BOX_TOKEN",
     "OMB_TTS_KEY",
+    "OMB_FISH_AUDIO_API_KEY",
     "FACTORY_API_KEY",
     "UNSLOTH_STUDIO_AUTH_TOKEN",
     "CURSOR_API_KEY",
@@ -154,9 +194,22 @@ const dumpEnv = Object.fromEntries(
     "ANTIGRAVITY_HARNESS_PATH",
   ].flatMap((key) => (process.env[key] === undefined ? [] : [[key, process.env[key]]] as const)),
 );
-const dumpState: Record<string, unknown> = { argv, env: dumpEnv };
+// pid rides along so a test can tell a respawned process (new pid, fresh
+// dump) from a pooled one whose dump was never rewritten
+const dumpState: Record<string, unknown> = { argv, env: dumpEnv, pid: process.pid };
 if (process.env.FAKE_ACP_DUMP) {
-  writeFileSync(process.env.FAKE_ACP_DUMP, JSON.stringify({ argv, env: dumpEnv }, null, 2));
+  writeFileSync(process.env.FAKE_ACP_DUMP, JSON.stringify(dumpState, null, 2));
+}
+if (process.env.FAKE_ACP_LAUNCH_COUNT_FILE) {
+  // count launched processes: read-increment-write, so a test can assert
+  // how many children the driver spawned (a pooled session launches once)
+  let launches = 0;
+  try {
+    launches = Number.parseInt(readFileSync(process.env.FAKE_ACP_LAUNCH_COUNT_FILE, "utf8").trim(), 10) || 0;
+  } catch {}
+  try {
+    writeFileSync(process.env.FAKE_ACP_LAUNCH_COUNT_FILE, String(launches + 1));
+  } catch {}
 }
 if (argv.includes("--version")) {
   console.log("fake-acp 1.0.0");
@@ -204,10 +257,41 @@ if (argv[0] === "models" || argv.includes("--list-models")) {
 
 const out = (obj: unknown) => process.stdout.write(JSON.stringify(obj) + "\n");
 const result = (id: unknown, res: unknown) => out({ jsonrpc: "2.0", id, result: res });
+const configUpdates = JSON.parse(process.env.FAKE_ACP_CONFIG_UPDATES ?? "[]") as Array<{
+  after: string; sessionId?: string; configOptions: unknown[]; replay?: boolean;
+}>;
+const emitConfigUpdates = (after: string, sessionId: string) => {
+  for (const update of configUpdates.filter((entry) => entry.after === after)) {
+    out({
+      jsonrpc: "2.0", method: "session/update", params: {
+        sessionId: update.sessionId ?? sessionId,
+        ...(update.replay ? { _meta: { isReplay: true } } : {}),
+        update: { sessionUpdate: "config_option_update", configOptions: update.configOptions },
+      },
+    });
+  }
+};
+// Send response and subsequent updates in one chunk to exercise wire ordering:
+// a promise continuation must not overwrite a newer notification with the ACK.
+const resultAndConfigUpdates = (id: unknown, res: unknown, after: string, sessionId: string) => {
+  const updates = configUpdates.filter((entry) => entry.after === after).map((update) => ({
+    jsonrpc: "2.0", method: "session/update", params: {
+      sessionId: update.sessionId ?? sessionId,
+      ...(update.replay ? { _meta: { isReplay: true } } : {}),
+      update: { sessionUpdate: "config_option_update", configOptions: update.configOptions },
+    },
+  }));
+  process.stdout.write([{ jsonrpc: "2.0", id, result: res }, ...updates].map((message) => JSON.stringify(message)).join("\n") + "\n");
+};
 const rpcMethods: string[] = [];
 const recordMethod = (method: string) => {
   rpcMethods.push(method);
   if (process.env.FAKE_ACP_RPC_DUMP) writeFileSync(process.env.FAKE_ACP_RPC_DUMP, JSON.stringify(rpcMethods));
+  if (process.env.FAKE_ACP_RPC_APPEND_FILE) {
+    try {
+      appendFileSync(process.env.FAKE_ACP_RPC_APPEND_FILE, JSON.stringify({ pid: process.pid, method }) + "\n");
+    } catch {}
+  }
 };
 
 // session/set_mode + session/set_model calls seen this run
@@ -217,9 +301,17 @@ const configCalls: Array<{ method: string; params: unknown }> = [];
 let pendingPermissionId: number | null = null;
 let onPermissionAnswered: ((allowed: boolean) => void) | null = null;
 
+// hang mode: the prompt we are holding open and its keep-alive timer —
+// session/cancel resolves it cancelled (the ACP spec's cancel contract)
+// and drops the keep-alive
+let hangingPromptId: unknown = null;
+let hangKeepAlive: ReturnType<typeof setInterval> | null = null;
+
 // ask-peer mode: the "agents" MCP server entry from session/new's mcpServers
 type McpEntry = { command: string; args?: string[]; env?: Array<{ name: string; value: string }> };
 let agentsMcp: McpEntry | null = null;
+// the session this process established, for FAKE_ACP_REJECT_LIVE_LOAD_FILE
+let liveSession: string | null = null;
 
 /** Minimal one-shot MCP stdio client: initialize, call each tool in
  * sequence, return the text of the last result. Dependency-free. */
@@ -341,16 +433,19 @@ function handle(msg: any) {
       const authMethods = mode === "no-auth" ? [] : [{ id: process.env.FAKE_ACP_AUTH_METHOD ?? "cached_token" }];
       const agentName = process.env.FAKE_ACP_AGENT_NAME;
       const acceptsImages = process.env.FAKE_ACP_IMAGE_CAPABILITY === "1";
+      // which remote MCP transports this agent advertises, e.g. "http,sse"
+      const mcpTransports = (process.env.FAKE_ACP_MCP_TRANSPORTS ?? "").split(",").map((entry) => entry.trim()).filter(Boolean);
       result(msg.id, {
         protocolVersion: 1,
         authMethods,
         agentInfo: agentName
           ? { name: agentName, version: process.env.FAKE_ACP_AGENT_VERSION ?? "test" }
           : undefined,
-        agentCapabilities: agentName || acceptsImages
+        agentCapabilities: agentName || acceptsImages || mcpTransports.length
           ? {
               ...(agentName ? { loadSession: true, sessionCapabilities: { resume: true }, auth: { logout: true } } : {}),
               ...(acceptsImages ? { promptCapabilities: { image: true } } : {}),
+              ...(mcpTransports.length ? { mcpCapabilities: { http: mcpTransports.includes("http"), sse: mcpTransports.includes("sse") } } : {}),
             }
           : undefined,
         _meta: {
@@ -383,11 +478,12 @@ function handle(msg: any) {
       }
       const opts = configOptions();
       const mdls = sessionModels();
-      result(msg.id, {
+      liveSession = "fake-acp-session";
+      resultAndConfigUpdates(msg.id, {
         sessionId: "fake-acp-session",
         ...(opts ? { configOptions: opts } : {}),
         ...(mdls ? { models: mdls } : {}),
-      });
+      }, "session/new", "fake-acp-session");
       break;
     }
     case "session/load": {
@@ -395,24 +491,42 @@ function handle(msg: any) {
         result(msg.id, null);
         break;
       }
+      if (rejectLiveLoadFile && existsSync(rejectLiveLoadFile) && liveSession === msg.params?.sessionId) {
+        out({
+          jsonrpc: "2.0",
+          id: msg.id,
+          error: { code: -32000, message: "session already active in this agent" },
+        });
+        break;
+      }
       if (mode === "safe-agent-reads" || process.env.FAKE_ACP_COORDINATION_PLAN) {
         agentsMcp = (msg.params?.mcpServers ?? []).find((server: any) => server.name === "agents") ?? null;
-        if (process.env.FAKE_ACP_DUMP) {
-          writeFileSync(`${process.env.FAKE_ACP_DUMP}.mcp.json`, JSON.stringify(msg.params?.mcpServers ?? []));
-        }
+      }
+      if (process.env.FAKE_ACP_DUMP) {
+        writeFileSync(`${process.env.FAKE_ACP_DUMP}.mcp.json`, JSON.stringify(msg.params?.mcpServers ?? []));
       }
       const opts = configOptions();
       const mdls = sessionModels();
-      result(msg.id, { ...(opts ? { configOptions: opts } : {}), ...(mdls ? { models: mdls } : {}) });
+      liveSession = typeof msg.params?.sessionId === "string" ? msg.params.sessionId : liveSession;
+      resultAndConfigUpdates(msg.id, { ...(opts ? { configOptions: opts } : {}), ...(mdls ? { models: mdls } : {}) }, "session/load", msg.params.sessionId);
       break;
     }
     case "session/resume": {
+      if (rejectLiveLoadFile && existsSync(rejectLiveLoadFile) && liveSession === msg.params?.sessionId) {
+        out({
+          jsonrpc: "2.0",
+          id: msg.id,
+          error: { code: -32000, message: "session already active in this agent" },
+        });
+        break;
+      }
       if (process.env.FAKE_ACP_COORDINATION_PLAN) agentsMcp = (msg.params?.mcpServers ?? []).find((server: any) => server.name === "agents") ?? null;
       if (process.env.FAKE_ACP_DUMP) {
         writeFileSync(`${process.env.FAKE_ACP_DUMP}.mcp.json`, JSON.stringify(msg.params?.mcpServers ?? []));
       }
       const opts = configOptions();
       const mdls = sessionModels();
+      liveSession = typeof msg.params?.sessionId === "string" ? msg.params.sessionId : liveSession;
       result(msg.id, { ...(opts ? { configOptions: opts } : {}), ...(mdls ? { models: mdls } : {}) });
       break;
     }
@@ -449,6 +563,16 @@ function handle(msg: any) {
     }
     case "session/set_config_option": {
       const { configId, value } = msg.params ?? {};
+      const variant = variantConfigs[currentModel ?? ""];
+      if (variant && configId === (variant.id ?? "effort") && variantValues(variant.options).includes(value)) {
+        if (!process.env.FAKE_ACP_VARIANT_STICKS) currentVariant = value;
+        configCalls.push({ method: msg.method, params: msg.params });
+        if (process.env.FAKE_ACP_DUMP) {
+          writeFileSync(`${process.env.FAKE_ACP_DUMP}.config.json`, JSON.stringify(configCalls, null, 2));
+        }
+        resultAndConfigUpdates(msg.id, process.env.FAKE_ACP_EMPTY_VARIANT_ACK ? {} : { configOptions: configOptions() }, "effort", msg.params.sessionId);
+        break;
+      }
       if (configId === "mode" && modes.includes(value)) {
         currentMode = value;
         configCalls.push({ method: msg.method, params: msg.params });
@@ -469,21 +593,31 @@ function handle(msg: any) {
       // FAKE_ACP_MODEL_STICKS: answer OK and keep the old model anyway. Nothing
       // in the protocol forbids it, and it is the shape core.ts's confirmation
       // guard exists for — an error is loud, this is silent.
-      if (!process.env.FAKE_ACP_MODEL_STICKS) currentModel = value;
+      if (!process.env.FAKE_ACP_MODEL_STICKS) {
+        currentModel = value;
+        currentVariant = variantConfigs[value]?.currentValue;
+      }
       configCalls.push({ method: msg.method, params: msg.params });
       if (process.env.FAKE_ACP_DUMP) {
         writeFileSync(`${process.env.FAKE_ACP_DUMP}.config.json`, JSON.stringify(configCalls, null, 2));
       }
-      result(msg.id, { configOptions: configOptions() });
+      resultAndConfigUpdates(msg.id, { configOptions: configOptions() }, "model", msg.params.sessionId);
       break;
     }
     case "session/prompt": {
+      emitConfigUpdates("session/prompt", msg.params.sessionId);
+      if (process.env.FAKE_ACP_DUMP && process.env.FAKE_ACP_VARIANTS) {
+        writeFileSync(`${process.env.FAKE_ACP_DUMP}.selection.json`, JSON.stringify({
+          sessionId: msg.params.sessionId, model: currentModel, variant: currentVariant,
+        }));
+      }
       if (process.env.FAKE_ACP_DUMP && process.env.FAKE_ACP_DUMP_PROMPT === "1") {
         writeFileSync(`${process.env.FAKE_ACP_DUMP}.prompt.json`, JSON.stringify(msg.params?.prompt ?? null, null, 2));
       }
       if (mode === "hang") {
-        // never resolve the prompt — lets tests exercise interrupt
-        setInterval(() => {}, 1_000);
+        // never resolve the prompt on our own — lets tests exercise interrupt
+        hangingPromptId = msg.id;
+        hangKeepAlive = setInterval(() => {}, 1_000);
         return;
       }
       if (mode === "fail-after-text") {
@@ -688,6 +822,11 @@ function handle(msg: any) {
           complete();
         };
         const gate = process.env.FAKE_ACP_GATE_FILE;
+        // FAKE_ACP_STARTED_FILE: written the moment the prompt arrives, so a
+        // test can act "during the turn" (after the harness's pre-turn
+        // checkpoint) without racing the busy flag, which flips at claim.
+        const started = process.env.FAKE_ACP_STARTED_FILE;
+        if (started) writeFileSync(started, String(Date.now()));
         if (gate && !existsSync(gate)) {
           const poll = setInterval(() => {
             if (!existsSync(gate)) return;
@@ -814,6 +953,12 @@ function handle(msg: any) {
     }
     case "session/cancel":
       // the interrupted prompt resolves as cancelled
+      if (hangingPromptId !== null) {
+        result(hangingPromptId, { stopReason: "cancelled", _meta: {} });
+        if (hangKeepAlive) clearInterval(hangKeepAlive);
+        hangingPromptId = null;
+        hangKeepAlive = null;
+      }
       break;
     default:
       if (msg.id !== undefined) out({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "method not found" } });

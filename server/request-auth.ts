@@ -209,6 +209,7 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/messages$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/messages\/[\w-]+\/edit$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/active-branch$/ },
+  { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/compact$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/interrupt$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/read$/ },
   { methods: ["DELETE"], path: /^\/api\/bots\/[\w-]+\/queue\/[\w-]+$/ },
@@ -314,7 +315,9 @@ function mutatingPublicRoute(method: string, path: string): boolean {
   // public; possession of the one-time code is its authorization.
   return !path.startsWith("/api/internal/") &&
     path !== "/api/testing/internal-capability" &&
-    path !== "/api/auth/pair";
+    path !== "/api/auth/pair" &&
+    // The same exchange under the shape the companion apps send.
+    path !== "/api/pair";
 }
 
 function secureTokenMatch(actual: string | undefined, expected: string): boolean {

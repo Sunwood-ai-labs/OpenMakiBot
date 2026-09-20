@@ -2,7 +2,7 @@ import { readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA_DIR } from "./config.ts";
-import { Store } from "./store.ts";
+import { Store, UNTITLED_TASK } from "./store.ts";
 import { RoutineManager } from "./routines.ts";
 import { createTeamBackup, importTeamBackup } from "./team-backup.ts";
 import { parseTeamBackup } from "../shared/team-backup.ts";
@@ -38,7 +38,7 @@ function fixture() {
   const strangers = store.createTask(chief.id, "Opened by a deleted bot", false, undefined, { botId: "gone-bot", name: "Gone", at: 98 })!;
   store.setTaskClosedBy(chief.id, strangers.threadId, { botId: "gone-bot", name: "Gone", at: 102 });
   const active = store.createTask(chief.id, "Second conversation")!;
-  store.setTaskOpenedBy(chief.id, active.threadId, { botId: scout.id, name: scout.name, delegationId: "do-not-resume-delegation", at: 99 });
+  store.setTaskOpenedBy(chief.id, active.threadId, { botId: scout.id, name: scout.name, delegationId: "do-not-resume-delegation", kind: "pair", at: 99 });
   store.setTaskClosedBy(chief.id, active.threadId, { botId: scout.id, name: scout.name, at: 103 });
   store.appendMessage(active.threadId, { role: "user", kind: "text", text: "Current question", queued: true, queueId: "do-not-replay" });
   store.appendMessage(active.threadId, { role: "bot", kind: "options", card: {
@@ -137,7 +137,7 @@ describe("additive portable team backups", () => {
     // who opened a thread travels with it, remapped like a message's `from`;
     // the handoff id stays behind with the ledger it belongs to
     expect(importedChief.tasks!.find((task) => task.title === "Second conversation")!.openedBy)
-      .toEqual({ botId: importedScout.id, name: scout.name, at: 99 });
+      .toEqual({ botId: importedScout.id, name: scout.name, kind: "pair", at: 99 });
     expect(importedChief.tasks!.find((task) => task.title === "Opened by a deleted bot")).not.toHaveProperty("openedBy");
     expect(importedChief.tasks!.find((task) => task.title === "First conversation")).not.toHaveProperty("openedBy");
     // a thread the opener closed stays closed after import, closer remapped the same way
@@ -162,6 +162,35 @@ describe("additive portable team backups", () => {
     const second = importTeamBackup(store, routines, backup, selection());
     expect(second.bots.find((bot) => bot.name === "Mira 3")).toMatchObject({ section: "Engineering 3", chiefOfStaff: true });
     expect(store.bot(importedChief.id)).toEqual(importedChief);
+  });
+
+  it("keeps first-message title markers armed-once through backup and restore", () => {
+    const { store, routines, chief, group } = fixture();
+    // rows whose first message already named them, one per record kind
+    const titled = store.createTask(chief.id, undefined, false)!.threadId;
+    store.titleTaskFromFirstMessage(chief.id, "Audit the payroll export", titled);
+    const channelTask = store.createGroupTask(group.id, undefined, false)!.threadId;
+    store.titleGroupTaskFromFirstMessage(group.id, "Plan the launch review", channelTask);
+    const backup = createTeamBackup(store, routines.listRoutines(), "Markers");
+    expect(backup.bots.find((bot) => bot.name === "Mira")!.tasks.find((task) => task.key === titled)!.titleFromFirstMessage).toBe(true);
+    expect(backup.groups[0].tasks.find((task) => task.key === channelTask)!.titleFromFirstMessage).toBe(true);
+
+    const result = importTeamBackup(store, routines, JSON.parse(JSON.stringify(backup)), selection());
+    const restoredBot = result.bots.find((bot) => bot.name === "Mira 2")!;
+    const restored = restoredBot.tasks!.find((task) => task.title === "Audit the payroll export")!;
+    expect(restored.titleFromFirstMessage).toBe(true);
+    // the marker still does its job on the restored row: renaming back to
+    // the sentinel cannot re-arm generated titling for a later message
+    store.renameTask(restoredBot.id, restored.threadId, UNTITLED_TASK);
+    expect(store.titleTaskFromFirstMessage(restoredBot.id, "A later message", restored.threadId)).toBeNull();
+    const restoredGroup = result.groups[0];
+    const restoredChannel = restoredGroup.tasks!.find((task) => task.title === "Plan the launch review")!;
+    expect(restoredChannel.titleFromFirstMessage).toBe(true);
+    store.renameGroupTask(restoredGroup.id, restoredChannel.threadId, UNTITLED_TASK);
+    expect(store.titleGroupTaskFromFirstMessage(restoredGroup.id, "A later message", restoredChannel.threadId)).toBeNull();
+    // rows the marker never armed — a backup from before the feature —
+    // restore exactly as they left, with no marker invented for them
+    expect(restoredBot.tasks!.find((task) => task.title === "First conversation")).not.toHaveProperty("titleFromFirstMessage");
   });
 
   it.each(["unknown-version", "duplicate-bot", "cycle", "dangling-room", "dangling-task", "duplicate-chief", "oversized-soul"])("rejects %s before any writes", (corruption) => {

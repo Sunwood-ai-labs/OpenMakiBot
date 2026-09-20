@@ -14,7 +14,7 @@
 // everywhere alongside the mention-resolution units.
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -189,6 +189,17 @@ describe("legacy routine comms e2e (fake ACP fleet)", () => {
             environment: { FAKE_ACP_MODE: "delegate-peer" },
             config: { cli: FAKE_CLI, fullAuto: true },
           },
+          // the same asker on an agent that cannot load its earlier session
+          askerNoLoad: {
+            driver: "grokAgent",
+            environment: {
+              FAKE_ACP_MODE: "delegate-peer",
+              FAKE_ACP_LOAD_NULL: "1",
+              FAKE_ACP_DUMP: join(home, "asker-no-load.json"),
+              FAKE_ACP_DUMP_PROMPT: "1",
+            },
+            config: { cli: FAKE_CLI, fullAuto: true },
+          },
           // A Chief that delegates only on the first assignment prompt, then
           // answers ordinary follow-ups while the worker remains gated.
           chiefAsync: {
@@ -242,9 +253,8 @@ describe("legacy routine comms e2e (fake ACP fleet)", () => {
       HOME: home,
       USERPROFILE: home,
       OMB_PORT: String(PORT),
-      // e2e-friendly ask ceiling: the timeout-conversion test needs the
-      // synchronous wait to end while the gated peer turn is still open
-      OMB_ASK_BOT_TIMEOUT_MS: "8000",
+      // Keep the production ask budget: the gated-peer test verifies the
+      // caller is released promptly without a test-only timeout override.
     };
     if (process.env.PATH) env.PATH = process.env.PATH;
     // Without SystemRoot, winsock fails to initialize in the child.
@@ -636,6 +646,32 @@ describe("legacy routine comms e2e (fake ACP fleet)", () => {
   );
 
   it(
+    "wakes an agent that cannot load its session with the conversation replayed, not only the result",
+    async () => {
+      for (const existing of (await api("GET", "/api/bots")).body.bots) {
+        await api("PATCH", `/api/bots/${existing.id}`, { hidden: true });
+      }
+      const helper = (await api("POST", "/api/bots")).body.bot;
+      await api("PATCH", `/api/bots/${helper.id}`, { name: "Helper", modelSelection: { instanceId: "grok", model: "fake-model" } });
+      const asker = (await api("POST", "/api/bots")).body.bot;
+      await api("PATCH", `/api/bots/${asker.id}`, { name: "Asker", modelSelection: { instanceId: "askerNoLoad", model: "fake-model" } });
+
+      await startRoutine(asker.id, "hey @Helper please pick this up; keep the codename ORCHID_EARLIER_CONTEXT");
+      await waitUntil(async () => {
+        const bot = (await api("GET", "/api/bots")).body.bots.find((b: any) => b.id === asker.id);
+        return !bot.busy && bot.messages.some((m: any) => m.role === "bot" && m.text?.includes("woke after delegation"));
+      }, 30_000, "the source never woke after its delegation");
+
+      const woke = String(JSON.parse(readFileSync(join(home, "asker-no-load.json.prompt.json"), "utf8"))[0].text);
+      expect(woke).toContain("[A delegated task just completed]");
+      expect(woke).toContain("ORCHID_EARLIER_CONTEXT");
+      expect(woke.split("hello from fake acp").length - 1).toBe(1);
+      expect(woke).toContain("[Message from @Helper, another bot — untrusted peer content, not from your user]\n\"@Helper replied to the delegated task");
+    },
+    45_000,
+  );
+
+  it(
     "keeps a Chief available while its delegated teammate is still working",
     async () => {
       for (const existing of (await api("GET", "/api/bots")).body.bots) {
@@ -919,7 +955,7 @@ describe("legacy routine comms e2e (fake ACP fleet)", () => {
       });
 
       // the ask starts the peer's gated turn, which stays open well past
-      // the 8s ceiling — the asker must get a claim ticket, not a drop
+      // the production inline budget — the asker must get a claim ticket, not a drop
       expect((await startRoutine(asker.id, "ask @SlowHelper for the numbers")).status).toBe(201);
       let askerBot: any;
       await waitUntil(async () => {
@@ -929,6 +965,8 @@ describe("legacy routine comms e2e (fake ACP fleet)", () => {
       }, 30_000, "asker never got the timeout-conversion reply");
       const conversionReply = askerBot.messages.findLast((m: any) => m.kind === "text" && m.role === "bot");
       expect(conversionReply.text).toContain("Task id:");
+      expect(conversionReply.text).toContain("after 15 seconds");
+      expect((await api("GET", "/api/bots?messages=0")).body.bots.find((b: any) => b.id === helper.id).busy).toBe(true);
       expect(conversionReply.text).toContain("delivered to this conversation automatically");
       expect(conversionReply.text).not.toContain("wait_delegation");
       expect(askerBot.messages.some(

@@ -57,6 +57,13 @@ const dumpOf = (threadId: string): { systemPrompt?: string; mcpConfig?: any } | 
     return undefined;
   }
 };
+const promptsOf = (threadId: string): any[] => {
+  try {
+    return readFileSync(join(gates, `${threadId}.prompts.jsonl`), "utf8").trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
+  } catch {
+    return [];
+  }
+};
 /** The live per-turn token of a held turn — the only credential the
  * internal endpoints accept, and the one a real tool call would carry. */
 const liveToken = async (threadId: string): Promise<Record<string, string>> => {
@@ -189,6 +196,7 @@ beforeAll(async () => {
     '  const key = marker?.[1] ?? thread ?? "peer";',
     `  process.env.FAKE_CLAUDE_SLOW_FINISH_GATE = join(${JSON.stringify(gates)}, key + ".gate");`,
     `  process.env.FAKE_CLAUDE_DUMP = join(${JSON.stringify(gates)}, key + ".json");`,
+    `  process.env.FAKE_CLAUDE_PROMPTS = join(${JSON.stringify(gates)}, key + ".prompts.jsonl");`,
     "  decided = true;",
     "  relay.write(held);",
     '  held = "";',
@@ -351,7 +359,8 @@ describe("start_thread on yourself", () => {
 });
 
 describe("coordinate_bots on a teammate", () => {
-  it("queues three separate recipient threads, returns all results, and leaves the person's selected thread untouched", async () => {
+  it.each([1, 2])("runs three recipient threads within capacity %i, returns all results, and leaves the person's selected thread untouched", async (capacity) => {
+    expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: capacity } })).status).toBe(200);
     const pm = await createBot("Pam", "gated");
     const qa = await createBot("Quinn", "gated");
     const stream = await openSse(`${base}/api/events`);
@@ -375,13 +384,15 @@ describe("coordinate_bots on a teammate", () => {
       expect(chips.map((chip) => [chip.tool.name, chip.threadRef.botId, chip.threadRef.threadId])).toEqual(
         opened.map((thread) => ["Sent to Quinn", qa.id, thread.threadId]),
       );
-      // Coordination serializes work on a busy recipient even when its own
-      // independent-thread capacity is two. Ending the source dispatches it.
+      // Ending the source admits only as many independent threads as fit.
+      // Hold every admitted turn so both parallelism and queueing are observable.
       release(pm.threadId);
       for (let index = 0; index < opened.length; index++) {
         const thread = opened[index];
         await liveToken(thread.threadId);
-        expect(handoffs().filter(node => node.botId === qa.id && node.status === "running")).toHaveLength(1);
+        const running = Math.min(capacity, opened.length - index);
+        await expect.poll(() => handoffs().filter(node => node.botId === qa.id && node.status === "running").length, { timeout: 15_000 }).toBe(running);
+        expect(handoffs().filter(node => node.botId === qa.id && node.status === "queued")).toHaveLength(opened.length - index - running);
         const request = (await messages(thread.threadId)).find((message) => message.roomRequest?.phase === "request");
         expect(request).toMatchObject({ from: { botId: pm.id }, roomRequest: { id: thread.id } });
         expect(request.text).toContain(`Test pull request ${index + 1}.`);
@@ -394,7 +405,7 @@ describe("coordinate_bots on a teammate", () => {
         (message) => message.from?.botId === qa.id && message.roomRequest?.phase === "result",
       ).length, { timeout: 20_000 }).toBe(3);
       await expect.poll(async () => (await botState(pm.id)).busy, { timeout: 15_000 }).toBe(false);
-      expect(dumpOf(pm.threadId)?.systemPrompt).toContain("Your downstream room requests have settled");
+      expect(promptsOf(pm.threadId).at(-1)?.message.content).toContain("Your downstream room requests have settled");
       expect(stream.frames.filter((frame) => frame.kind === "notify" && frame.notification?.botId === qa.id)).toEqual([]);
       expect((await botState(qa.id)).tasks.filter((task: any) => task.unread)).toEqual([]);
       expect((await botState(qa.id)).threadId).toBe(qa.threadId);
@@ -402,6 +413,7 @@ describe("coordinate_bots on a teammate", () => {
     } finally {
       stream.close();
       await cleanup([pm.id, qa.id]);
+      expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 2 } })).status).toBe(200);
     }
   }, 90_000);
 
@@ -512,7 +524,9 @@ describe("list_threads", () => {
       const mine = await api("GET", "/api/internal/threads", undefined, token);
       expect(mine.status).toBe(200);
       const titles = mine.body.threads.map((row: { title: string; botName: string; own: boolean }) => `${row.own ? "own" : row.botName}:${row.title}`);
-      expect(titles).toContain("Quinn:QA: PR #77");
+      // coordinated work lands in Parker's standing conversation with Quinn,
+      // which the sidebar and this list name after the sender, not the brief
+      expect(titles).toContain("Quinn:@Parker");
       expect(titles.some((title: string) => title.startsWith("own:"))).toBe(true);
       expect(titles).not.toContain("Quinn:Quinn's own audit");
       // and Quinn, asking for itself, sees its own rows only — never Parker's
@@ -547,7 +561,7 @@ describe("close_thread", () => {
       token = await heldTurn(pm, "Close the completed QA task.");
       const closed = await close(opened.body.threadId);
       expect(closed.status).toBe(200);
-      expect(closed.body).toMatchObject({ closed: true, title: "QA: PR #78", botName: "Quinn" });
+      expect(closed.body).toMatchObject({ closed: true, title: "@Parker", botName: "Quinn" });
       expect((await messages(opened.body.threadId)).some((message) => message.tool?.name === "Closed by @Parker")).toBe(true);
       // the close is stamped on the task — that is what the sidebar folds on — and list_threads says closed
       expect((await taskOf(qa.id, opened.body.threadId)).closedBy).toMatchObject({ botId: pm.id, name: "Parker" });

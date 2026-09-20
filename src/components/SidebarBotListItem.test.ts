@@ -53,6 +53,20 @@ describe("BotListItem", () => {
     expect(toggle).not.toContain("hover:bg-");
   });
 
+  // Phase 0 writes a digest row after every turn, so the last row of an idle
+  // chat is now a receipt; the preview must still be the reply a person reads.
+  it("previews the last reply, not the digest receipt that follows it", () => {
+    const markup = renderRow(bot({
+      messages: [
+        { id: "u1", role: "user", kind: "text", text: "make notes.txt", at: 1 },
+        { id: "b1", role: "bot", kind: "text", text: "Created notes.txt with three lines.", at: 2 },
+        { id: "d1", role: "bot", kind: "digest", text: "[digest] · tools: Write ×1", at: 3, digest: { turnId: "t1", tools: [{ name: "Write", count: 1 }], hookCoverage: "full" } },
+      ] as Bot["messages"],
+    }));
+    expect(markup).toContain("Created notes.txt with three lines.");
+    expect(markup).not.toContain("[digest]");
+  });
+
   it("leaves the full Chief card as one selectable hit area", () => {
     const markup = renderRow(bot({ chiefOfStaff: true }));
 
@@ -148,11 +162,14 @@ describe("archive / delete confirmation", () => {
     expect(copy.tone).toBe("neutral");
   });
 
-  it("delete copy names the bot and spells out that it is permanent", () => {
+  it("delete copy names the bot and warns about its owned computer", () => {
     const copy = botConfirmCopy("delete", "Willow");
 
     expect(copy.title).toContain("Willow");
     expect(copy.body).toMatch(/permanently/i);
+    expect(copy.body).toMatch(/any computer it owns/i);
+    expect(copy.body).toMatch(/files and browser sign-ins/i);
+    expect(copy.body).toMatch(/shared team computers remain/i);
     expect(copy.tone).toBe("danger");
   });
 
@@ -173,13 +190,14 @@ describe("archive / delete confirmation", () => {
 });
 
 describe("bot deletion feedback", () => {
-  it("disables the destructive action while persistent computers are checked", () => {
+  it("disables the destructive action while the bot and its computer are deleted", () => {
     const markup = renderToStaticMarkup(createElement(BotDeleteMenuItem, {
       deleting: true,
       onClick: vi.fn(),
     }));
 
-    expect(markup).toContain("Checking computers…");
+    expect(markup).toContain("Deleting bot and owned computer…");
+    expect(markup).toContain('title="Deleting this bot and any computer it owns"');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('aria-busy="true"');
   });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import { handleToolCall, request } from "../scripts/mcp-server.ts";
+import { PEER_ACCESS_HELP } from "./peer-roster.ts";
 
 async function withRooms(test: (f: any) => Promise<void>) {
   const session = await launchVerificationServer(process.env, undefined, undefined, undefined, undefined, { scripted: true });
@@ -41,6 +42,23 @@ it("refuses a disallowed peer without starting the recipient", () => withRooms(a
   expect(await f.messages(f.destination.activeTaskId)).toEqual([]);
 }), 45_000);
 
+it("runs room-destined work in the room's own conversation, opening no thread on the recipient", () => withRooms(async f => {
+  const tasksOf = async (botId: string) => (await f.api("/api/bots")).bots.find((bot: any) => bot.id === botId).tasks ?? [];
+  const before = await tasksOf(f.target.id);
+  await f.start(); expect((await f.wait()).status).toBe("settled");
+  // a room is already a destination: pair conversations are for the
+  // direct case only and must not appear beside one
+  const node = f.nodes().find((n: any) => n.botId === f.target.id);
+  expect(node.groupId).toBe(f.destination.id);
+  expect(node.threadId).toBe(f.destination.activeTaskId);
+  const after = await tasksOf(f.target.id);
+  expect(after.map((task: any) => task.threadId)).toEqual(before.map((task: any) => task.threadId));
+  expect(after.some((task: any) => task.openedBy)).toBe(false);
+  expect((await f.messages(f.destination.activeTaskId)).some((m: any) => m.text?.includes("Please build CSV"))).toBe(true);
+  expect((await f.messages(f.source.activeTaskId)).some((m: any) => m.text === "Reviewed downstream outcome")).toBe(true);
+  expect(JSON.stringify(f.provider().find((turn: any) => turn.botId === f.target.id).prompt).match(/Please build CSV/g)).toHaveLength(1);
+}), 45_000);
+
 it("lets an explicitly authorized Chief coordinate another team, which can consult its own specialist", () => withRooms(async f => {
   await f.api(`/api/bots/${f.target.id}`, { section: "Engineering" }, "PATCH");
   await f.api(`/api/bots/${f.sender.id}`, { chiefOfStaff: true, managedSections: ["Engineering"], acknowledgePeerScope: true }, "PATCH");
@@ -50,11 +68,17 @@ it("lets an explicitly authorized Chief coordinate another team, which can consu
     steps: [{ arguments: { group_id: reviewRoom.id, bot_ids: [reviewer.id], request_key: "test", message: "Check the CSV output" } }],
     reply: "Sent for verification", resumeReply: "CSV implemented and checked",
   };
-  f.plan[reviewer.id] = { reply: "CSV checks passed" };
+  // Multi-line on purpose: results reach the transcript inside a JSON
+  // envelope, so a newline is escaped there. A raw substring compare would
+  // miss it and re-append the brief on top of a transcript that already has
+  // it — the duplication the dedup exists to prevent.
+  f.plan[reviewer.id] = { reply: "CSV checks passed\nrow count matches\nno nulls" };
   await f.start(); expect((await f.wait()).status).toBe("settled");
   expect(f.provider().map((turn: any) => turn.botId)).toEqual([f.sender.id, f.target.id, reviewer.id, f.target.id, f.sender.id]);
   expect(f.nodes().every((n: any) => n.status === "completed")).toBe(true);
   expect((await f.messages(f.source.activeTaskId)).some((m: any) => m.text === "Reviewed downstream outcome")).toBe(true);
+  const resumedPrompt = f.provider().filter((turn: any) => turn.botId === f.target.id).at(-1).prompt;
+  expect(JSON.stringify(resumedPrompt).match(/CSV checks passed/g)).toHaveLength(1);
   const bots = (await f.api("/api/bots")).bots;
   expect(bots.find((b: any) => b.id === f.target.id).managedSections).toBeUndefined();
   expect(bots.find((b: any) => b.id === reviewer.id).managedSections).toBeUndefined();
@@ -134,13 +158,15 @@ it("refuses same-room coordination in a mixed section room", () => withRooms(asy
 }), 45_000);
 
 it("rechecks section membership before queued work dispatch and withholds its result", () => withRooms(async f => {
-  f.plan[f.target.id].delayMs = 2000; f.savePlan();
+  const gateFile = join(f.session.info.dataDir, "recipient-section-change.gate");
+  f.plan[f.target.id].gateFile = gateFile; f.savePlan();
   await f.cli("send", "--bot", f.target.id, "--text", "Independent task");
   await f.start();
   await expect.poll(() => f.nodes().find((n: any) => n.parentId)?.status, { timeout: 10_000 }).toBe("queued");
   // Model a user changing the fixture's settings from its served UI mid-turn.
   await request(`/api/bots/${f.target.id}`, { method: "PATCH", headers: { Origin: f.session.info.url },
     body: JSON.stringify({ section: "Other company" }) }, f.session.info.url);
+  writeFileSync(gateFile, "release");
   expect((await f.wait()).status).toBe("settled");
   expect(f.nodes().find((n: any) => n.parentId).status).toBe("failed");
   expect(await f.messages(f.destination.activeTaskId)).toEqual([]);
@@ -308,3 +334,47 @@ it("waits for busy peers and then completes without the user relaying messages",
   expect(f.nodes().every((n: any) => n.status === "completed")).toBe(true);
   expect((await f.messages(f.source.activeTaskId)).some((m: any) => m.text === "Reviewed downstream outcome")).toBe(true);
 }), 45_000);
+
+// An unresolvable bot_ids entry used to get "The addressed agent no longer
+// exists" whether it had ever been a bot id or not, carrying no id and no
+// way back, so a model reads its teammate as permanently gone. Both cases
+// now name the id the caller sent and point at list_bots, like the other
+// comms refusals in the server.
+it.each([
+  ["a name nobody has in a bot_ids slot", false],
+  ["a hidden teammate's id", true],
+] as const)("refuses %s with a message the caller can act on", (_case, hidden) => withRooms(async f => {
+  if (hidden) await f.api(`/api/bots/${f.target.id}`, { hidden: true }, "PATCH");
+  const botId = hidden ? f.target.id : "Nobody";
+  f.plan[f.sender.id].steps = [{ expectError: true, arguments: { group_id: f.destination.id, bot_ids: [botId], message: "Review CSV", request_key: "review" } }];
+  await f.start(); expect((await f.wait()).status).toBe("settled");
+  expect(f.nodes()).toEqual([]);
+  expect(await f.messages(f.destination.activeTaskId)).toEqual([]);
+  const refused = f.provider().find((turn: any) => turn.botId === f.sender.id)
+    .evidence.find((entry: any) => entry.step).response.result.content[0].text;
+  expect(refused).toBe(hidden
+    ? `The bot with id "${botId}" is no longer available — call list_bots for the ones you can reach`
+    : `No bot with id or name "${botId}" — call list_bots and copy the exact id from the result. ${PEER_ACCESS_HELP}`);
+}), 45_000);
+
+// The Chief's roster names teammates, so a Chief reaches for the name it can
+// see. A name that means exactly one reachable teammate is the teammate; the
+// work runs as if the id had been sent. Two teammates sharing a name is the
+// person's naming, so that is refused with the way to the ids, not guessed.
+it("resolves a unique teammate name in a bot_ids slot, and refuses an ambiguous one", () => withRooms(async f => {
+  f.plan[f.sender.id].steps = [{ arguments: { group_id: f.destination.id, bot_ids: [f.target.name], request_key: "work", message: "Please build CSV" } }];
+  await f.start(); expect((await f.wait()).status).toBe("settled");
+  const node = f.nodes().find((n: any) => n.parentId);
+  expect(node.botId).toBe(f.target.id);
+  expect(node.status).toBe("completed");
+  expect((await f.messages(f.destination.activeTaskId)).some((m: any) => m.text?.includes("Please build CSV"))).toBe(true);
+
+  const twin = (await f.cli("new-bot", "--name", f.target.name, "--section", "A")).bot;
+  expect(twin.id).not.toBe(f.target.id);
+  f.plan[f.sender.id] = { steps: [{ expectError: true, arguments: { group_id: f.destination.id, bot_ids: [f.target.name], message: "Review CSV", request_key: "review" } }], reply: "Refused" };
+  f.savePlan(); await f.cli("send-channel", "--channel", f.source.id, "--text", "@Director Ask again");
+  expect((await f.wait()).status).toBe("settled");
+  const refused = f.provider().filter((turn: any) => turn.botId === f.sender.id).at(-1)
+    .evidence.find((entry: any) => entry.step).response.result.content[0].text;
+  expect(refused).toBe(`2 reachable teammates are named "${f.target.name}" — call list_bots and use the id of the one you mean`);
+}), 60_000);

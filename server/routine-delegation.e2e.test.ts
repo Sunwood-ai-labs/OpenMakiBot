@@ -67,7 +67,8 @@ describe("routine delegation through the isolated harness", () => {
   afterEach(async () => {
     if (!fixture) return;
     const path = `${fixture.info.logPath}.json`;
-    writeFileSync(path, JSON.stringify({ evidence, final: await api("GET", "/api/routines").catch(() => null) }, null, 2));
+    writeFileSync(path, JSON.stringify({ evidence, final: await api("GET", "/api/routines").catch(() => null),
+      bots: await api("GET", "/api/bots?messages=0").catch(() => null) }, null, 2));
     console.info(JSON.stringify({ logPath: fixture.info.logPath, evidencePath: path }));
     await fixture.close();
   });
@@ -119,8 +120,8 @@ describe("routine delegation through the isolated harness", () => {
     await dump("probe");
     await expect.poll(async () => (await runState(run.id))?.status).toBe("waiting");
 
-    // The source thread is idle, but startTurn's later bot-wide admission
-    // check rejects its wake. Keep that condition deterministic across drains.
+    // The source thread is idle, but every shared bot slot is occupied.
+    // Keep that condition deterministic across repeated wake drains.
     const occupiedThreads: string[] = [];
     for (let index = 0; index < capacity; index++) {
       const { task } = await api("POST", `/api/bots/${source.id}/tasks`, { title: `Occupied ${index}` });
@@ -146,13 +147,18 @@ describe("routine delegation through the isolated harness", () => {
     }
 
     if (resume === "raise") await api("PATCH", "/api/config", { threads: { maxConcurrentPerBot: capacity + 1 } });
-    else finish(occupiedThreads[0]);
+    else {
+      finish(occupiedThreads[0]);
+      await expect.poll(async () => {
+        const bot = (await api("GET", "/api/bots?messages=0")).bots.find((bot: any) => bot.id === source.id);
+        return bot.tasks.find((task: any) => task.threadId === occupiedThreads[0]).busy;
+      }, { timeout: 15_000 }).toBe(false);
+    }
     await expect.poll(async () => (await runState(run.id))?.status, { timeout: 15_000 }).toBe("completed");
     expect((await runState(run.id)).output).toContain("[A delegated task just completed]");
-    if (resume === "raise") {
-      const bot = (await api("GET", "/api/bots")).bots.find((bot: any) => bot.id === source.id);
-      expect(bot.tasks.find((task: any) => task.threadId === occupiedThreads[0]).busy).toBe(true);
-    }
+    const bot = (await api("GET", "/api/bots?messages=0")).bots.find((bot: any) => bot.id === source.id);
+    expect(occupiedThreads.map(threadId => bot.tasks.find((task: any) => task.threadId === threadId).busy))
+      .toEqual(resume === "raise" ? [true] : [false, true, true]);
     evidence.push({ busyRetriesPreservedWakeBudget: true, capacity, resume, runId: run.id, transcript: await messages(run.threadId) });
   }, 60_000);
 
@@ -186,7 +192,11 @@ describe("routine delegation through the isolated harness", () => {
     ), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => nodes().find(node => !node.parentId && node.threadId === run.threadId)?.status, { timeout: 20_000 }).toBe("completed");
     expect(nodes().find(node => node.id === requestId).status).toBe("completed");
-    expect((await dump(run.threadId)).systemPrompt).toContain("Your downstream room requests have settled");
+    const resumed = await dump(run.threadId);
+    // Resumed assignments are turn-scoped; provider sessions retain their
+    // stable system prompt across later requests on this same conversation.
+    expect(resumed.prompt.message.content).toContain("Your downstream room requests have settled");
+    expect(resumed.systemPrompt).not.toContain("Your downstream room requests have settled");
     expect(await runState(run.id)).toMatchObject({ status: "completed", finishedAt: finished.finishedAt, output: finished.output });
     evidence.push({ reusedCompletedExecution: true, transcript: await messages(run.threadId) });
   }, 45_000);
@@ -221,6 +231,9 @@ describe("routine delegation through the isolated harness", () => {
     // provider fleet; it makes no credential probe or external request.
     await api("PUT", "/api/config", { composio: { apiKey: "" } });
     await expect.poll(async () => (await runState(run.id))?.status).toBe("failed");
+    const health = (await api("GET", "/api/routines")).routines.find((routine: any) => routine.id === run.routineId);
+    expect(health.failureStreak).toBe(1);
+    evidence.push({ failedRunHealth: health });
     expect(JSON.parse(readFileSync(pendingFile, "utf8"))[run.threadId]).toBeUndefined();
     unlinkSync(file(run.threadId, "json"));
     await api("POST", `/api/bots/${source.id}/messages`, { threadId: run.threadId, text: "New unrelated work after the failed routine." });

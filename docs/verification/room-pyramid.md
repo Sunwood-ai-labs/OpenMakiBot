@@ -62,7 +62,10 @@ orchestration assertions.
   member its own downstream responsibility; returning work to an ancestor is refused.
 - Same-room assignment does not increase cross-room depth. Ancestor-room cycles
   remain forbidden. Bounds are 4 cross-room edges, 24 child requests, 48 coordinated
-  executions and a 30-minute lifetime.
+  executions. Each discussion participant consumes an execution. The upstream
+  30-minute tree budget pauses during execution; queued work has a 60-minute
+  window, execution has at least 10 minutes of runway, and the entire tree has a
+  four-hour wall-clock cap.
 - New discussion keys permit another round within those bounds. There is no
   unlimited conversation or automatic semantic agreement detector.
 - A final reply is not proof of a correct decision. Compare concerns, revisions,

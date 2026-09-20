@@ -57,5 +57,7 @@ in command arguments or published evidence.
 Add `--live --preview` to run without scripted responses and retain the fixture
 for screenshots. Build the UI first with `pnpm build`. Create the output JSON's
 `.stop` file to exit normally and remove the temporary data; Ctrl-C also requests
-cleanup. The wait budget is 25 minutes and the root lifetime is 30 minutes.
+cleanup. The experiment waits up to 25 minutes. The coordinator uses the upstream
+30-minute tree budget, paused while dispatched work executes, a 60-minute queue
+window, a 10-minute minimum execution runway, and a four-hour wall-clock cap.
 Each participant's turn counts toward the shared execution limit.

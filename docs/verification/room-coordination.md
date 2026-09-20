@@ -2,14 +2,15 @@
 
 In an ordinary bot chat or group conversation, ask the lead to consult named
 teammates or have them build and review a concrete artifact. No new dashboard,
-incoming-route panel or mandatory discussion. The existing **Finish together** goal loop
+incoming-route restriction or mandatory discussion is required by default. Rooms
+can opt into [discussion before delegation](room-discussion.md). The existing **Finish together** goal loop
 remains unchanged and owns its own teammate turns; it does not run a competing
 handoff loop inside those turns.
 
 The tools are `list_room_targets` and `coordinate_bots`. Discovery includes
 reachable bots as well as rooms. The latter addresses 1–4 existing bots in this
-room (default), another allowed room, or separate recipient tasks when used in
-ordinary direct chat without a room. A Chief can reach additional teams only
+room (default), or — in ordinary direct chat without a room — the sender's one
+standing conversation with each recipient. A Chief can reach additional teams only
 after the owner grants that access in [team settings](team-access.md).
 Recipients run sequentially per room, with their own models, permissions and
 working environments. Busy recipients queue. Once all requested results arrive,
@@ -18,6 +19,17 @@ specialists; it never inherits the parent Chief's cross-team access or permissio
 Advice is not a verification
 receipt: the lead must ask the reviewer to run the requested checks.
 
+Outside a room there is exactly one conversation per pair of bots, titled after
+the sender (“@Clive”), reused by every later assignment from that sender so the
+recipient still has the earlier context, and never closed automatically. A
+recipient still carrying one thread per assignment from an older version has its
+most recently active one adopted as that conversation rather than gaining
+another row; nothing is deleted or closed. A second assignment that arrives
+while the first is still running gets its own thread beside it, named by the
+optional `label` (otherwise “@Clive · parallel work”), and that thread closes
+itself once its result has been reported. `request_key` is only a within-turn
+idempotency token; it never selects a conversation.
+
 The chat shows an avatar and “Sent to Eli · Delivery”; clicking opens the
 receiving conversation. Same-room receipts have no unnecessary navigation.
 Receipts remain visible when tool calls are hidden. Files are not copied between
@@ -25,11 +37,36 @@ computers: briefs must include accessible absolute paths or the required content
 Returned reports stay available to subsequent model turns behind the compact
 receipt, subject to the bounded retention and fresh peer/section access checks.
 Direct-chat receipts use the existing avatar/thread pill, opening the exact
-recipient task without changing other tasks. Stop cancels that conversation's
-tree; a new message supersedes its pending coordination. Deleting a waiting
-source never recreates it. Provider work and waiting-on-teammate status stay
-separate internally, so waiting does not hold a provider session or block another
-independent conversation.
+recipient task without changing other tasks.
+
+Steering is not cancelling. A message sent while teammates are still working
+runs straight away — it is not queued behind them — and the assignments stay
+out: they keep running and each result still returns to this conversation and
+resumes it. That turn's context names what is still outstanding, so the bot
+answers the new instruction without assuming its fan-out died or sending the
+same work again.
+
+Direct-chat parking is a per-bot opt-in. When it is on, a message that arrives
+while teammates are still working waits in the composer queue — the same
+pending chip a busy thread shows — and runs as its own follow-up turn once
+every outstanding assignment has settled and the resumed coordination has
+finished. Steering stays the default; Stop keeps its conversation-scoped
+behavior either way.
+
+Stop is scoped to the conversation it was pressed in. It ends that bot's turn
+and stops the conversation awaiting its teammates, so nothing resumes into a
+stopped chat. An assignment that had not started yet is cancelled, since
+nothing is lost. A teammate already mid-turn keeps its own provider process:
+it finishes, and its result is still recorded and reported back here as the
+usual receipt. Each teammate Stop leaves running gets its own pill in the
+transcript — "Stopped here — Eli is still working; open to stop it too" —
+which survives Tool calls being hidden and opens that teammate's conversation,
+where Stop reaches its turn for real. Deleting a waiting source still cancels
+its whole tree, and never recreates the conversation.
+
+Provider work and waiting-on-teammate status stay separate internally, so
+waiting does not hold a provider session or block another independent
+conversation.
 
 ## Repeatable checks
 
@@ -51,16 +88,37 @@ approvals and validation. Multiple required approvals are presented together;
 no recipient starts until all are allowed. It does not claim model judgment or artifact correctness.
 The direct-chat suite exercises Clive → lead → specialist → lead → Clive with
 the real MCP proxy, no room, and no changes to unrelated conversations. It also
-checks recipient model/permission defaults, idempotency without extra tasks,
-busy queues, pinned parent selection, Stop, source deletion, access revocation,
-and fresh transcript replay after revocation. The UI test sends from the real
+checks one conversation per bot pair across separate user turns, its title,
+labelled concurrent work that closes itself, recipient model/permission
+defaults, idempotency without extra tasks, capacity-bound queues, dispatch to a
+spare recipient thread while unrelated work remains active, pinned parent
+selection, steering a live coordination (including an automation turn
+landing in the same conversation), conversation-scoped Stop, source
+deletion, access revocation, and fresh transcript replay after
+revocation. The UI test sends from the real
 composer and clicks the existing handoff receipt into the exact recipient task,
 with ordinary tool chips hidden. Screenshots and JSON are retained beside the
 fixture's printed server log; all fixture processes and temporary data are closed.
+The legacy routine `ask_bot` path is covered by `server/comms.test.ts`: a
+gated peer outlives the production 15-second inline budget, the caller finishes
+with an asynchronous receipt, and releasing the peer delivers its late reply
+to the original conversation. This budget releases the caller, not the peer;
+it does not impose a 15-second limit on delegated work.
 Follow-up checks cover retained report context and withholding after peer access
 is revoked, without mirroring a second visible transcript.
+Addressing checks cover what a bot may put in a `bot_ids` slot: an id is always
+an id; a name that means exactly one reachable teammate resolves to it and the
+work runs as if the id had been sent; a name nobody has is refused with the
+argument echoed and `list_bots` named (`No bot with id or name "…"`); a hidden
+teammate's id is refused as no longer available; a name two reachable teammates
+share is refused with the count and the way to the ids, never guessed. The same
+resolution serves `ask_bot` and `delegate_bot`, and every roster line the Chief
+and its peers read carries the teammate's `[id: …]`, so the tools can be called
+straight from the prompt.
 Unit checks cover bounded depth/fan-out, idempotent retry, original request
-retention, automatic return, cancellation and restart without replay.
+retention, automatic return, cancellation and restart without replay, and the
+scoped stop: unstarted work cancelled, a running teammate left with its
+process, its result still reported, and no resume of the stopped conversation.
 Turn-correlation checks cover completion before the provider's dispatch ACK,
 late completion after Stop and a replacement turn, cross-thread isolation, and
 bounded single-use early receipts. Coordination uses the exact provider turn's
@@ -109,10 +167,16 @@ person's selected conversation. That tool is not an alternative way to dispatch
 teammates or recursively fan out from model-opened threads and coordinated children.
 Direct routines, webhooks and legacy peer delivery
 retain their existing lifecycle: their completion is not claimed early by this
-new loop. Finish together remains separate too. Cancellation
-stops descendants; restart records interruption without replaying side effects.
-Limits: four cross-room edges, 24 child requests, 48 executions, 30 minutes per
-root. Failures return to the sender, not a false success. Model quality and
+new loop, and a turn of theirs that lands in a conversation cancels no
+coordination there. Finish together remains separate too. Cancelling a request
+stops the descendants it is still waiting on, except a teammate whose turn had
+already started when the person stopped the conversation above it: that process
+is left alone and reports its result. Restart records interruption without
+replaying side effects.
+Limits: four cross-room edges, 24 child requests and 48 executions. The 30-minute
+tree budget pauses during active execution; queued work has a 60-minute window
+and execution gets at least 10 minutes of runway, all within a four-hour wall-clock
+cap. Failures return to the sender, not a false success. Model quality and
 provider availability still matter; this is not a guarantee of autonomous
 correctness or permission to bypass approvals.
 

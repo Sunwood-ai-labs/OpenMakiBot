@@ -95,6 +95,13 @@ export interface Routine {
    * work builds on itself instead of restarting cold. Optional so existing
    * files migrate in place. */
   continuity?: boolean;
+  /** Default skips overlapping scheduled occurrences. Queue retains at most
+   * one pending scheduled run; manual/webhook requests stay independent. */
+  overlap?: "skip" | "queue";
+  skippedRuns?: number;
+  lastSkippedAt?: number;
+  /** Derived from retained terminal receipts, not another persisted authority. */
+  failureStreak?: number;
   /** Conversation that created this routine in chat. Calendar/import-created
    * routines intentionally have no source, and older files migrate in place. */
   sourceThreadId?: string;
@@ -129,6 +136,13 @@ export interface RoutineRun {
   scheduledFor: number;
   status: RoutineRunStatus;
   manual: boolean;
+  /** First tick a queued run was skipped because its target bot or room was
+   * busy. Deferral behind a busy target is unbounded, so this timestamp is
+   * what surfaces the wait instead of leaving the run looking freshly queued. */
+  deferredAt?: number;
+  /** When the one-per-run deferral notice was raised, so restarts and repeat
+   * ticks stay quiet. */
+  deferredNoticeAt?: number;
   /** Why this receipt exists. Kept optional so version-1 files migrate in place. */
   triggerSource?: RoutineRunTrigger;
   webhookId?: string;
@@ -199,6 +213,7 @@ export interface RoutineInput {
   timeoutMinutes?: number | null;
   attachments?: RoutineContextAttachment[];
   continuity?: boolean;
+  overlap?: "skip" | "queue";
   /** Omission preserves routing; null creates a new dedicated results task. */
   resultsThreadId?: string | null;
 }
@@ -271,6 +286,8 @@ export interface RoutineManagerOptions {
   /** Projects every durable transition into the source conversation. */
   onRunChanged?: (run: RoutineRun) => void;
   onRunFailed?: (run: RoutineRun) => void;
+  /** Raised once when a queued run has waited out the deferral notice window. */
+  onRunDeferred?: (run: RoutineRun) => void;
   /** A successful provider turn is intermediate while its peer work or
    * queued continuation still belongs to this detached execution. */
   hasPendingDelegations?: (threadId: string) => boolean;
@@ -278,6 +295,12 @@ export interface RoutineManagerOptions {
 
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const CATCH_UP_MS = 12 * 60 * 60_000;
+/** How long before a due routine the computer is asked to stay awake. */
+const WAKE_HORIZON_MS = 60 * 60_000;
+
+/** How long a run may sit deferred behind a busy target before the user
+ * hears about it once. Surfacing only; dispatch semantics stay unchanged. */
+export const ROUTINE_DEFERRAL_NOTICE_MS = 30 * 60_000;
 const MAX_DATE_MS = 8_640_000_000_000_000;
 const LOCAL_DAY_MS = 24 * 60 * 60_000;
 const INTERVAL_RESTRICTION_SEARCH_MS = 9 * LOCAL_DAY_MS;
@@ -698,6 +721,9 @@ function sanitizeInput(input: RoutineInput, after: number): Omit<Routine, "id" |
     throw new Error("Attachments can only run on this computer until cloud file staging is available");
   }
   const continuity = input.continuity === true;
+  if (input.overlap !== undefined && input.overlap !== "skip" && input.overlap !== "queue") {
+    throw new Error("Choose skip or queue for overlapping runs");
+  }
   if (continuity && target === "room-goal") {
     throw new Error("Room goals do not carry continuity yet");
   }
@@ -714,6 +740,7 @@ function sanitizeInput(input: RoutineInput, after: number): Omit<Routine, "id" |
     ...(timeoutMinutes === undefined ? {} : { timeoutMinutes }),
     attachments,
     ...(continuity ? { continuity: true } : {}),
+    ...(input.overlap === "queue" ? { overlap: "queue" as const } : {}),
   };
 }
 
@@ -749,8 +776,12 @@ export class RoutineManager {
               attachments: loadAttachments(routine.attachments),
               sourceThreadId: persistedSourceThreadId.parse(routine.sourceThreadId),
               resultsThreadId: persistedSourceThreadId.parse(routine.resultsThreadId),
+              overlap: routine.overlap === "queue" ? "queue" : undefined,
+              skippedRuns: Number.isSafeInteger(routine.skippedRuns) && routine.skippedRuns! > 0 ? routine.skippedRuns : undefined,
+              lastSkippedAt: Number.isSafeInteger(routine.lastSkippedAt) && routine.lastSkippedAt! >= 0 && routine.lastSkippedAt! <= MAX_DATE_MS ? routine.lastSkippedAt : undefined,
             };
             if (loaded.timeoutMinutes === undefined) delete loaded.timeoutMinutes;
+            delete loaded.failureStreak;
             return [loaded];
           })
         : [];
@@ -828,7 +859,32 @@ export class RoutineManager {
   }
 
   listRoutines(): Routine[] {
-    return this.routines.map(cloneRoutine);
+    return this.routines.map(routine => this.routineWithHealth(routine));
+  }
+
+  private routineWithHealth(routine: Routine): Routine {
+    // Successful delegated/provider turns are not successful runs until the
+    // routine settles. Cancellation and missed schedules are not attempts.
+    const outcomes = this.runs.filter(run => run.routineId === routine.id && (run.status === "failed" || run.status === "completed")).reverse()
+      .sort((a, b) => (b.finishedAt ?? b.createdAt) - (a.finishedAt ?? a.createdAt) || b.createdAt - a.createdAt);
+    const success = outcomes.findIndex(run => run.status === "completed");
+    const failures = success < 0 ? outcomes.length : success;
+    return { ...cloneRoutine(routine), ...(failures ? { failureStreak: failures } : {}) };
+  }
+
+  /** Whether this computer should stay awake for routines: a run is in
+   * flight, or an enabled routine is due within the horizon. The schedule
+   * runs inside this process — a sleeping computer runs nothing — so the
+   * desktop shell holds a power assertion while this says so, and releases
+   * it the rest of the time. */
+  wakeHold(horizonMs = WAKE_HORIZON_MS): { hold: boolean; reason?: "running" | "due"; at?: number } {
+    const now = this.now();
+    if (this.runs.some((run) => ["queued", "running", "waiting"].includes(run.status))) return { hold: true, reason: "running" };
+    const due = this.routines
+      .filter((routine) => routine.enabled && routine.nextRunAt != null && routine.nextRunAt <= now + horizonMs)
+      .map((routine) => routine.nextRunAt!)
+      .sort((a, b) => a - b)[0];
+    return due === undefined ? { hold: false } : { hold: true, reason: "due", at: due };
   }
 
   listRuns(from?: number, to?: number): RoutineRun[] {
@@ -926,7 +982,7 @@ export class RoutineManager {
       const receipt = this.matchingRoutineRequestReceipt(request);
       if (receipt) {
         const committed = this.routines.find((routine) => routine.id === receipt.resultId);
-        if (committed) return cloneRoutine(committed);
+        if (committed) return this.routineWithHealth(committed);
         throw new Error("This routine request was already applied");
       }
     }
@@ -953,7 +1009,7 @@ export class RoutineManager {
       if (request) this.rememberRoutineRequest(request, routine.id, at);
     }, discardResults);
     this.emitRoutine(routine);
-    return cloneRoutine(routine);
+    return this.routineWithHealth(routine);
   }
 
   update(
@@ -965,7 +1021,7 @@ export class RoutineManager {
       const receipt = this.matchingRoutineRequestReceipt(request);
       if (receipt) {
         const committed = this.routines.find((routine) => routine.id === receipt.resultId);
-        return committed ? cloneRoutine(committed) : null;
+        return committed ? this.routineWithHealth(committed) : null;
       }
     }
     const routine = this.routines.find((r) => r.id === id);
@@ -984,6 +1040,7 @@ export class RoutineManager {
       timeoutMinutes: Object.hasOwn(patch, "timeoutMinutes") ? patch.timeoutMinutes : routine.timeoutMinutes,
       attachments: patch.attachments ?? routine.attachments,
       continuity: patch.continuity ?? routine.continuity,
+      overlap: Object.hasOwn(patch, "overlap") ? patch.overlap : routine.overlap,
     }, now);
     if (this.targetState(clean) === "missing") throw new Error(this.missingTargetMessage(clean.target));
     const scheduleChanged = JSON.stringify(clean.schedule) !== JSON.stringify(routine.schedule);
@@ -1010,6 +1067,7 @@ export class RoutineManager {
       // `Object.assign` cannot remove a key, and a cleared flag is absent
       // rather than false, so switching continuity off has to delete it.
       if (!clean.continuity) delete routine.continuity;
+      if (clean.overlap !== "queue") delete routine.overlap;
       if (Object.hasOwn(patch, "timeoutMinutes") && patch.timeoutMinutes == null) {
         delete routine.timeoutMinutes;
       }
@@ -1027,7 +1085,7 @@ export class RoutineManager {
     }, discardResults);
     for (const run of cancelledRuns) this.emitRun(run);
     this.emitRoutine(routine);
-    return cloneRoutine(routine);
+    return this.routineWithHealth(routine);
   }
 
   remove(id: string, request?: RoutineRequestCommitFor<"delete">): boolean {
@@ -1346,10 +1404,12 @@ export class RoutineManager {
               : pendingAt;
             // Frequent recurring work must not build an unbounded queue of stale
             // copies. Elapsed intervals keep their phase; cron keeps its calendar.
-            const overlapping = (routine.schedule.type === "interval" || routine.schedule.type === "cron") && this.runs.some(
+            const overlapping = routine.schedule.type !== "once" && this.runs.some(
               (run) => run.routineId === routine.id && ["queued", "running", "waiting"].includes(run.status),
             );
-            if (!overlapping) {
+            const scheduledQueued = this.runs.some(run => run.routineId === routine.id && run.status === "queued" &&
+              (run.triggerSource ?? (run.manual ? "manual" : "schedule")) === "schedule");
+            if (!overlapping || (routine.overlap === "queue" && !scheduledQueued)) {
               const run = this.newRun(routine, scheduledFor, false, allocations);
               if (late > CATCH_UP_MS) {
                 run.status = "missed";
@@ -1357,6 +1417,9 @@ export class RoutineManager {
                 run.error = "This computer was offline for more than 12 hours after the scheduled time";
               }
               scheduledRuns.push(run);
+            } else {
+              routine.skippedRuns = Math.min(Number.MAX_SAFE_INTEGER, (routine.skippedRuns ?? 0) + 1);
+              routine.lastSkippedAt = scheduledFor;
             }
             routine.nextRunAt =
               routine.schedule.type === "once" ? null : nextOccurrence(routine.schedule, Math.max(now, scheduledFor));
@@ -1417,8 +1480,28 @@ export class RoutineManager {
             continue;
           }
         }
-        const state = this.targetState(run);
-        if (state === "busy") continue;
+        // A bot can have spare thread slots while this routine is waiting on
+        // a teammate. Queue means after THIS run, not merely a free bot slot.
+        const sameRoutineWorking = triggerSource === "schedule" && this.runs.some(other =>
+          other.id !== run.id && other.routineId === run.routineId && ["running", "waiting"].includes(other.status));
+        const state = sameRoutineWorking ? "busy" : this.targetState(run);
+        if (state === "busy") {
+          // A queued run behind a busy target is deferred, not silent. Stamp
+          // the wait once so receipts and cards can say how long it has been
+          // held; the run still dispatches the moment the target frees.
+          if (run.deferredAt == null) {
+            run.deferredAt = now;
+            this.save();
+            this.emitRun(run);
+          }
+          if (run.deferredNoticeAt == null && now - run.deferredAt >= ROUTINE_DEFERRAL_NOTICE_MS) {
+            run.deferredNoticeAt = now;
+            this.save();
+            this.emitRun(run);
+            this.options.onRunDeferred?.(cloneRun(run));
+          }
+          continue;
+        }
         if (state === "missing") {
           this.failRun(run, this.missingTargetMessage(run.target));
           continue;
@@ -1696,12 +1779,16 @@ export class RoutineManager {
   }
 
   private emitRoutine(routine: Routine) {
-    this.options.emit?.({ kind: "routine", routine: cloneRoutine(routine) });
+    this.options.emit?.({ kind: "routine", routine: this.routineWithHealth(routine) });
   }
 
   private emitRun(run: RoutineRun) {
     this.options.emit?.({ kind: "routine.run", run: cloneRun(run) });
     this.notifyRunChanged(run);
+    if (run.status === "completed" || run.status === "failed") {
+      const routine = this.routines.find(candidate => candidate.id === run.routineId);
+      if (routine) this.emitRoutine(routine);
+    }
   }
 
   private notifyRunChanged(run: RoutineRun) {
