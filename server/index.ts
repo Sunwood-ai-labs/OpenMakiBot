@@ -1420,7 +1420,7 @@ function controlIntegration(botId: string, threadId: string, generation: string,
 
 /** Run a turn on `targetBotId` and resolve with its assistant text — the
  * synchronous half of ask_bot. Subscribes to the bus, folds assistant_text
- * for that thread, resolves on turn.completed (or a 4-min ceiling). */
+ * for that thread, resolves on turn.completed (or the short inline wait budget). */
 type AskBotOutcome = {
   status: "reply" | "failed" | "timeout" | "error";
   text: string;
@@ -2654,15 +2654,11 @@ function outstandingAssignmentsPrompt(threadId: string): string {
 const roomHandoffs = new RoomHandoffs(join(DATA_DIR, "room-handoffs.json"), {
   validate: (node, parent) => roomHandoffProblem(node, parent) ??
     (parent && store.bot(parent.botId)?.approvePeerComms && !fullAccessForSource(parent.botId, parent.threadId) && !node.approvalGranted ? "Sender now requires peer approval; submit a new approved request" : undefined),
-  // A direct follow-up is owed to one conversation, so it waits for that
-  // conversation, not for the whole bot. Bot-level busy aggregates every
-  // thread — including cards still waiting on the person — so one busy
-  // sibling thread would otherwise starve the owed resume forever while the
-  // UI keeps showing this thread working. Fresh work still queues behind a
-  // busy teammate's whole bot (#1238); an owed resume only needs its own
-  // thread free and a thread slot to admit it.
-  busy: n => !n.groupId && n.status === "resume"
-    ? threadBusy(n.botId, n.threadId) || botAtThreadCapacity(n.botId)
+  // Direct assignments and follow-ups use independent threads. Match direct
+  // turn admission: unrelated work need not block a free thread slot, but
+  // never overlap the addressed thread, exceed capacity, or race a group turn.
+  busy: n => !n.groupId
+    ? threadBusy(n.botId, n.threadId) || botAtThreadCapacity(n.botId) || Boolean(activeGroupTurnForBot(n.botId))
     : Boolean(store.bot(n.botId)?.busy || (n.groupId && store.group(n.groupId) && groupIsWorking(store.group(n.groupId)!))),
   changed: (groupIds, directThreadIds) => {
     for (const id of groupIds) {
@@ -3476,7 +3472,7 @@ const turnContext = new Map<string, { tokens?: number; window?: number }>();
 const repeats = new RepeatDetector({ thresholds: [5, 10, 20], maxKeysPerThread: 256 });
 
 // ── stall watchdog ─────────────────────────────────────────────────────
-// ask_bot has a 4-minute ceiling, while room turns have a separately
+// ask_bot has a short inline wait budget, while room turns have a separately
 // configurable absolute ceiling. The main 1:1 path had none, so a wedged CLI
 // left its bot busy forever. The watchdog stops a turn whose thread has emitted NOTHING for stallMs —
 // activity-based, so an hour-long turn that keeps streaming is never
@@ -3484,7 +3480,7 @@ const repeats = new RepeatDetector({ thresholds: [5, 10, 20], maxKeysPerThread: 
 const TURN_STALL_MS = Math.max(60_000, Number(process.env.OMB_TURN_STALL_MS) || 20 * 60_000);
 /** How long ask_bot waits synchronously before the ask is converted into a
  * delegation claim ticket (the peer's turn keeps running either way). */
-const ASK_BOT_TIMEOUT_MS = Math.max(5_000, Number(process.env.OMB_ASK_BOT_TIMEOUT_MS) || 4 * 60_000);
+const ASK_BOT_TIMEOUT_MS = Math.max(5_000, Number(process.env.OMB_ASK_BOT_TIMEOUT_MS) || 15_000);
 // A room waits for a busy teammate instead of dropping them, but never
 // forever: a bot parked on a permission card in another chat is "busy" until
 // a human returns. Past this cap a goal's lead is told the teammate could not
@@ -15868,11 +15864,23 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       });
       return json(res, 200, { message: patched });
     }
-    m = path.match(/^\/api\/bots\/([\w-]+)\/messages$/);
+    m = path.match(/^\/api\/bots\/([\w-]+)\/messages(?:\/(guarded))?$/);
     if (m && method === "POST") {
+      const guarded = m[2] === "guarded";
       const body = await readBody(req);
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return json(res, 400, { error: "body must be a JSON object" });
+      }
+      // External interfaces must opt into a distinct route: an older server
+      // returns 404 rather than silently ignoring safety preconditions.
+      if (guarded && !z.object({
+        threadId: z.string().regex(/^[\w-]+$/),
+        sendId: z.string().regex(/^[A-Za-z0-9_-]{16,80}$/),
+        text: z.string().min(1),
+        expectedActiveLeafId: z.string().regex(/^[\w-]+$/).nullable(),
+        replyToId: z.string().optional(),
+      }).strict().safeParse(body).success) {
+        return json(res, 400, { error: "guarded sends require threadId, sendId, text and expectedActiveLeafId" });
       }
       const text = String(body.text ?? "").trim();
       if (!text) return json(res, 400, { error: "text required" });
@@ -15886,7 +15894,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       // receipt after a task switch, while a genuinely new send still has to
       // target the task that is active now.
       const threadId = body.threadId ?? bot.threadId;
-      noteTurnTrigger(threadId, auth);
+      if (!guarded) noteTurnTrigger(threadId, auth);
       // The send is acknowledged before the turn starts, so a workspace at its
       // spend limit is refused here, where the person can see it.
       try {
@@ -15934,6 +15942,24 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           if (!currentAtStart) throw Object.assign(new Error("no such bot"), { status: 404 });
           if (!store.taskByThread(currentAtStart.id, threadId)) {
             throw Object.assign(new Error("the target task no longer exists"), { status: 409 });
+          }
+
+          if (guarded) {
+            // There is no await between these checks and startTurn's
+            // synchronous transcript append / runtime reservation. In
+            // particular, never steer or enqueue under stale permissions.
+            if (approvalModeFor(currentAtStart) !== "ask" || currentAtStart.autoApprove === true || currentAtStart.alwaysAllow?.length) {
+              throw Object.assign(new Error("guarded sends require Ask mode without remembered permissions"), { status: 409, code: "guarded_permissions" });
+            }
+            if (store.activeLeaf(threadId) !== body.expectedActiveLeafId) {
+              throw Object.assign(new Error("the conversation changed before this message could start"), { status: 409, code: "guarded_branch" });
+            }
+            if (currentAtStart.busy || threadBusy(bot.id, threadId) || botAtThreadCapacity(bot.id) || parksBehindCoordination(bot.id, threadId) || activeGroupTurnForBot(bot.id)) {
+              throw Object.assign(new Error("wait for a free thread slot before retrying this message"), { status: 409, code: "guarded_busy" });
+            }
+            noteTurnTrigger(threadId, auth);
+            const message = await startTurn(bot.id, text, { threadId, replyTo, sendId, sender: messageSender(auth) });
+            return { ok: true as const, threadId, message };
           }
 
           // Claude can accept the message inside its live turn. If the write
@@ -16889,7 +16915,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     // child proves it is OURS by echoing its pid (a stray dev server has
     // the same API shape but a different pid)
     if (method === "GET" && path === "/api/health") {
-      return json(res, 200, { app: "openmausbot", pid: process.pid, static: Boolean(STATIC_DIR) });
+      return json(res, 200, { app: "openmausbot", pid: process.pid, static: Boolean(STATIC_DIR), capabilities: { guardedMessages: 1 } });
     }
     // The bots' browser engine: install it on this machine (agent-browser +
     // a Chrome for Testing, a one-time download), or ask how that is going.
@@ -18321,7 +18347,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     return json(res, 404, { error: `no route: ${method} ${path}` });
   } catch (e) {
     const status = (e as any)?.status ?? 500;
-    return json(res, status, { error: e instanceof Error ? e.message : String(e) });
+    const candidateCode = (e as { code?: unknown })?.code;
+    const code = typeof candidateCode === "string" && ["guarded_busy", "guarded_branch", "guarded_permissions"].includes(candidateCode)
+      ? candidateCode : undefined;
+    return json(res, status, { error: e instanceof Error ? e.message : String(e), ...(code ? { code } : {}) });
   } finally {
     releaseWorkspaceRequest?.();
   }

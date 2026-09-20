@@ -183,34 +183,48 @@ describe("comms e2e (fake ACP fleet)", () => {
     expect((await messages(source.threadId)).some(message => message.text === "Reviewed returned work")).toBe(true);
     expect((await messages(other.threadId)).some(message => message.roomRequest)).toBe(false);
   }, 40_000);
-  it("queues a busy recipient and leaves its current conversation untouched", async () => {
-    const { source, target } = await pair();
-    const release = join(home, `${target.id}.release`);
-    plan[target.id] = { turns: [{ waitForFile: release, reply: "Existing work" }, { reply: "Fresh coordinated result" }] };
-    await start(target, "Existing unrelated work"); await start(source);
-    await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
-    writeFileSync(release, "continue");
-    await settled(source);
-    expect(childNode(source, target)).toMatchObject({ status: "completed", result: "Fresh coordinated result" });
-    expect((await messages(target.threadId)).some(message => message.text === "Existing work")).toBe(true);
-    expect((await messages(target.threadId)).some(message => message.roomRequest)).toBe(false);
+  it("queues a recipient at capacity and leaves its current conversation untouched", async () => {
+    expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 1 } })).status).toBe(200);
+    try {
+      const { source, target } = await pair();
+      const release = join(home, `${target.id}.release`);
+      plan[target.id] = { turns: [{ waitForFile: release, reply: "Existing work" }, { reply: "Fresh coordinated result" }] };
+      await start(target, "Existing unrelated work"); await start(source);
+      await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
+      writeFileSync(release, "continue");
+      await settled(source);
+      expect(childNode(source, target)).toMatchObject({ status: "completed", result: "Fresh coordinated result" });
+      expect((await messages(target.threadId)).some(message => message.text === "Existing work")).toBe(true);
+      expect((await messages(target.threadId)).some(message => message.roomRequest)).toBe(false);
+    } finally {
+      expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 2 } })).status).toBe(200);
+    }
   }, 40_000);
   it("retries queued work after provider reload without approving or delivering it twice", async () => {
-    const { source, target } = await pair();
-    await api("PATCH", `/api/bots/${source.id}`, { approvePeerComms: true });
-    plan[target.id] = { delayMs: 4000, reply: "Existing work" };
-    await start(target, "Existing work"); await start(source);
-    await respond(source, await approval(source), "allow");
-    // A queued child can exist while its source still finishes the MCP call.
-    // Reload only after the source yields ownership to the durable coordinator.
-    await expect.poll(() => nodes().find(node => !node.parentId && node.botId === source.id)?.status, { timeout: 15_000 }).toBe("waiting");
-    await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
-    const id = childNode(source, target).id;
-    await api("PUT", "/api/config", { composio: { apiKey: "" } });
-    await settled(source);
-    expect(nodes().find(node => node.id === id).status).toBe("completed");
-    expect((await messages(source.threadId)).filter(message => message.card?.tool === "delegate_bot")).toHaveLength(1);
-    expect((await messages(childNode(source, target).threadId)).filter(message => message.roomRequest?.phase === "request")).toHaveLength(1);
+    expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 1 } })).status).toBe(200);
+    try {
+      const { source, target } = await pair();
+      await api("PATCH", `/api/bots/${source.id}`, { approvePeerComms: true });
+      const release = join(home, `${target.id}.reload-release`);
+      plan[target.id] = { waitForFile: release, reply: "Existing work" };
+      await start(target, "Existing work"); await start(source);
+      await respond(source, await approval(source), "allow");
+      // A queued child can exist while its source still finishes the MCP call.
+      // Reload only after the source yields ownership to the durable coordinator.
+      await expect.poll(() => nodes().find(node => !node.parentId && node.botId === source.id)?.status, { timeout: 15_000 }).toBe("waiting");
+      await expect.poll(() => childNode(source, target)?.status, { timeout: 15_000 }).toBe("queued");
+      const id = childNode(source, target).id;
+      plan[target.id] = { reply: "Fresh coordinated result after reload" };
+      save();
+      expect((await api("PUT", "/api/config", { composio: { apiKey: "" } })).status).toBe(200);
+      writeFileSync(release, "continue");
+      await settled(source);
+      expect(nodes().find(node => node.id === id)).toMatchObject({ status: "completed", result: "Fresh coordinated result after reload" });
+      expect((await messages(source.threadId)).filter(message => message.card?.tool === "delegate_bot")).toHaveLength(1);
+      expect((await messages(childNode(source, target).threadId)).filter(message => message.roomRequest?.phase === "request")).toHaveLength(1);
+    } finally {
+      expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 2 } })).status).toBe(200);
+    }
   }, 40_000);
   it("returns a slow peer result beyond the old synchronous ask timeout without losing it", async () => {
     const { source, target } = await pair(); plan[target.id].delayMs = 250;
