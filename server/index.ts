@@ -12557,7 +12557,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
               .map(b => ({ id: b!.id, name: b!.name, title: b!.title, busy: b!.busy })),
           })).filter(g => g.members.length);
           return json(res, 200, { currentRoom: source ? { id: source.id, name: source.name, workingFolder: source.cwd || null, discussionRequired: source.requireRoomDiscussion ?? false,
-              members: source.memberIds.map(id => store.bot(id)).filter(b => b && b.id !== internalSender.id && !b.hidden && peerAllowed(internalSender, b.id)).map(b => ({ id: b!.id, name: b!.name, title: b!.title })) } : null,
+              members: source.memberIds.map(id => store.bot(id)).filter(b => b && b.id !== internalSender.id &&
+                !roomHandoffProblem({ groupId: source.id, threadId: address.threadId, botId: b.id }, address))
+                .map(b => ({ id: b!.id, name: b!.name, title: b!.title })) } : null,
             bots: reachablePeers(store.bots, internalSender).map(bot => ({ id: bot.id, name: bot.name, title: bot.title, section: bot.section, busy: bot.busy })),
             rooms, note: "Without group_id: use this room when in a room, otherwise your standing conversation with that teammate — every assignment you send it continues the same thread, so write as if it remembers the last one. Each bot uses its own environment and permissions. Files are not transferred: pass absolute paths only when accessible to the recipient, otherwise pass the content." });
         }
@@ -14485,7 +14487,11 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (!incoming.success || existing.dm || incoming.data?.some(id => id === existing.id || !store.group(id) || store.group(id)?.dm)) {
           return json(res, 400, { error: "incomingGroupIds must name other existing group conversations" });
         }
-        const widening = incoming.data === null || incoming.data.some(id => !existing.incomingGroupIds?.includes(id));
+        // Missing/null already allows every otherwise-authorized source.
+        // Replacing that default with a list only narrows access.
+        const previous = existing.incomingGroupIds;
+        const widening = Array.isArray(previous) &&
+          (incoming.data === null || incoming.data.some(id => !previous.includes(id)));
         if (widening && auth.kind === "loopback" && !DESKTOP_MANAGED && !req.headers.origin && store.bots.some(b => b.busy)) {
           return json(res, 409, { error: "configure new room work routes while bots are idle, or use an authenticated admin session" });
         }

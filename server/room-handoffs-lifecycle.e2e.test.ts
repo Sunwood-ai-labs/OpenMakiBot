@@ -57,15 +57,50 @@ it("restores standard permitted-team coordination when route restrictions are cl
   expect(f.nodes().find((n: any) => n.parentId).status).toBe("completed");
 }), 45_000);
 
+it.each([undefined, null])("allows narrowing an unrestricted (%s) route while unrelated work is busy", initial => withRooms(async f => {
+  if (initial === null) await f.tool("update_channel", { channel_id: f.source.id, incoming_group_ids: null });
+  const gate = join(f.session.info.dataDir, "route-edit-gate");
+  f.plan[f.target.id].waitForFile = gate;
+  f.savePlan();
+  await f.cli("send", "--bot", f.target.id, "--text", "Hold independent work while routes change");
+  await expect.poll(async () => (await f.api("/api/bots")).bots.find((b: any) => b.id === f.target.id)?.busy).toBe(true);
+  const patch = async (incomingGroupIds: string[] | null) => {
+    // This is the headless loopback path, with no browser Origin or admin session.
+    const response = await fetch(`${f.session.info.url}/api/groups/${f.source.id}`, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ incomingGroupIds }),
+    });
+    return { status: response.status, body: await response.json() as any };
+  };
+  try {
+    if (initial === null) expect(await patch(null)).toMatchObject({ status: 200, body: { group: { incomingGroupIds: null } } });
+    expect(await patch([f.destination.id])).toMatchObject({ status: 200, body: { group: { incomingGroupIds: [f.destination.id] } } });
+    expect((await patch([f.destination.id])).status).toBe(200);
+    expect(await patch([])).toMatchObject({ status: 200, body: { group: { incomingGroupIds: [] } } });
+    expect((await patch([f.destination.id])).status).toBe(409);
+    expect((await patch(null)).status).toBe(409);
+    const group = (await f.api("/api/bots")).groups.find((g: any) => g.id === f.source.id);
+    expect(group.incomingGroupIds).toEqual([]);
+  } finally {
+    writeFileSync(gate, "release isolated work");
+    await f.cli("wait", "--bot", f.target.id, "--timeout", "15");
+  }
+}), 45_000);
+
 it("does not lend a Chief's team grants to discussion participants", () => withRooms(async f => {
   await f.api(`/api/bots/${f.target.id}`, { section: "Engineering" }, "PATCH");
   await f.api(`/api/bots/${f.sender.id}`, { chiefOfStaff: true, managedSections: ["Engineering"], acknowledgePeerScope: true }, "PATCH");
-  await f.tool("update_channel", { channel_id: f.source.id, member_ids: [f.sender.id, f.target.id], require_room_discussion: true });
+  const reviewer = (await f.cli("new-bot", "--name", "Authorized reviewer", "--section", "Engineering")).bot;
+  await f.api(`/api/bots/${reviewer.id}`, { chiefOfStaff: true, managedSections: ["A"], acknowledgePeerScope: true }, "PATCH");
+  await f.tool("update_channel", { channel_id: f.source.id, member_ids: [f.sender.id, f.target.id, reviewer.id], require_room_discussion: true });
   f.plan[f.sender.id].steps = [{ tool: "discuss_room", expectError: true,
     arguments: { member_ids: [f.target.id], topic: "Private planning discussion", request_key: "discussion" } }];
   await f.start(); expect((await f.wait()).status).toBe("settled");
   expect(f.nodes()).toEqual([]);
   expect(f.provider().map((turn: any) => turn.botId)).toEqual([f.sender.id]);
+  const discoveryResult = f.provider()[0].evidence[1].result;
+  expect(discoveryResult.isError).not.toBe(true);
+  const discovery = JSON.parse(discoveryResult.content[0].text);
+  expect(discovery.currentRoom.members.map((member: any) => member.id)).toEqual([reviewer.id]);
 }), 45_000);
 
 it.each(["recipient", "source-reader", "destination-reader"])("refuses cross-section work involving a %s even with an incoming route", role => withRooms(async f => {
