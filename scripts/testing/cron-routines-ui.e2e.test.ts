@@ -41,6 +41,13 @@ afterAll(async () => {
   const select = (label: string, value: string) => evaluate(`(() => { const field = document.querySelector('select[aria-label=${JSON.stringify(label)}]') ?? [...document.querySelectorAll('label')].find(label => label.firstElementChild?.textContent === ${JSON.stringify(label)})?.control; field.value = ${JSON.stringify(value)}; field.dispatchEvent(new Event('change', { bubbles: true })); return field.value; })()`);
   const routines = async (): Promise<Routine[]> => (await fetch(`${fixture.url}/api/routines`).then(response => response.json())).routines;
   const repeatOptions = () => evaluate("[...document.querySelector('select[aria-label=Repeat]').options].map(option => option.value)");
+  const openOverlap = () => evaluate(`(() => {
+    const field = document.querySelector('select[aria-label="If the previous run is still working"]');
+    const details = field.closest('details');
+    if (!details.open) details.querySelector('summary').click();
+    field.scrollIntoView({ block: 'center' });
+    return field.getBoundingClientRect().height > 0;
+  })()`);
 
   // The launcher handle is available before React finishes rendering the sidebar.
   await expect.poll(async () => Object.values((await ui("snapshot")).refs as Record<string, { name: string }>).map(element => element.name), { timeout: 10_000 }).toContain("Tools");
@@ -59,12 +66,17 @@ afterAll(async () => {
   expect(await evaluate("document.body.innerText")).toContain("including a self-hosted VPS");
   expect(await repeatOptions()).toEqual(expect.arrayContaining(["monthly", "yearly", "cron"]));
   await select("Repeat", "monthly");
+  expect(await openOverlap()).toBe(true);
+  expect(await evaluate('document.querySelector(\'select[aria-label="If the previous run is still working"]\').value')).toBe("skip");
+  await select("If the previous run is still working", "queue");
   await select("Day of month", "L");
   await fill('input[type="time"]', "09:00");
   await fill('input[list="routine-time-zones"]', "UTC");
   await expect.poll(() => evaluate('document.querySelectorAll(\'[aria-label="Next scheduled runs"] time\').length')).toBe(3);
   await evaluate('document.querySelector(\'[aria-label="Next scheduled runs"]\').scrollIntoView({ block: "center" })');
   await ui("screenshot", "--out", `${fixture!.logPath}.cron-monthly.png`);
+  expect(await openOverlap()).toBe(true);
+  await ui("screenshot", "--out", `${fixture!.logPath}.routine-overlap.png`);
   await select("Repeat", "cron");
   expect(await evaluate('document.querySelector(\'input[placeholder="0 9 1 * *"]\').value')).toBe("0 9 L * *");
   await fill('input[placeholder="0 9 1 * *"]', "0 9 31 2 *");
@@ -74,15 +86,19 @@ afterAll(async () => {
   await click("Schedule routine");
   await expect.poll(routines).toHaveLength(1);
   const monthly = (await routines())[0];
-  expect(monthly).toMatchObject({ name: "Monthly close", prompt: "Summarize this fixture only.", schedule: { type: "cron", expression: "0 9 L * *", timeZone: "UTC" } });
+  expect(monthly).toMatchObject({ name: "Monthly close", overlap: "queue", prompt: "Summarize this fixture only.", schedule: { type: "cron", expression: "0 9 L * *", timeZone: "UTC" } });
   await click("List");
   await evaluate("document.querySelector('article[aria-label=\"Monthly close\"] button').click()");
   await click("Edit");
   expect(await evaluate("document.querySelector('select[aria-label=Repeat]').value")).toBe("monthly");
+  expect(await evaluate('document.querySelector(\'select[aria-label="If the previous run is still working"]\').value')).toBe("queue");
+  expect(await openOverlap()).toBe(true);
+  await select("If the previous run is still working", "skip");
   await select("Repeat", "yearly");
   await select("Month", "2"); await select("Day of month", "29");
   await click("Save");
   await expect.poll(async () => (await routines()).find(routine => routine.id === monthly.id)?.schedule).toEqual({ type: "cron", expression: "0 9 29 2 *", timeZone: "UTC" });
+  expect((await routines()).find(routine => routine.id === monthly.id)?.overlap).toBeUndefined();
 
   // The API models a bot-created arbitrary schedule. Editing only its title
   // must not collapse its ranges, weekdays, or non-local timezone to a preset.
