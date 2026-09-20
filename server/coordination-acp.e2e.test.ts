@@ -54,7 +54,11 @@ describe("comms e2e (fake ACP fleet)", () => {
     save();
     expect((await api("POST", `/api/bots/${bot.id}/messages`, { threadId: bot.threadId, text })).status).toBe(202);
   };
-  const childNode = (source: any, target: any) => nodes().find(node => node.parentId && node.botId === target.id && nodes().some(parent => parent.id === node.parentId && parent.botId === source.id));
+  const childNode = (source: any, target: any) => {
+    const all = nodes();
+    return all.find(node => node.parentId && node.botId === target.id
+      && all.some(parent => parent.id === node.parentId && parent.botId === source.id));
+  };
   const settled = async (source: any) => {
     await expect.poll(async () => {
       const root = nodes().find(node => !node.parentId && node.botId === source.id);
