@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -39,9 +40,16 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     const existingIds = new Set<string>((await state()).map((bot: any) => bot.id));
     const createdBots = (bots: any[]) => bots.filter(bot => !existingIds.has(bot.id));
     let previousPid: number | undefined;
-    const start = async (text: string) => {
+    let guardedMessageId: string | undefined;
+    const start = async (text: string, sendId?: string) => {
       if (existsSync(gate)) unlinkSync(gate);
-      await control("send", "--bot", chief.id, "--task", chief.threadId, "--text", text);
+      if (sendId) {
+        const before = await api("GET", `/api/threads/${chief.threadId}/messages`);
+        const accepted = await api("POST", `/api/bots/${chief.id}/messages/guarded`, {
+          threadId: chief.threadId, sendId, text, expectedActiveLeafId: before.activeLeafId,
+        }, 202);
+        guardedMessageId = accepted.message.id;
+      } else await control("send", "--bot", chief.id, "--task", chief.threadId, "--text", text);
       await expect.poll(() => {
         if (!existsSync(fixture.fixtureDumpPath)) return false;
         return JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).pid !== previousPid;
@@ -98,7 +106,9 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     expect((await state()).map((bot: any) => bot.id).sort()).toEqual([...existingIds].sort());
     expect((await state()).find((bot: any) => bot.id === chief.id).managedSections).toBeUndefined();
 
-    token = await start("Apply the reviewed Research, Engineering and Growth setup.");
+    const setupSendId = randomUUID();
+    token = await start("Apply the reviewed Research, Engineering and Growth setup.", setupSendId);
+    const requestSnapshot = () => api("GET", `/api/bots/${chief.id}/requests/${setupSendId}?threadId=${chief.threadId}`);
     const proposed = await api("POST", "/api/internal/team-setup-requests", { plan }, 201, token);
     const before = (await state()).find((bot: any) => bot.id === chief.id);
     const card = before.messages.find((message: any) => message.card?.requestId === proposed.requestId).card;
@@ -108,9 +118,23 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: proposed.requestId, behavior: "allow" }, 403);
     expect((await state()).map((bot: any) => bot.id).sort()).toEqual([...existingIds].sort());
     await finish();
+    const waiting = await requestSnapshot();
+    expect(waiting).toMatchObject({ messageId: guardedMessageId, phase: "waiting", activeTurnId: null, executionId: expect.any(String) });
+    expect(waiting.messages[0]).toMatchObject({ id: guardedMessageId, sendId: setupSendId, role: "user" });
+    expect(waiting.messages.at(-1).id).toBe(waiting.activeLeafId);
     await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: proposed.requestId, behavior: "allow" }, 403, undefined, false);
     const approved = await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: proposed.requestId, behavior: "allow" });
     expect(approved.result.state).toBe("applied"); await continueOnce(proposed.requestId);
+    const settled = await requestSnapshot();
+    expect(settled).toMatchObject({ messageId: guardedMessageId, phase: "settled", activeTurnId: null, executionId: expect.any(String) });
+    expect(settled.executionId).not.toBe(waiting.executionId);
+    expect(settled.messages[0].id).toBe(guardedMessageId);
+    expect(settled.messages.at(-1).id).toBe(settled.activeLeafId);
+    const replies = settled.messages.filter((message: any) => message.role === "bot" && message.kind === "text" && message.turnTerminal);
+    expect(replies).toHaveLength(2);
+    expect(new Set(replies.map((message: any) => message.turnId)).size).toBe(2);
+    expect(replies.every((message: any) => message.requestMessageId === guardedMessageId)).toBe(true);
+    expect(replies.at(-1).text).toContain(`team setup decision ${proposed.requestId}:`);
     const saved = await state();
     expect(createdBots(saved).map(bot => bot.name).sort()).toEqual(["Mira", "Patch", "Quill"]);
     const engineer = createdBots(saved).find((bot: any) => bot.name === "Patch");
