@@ -1560,8 +1560,11 @@ describe("harness HTTP API", () => {
       const afterDirect = (await api("GET", "/api/bots?messages=20")).body.bots.find(
         (candidate: { id: string }) => candidate.id === bot.id,
       );
+      // Admission returns the append receipt; the hanging fake turn adds its
+      // durable pending marker to that same stored message before this read.
+      expect(direct.body.message).not.toHaveProperty("requestPending");
       expect(afterDirect.messages.find((message: { id: string }) => message.id === direct.body.message.id))
-        .toEqual(direct.body.message);
+        .toEqual({ ...direct.body.message, requestPending: true });
 
       expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
       await expect.poll(async () => {
@@ -1620,7 +1623,9 @@ describe("harness HTTP API", () => {
 
       const duplicate = await api("POST", `/api/bots/${bot.id}/messages`, request);
       expect(duplicate.status).toBe(202);
-      expect(duplicate.body).toEqual(first.body);
+      expect(first.body.message).not.toHaveProperty("requestPending");
+      const pendingReceipt = { ...first.body, message: { ...first.body.message, requestPending: true } };
+      expect(duplicate.body).toEqual(pendingReceipt);
 
       const conflict = await api("POST", `/api/bots/${bot.id}/messages`, {
         ...request,
@@ -1659,7 +1664,11 @@ describe("harness HTTP API", () => {
 
       const inactiveRetry = await api("POST", `/api/bots/${bot.id}/messages`, request);
       expect(inactiveRetry.status).toBe(202);
-      expect(inactiveRetry.body).toEqual(first.body);
+      // A retry returns the existing message with its current lifecycle
+      // metadata; it neither starts another turn nor forgets the earlier Stop.
+      expect(inactiveRetry.body).toEqual({
+        ...pendingReceipt, message: { ...pendingReceipt.message, requestCancelled: true },
+      });
       const current = (await api("GET", "/api/bots?messages=0")).body.bots.find(
         (candidate: { id: string }) => candidate.id === bot.id,
       );
@@ -6114,6 +6123,47 @@ describe("harness HTTP API", () => {
     } finally {
       managedBoxRows = [];
       if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
+    }
+  });
+
+  it.each([false, true])("replaces a rejected Box key without losing remembered computers (provisioned=%s)", async (provisioned) => {
+    let botId = "";
+    try {
+      managedBoxRows = [];
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      if (provisioned) {
+        await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud", cloudBackend: "box" });
+        managedBoxCreateMode = "success";
+        managedBoxCreateId = "bx_hjkmnpqr";
+        managedBoxCreateName = managedBoxNameForFixture(bot.id);
+        expect((await api("POST", `/api/bots/${bot.id}/computer/provision`, {})).status).toBe(200);
+      }
+      managedBoxRejectedTokens.add("Bearer box_route");
+      if (provisioned) {
+        // A valid key for another account must not detach a remembered Box.
+        expect((await api("PUT", "/api/config", { box: { token: "box_good" } })).status).toBe(409);
+      }
+      managedBoxRejectedTokens.add("Bearer box_route_rotated");
+      expect((await api("PUT", "/api/config", { box: { token: "box_route_rotated" } })).status).toBe(400);
+      managedBoxRejectedTokens.delete("Bearer box_route_rotated");
+      const rotated = await api("PUT", "/api/config", { box: { token: "box_route_rotated" } });
+      expect(rotated.status).toBe(200);
+      expect(rotated.body.box).toEqual({ configured: true });
+      if (provisioned) {
+        const journal = readFileSync(join(home, ".openmausbot", "box-create-requests.json"), "utf8");
+        expect(journal).toContain(managedBoxCreateId);
+      }
+    } finally {
+      managedBoxRejectedTokens.clear();
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      managedBoxCreateMode = "refuse";
+      managedBoxCreateId = "bx_cdefghjk";
+      managedBoxCreateName = "";
+      managedBoxRows = [];
+      managedBoxCreatedIds.clear();
       await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
     }
   });
