@@ -56,7 +56,7 @@ afterEach(() => {
 
 function harness(
   start = Date.parse("2026-08-28T10:00:00Z"),
-  cloudReady?: () => Promise<{ ready: boolean; reason?: string }>,
+  cloudReady?: (botId: string) => Promise<{ ready: boolean; reason?: string }>,
   canPersist?: (
     botId: string,
     threadId: string,
@@ -127,15 +127,18 @@ describe("RoutineRequestService", () => {
     });
 
     it("rechecks two pending cards at confirmation and leaves replay settlement working", async () => {
-      const { service, routines } = harness();
+      const { service, routines, store } = harness();
       const first = await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal() });
       const second = await service.propose({ botId: "bot-a", threadId: "thread-b", proposal: createProposal() });
       const resolve = (threadId: string, requestId: string) => service.resolve({ botId: "bot-a", threadId, requestId, behavior: "allow" });
       expect(resolve("thread-a", first.requestId)).toMatchObject({ state: "applied" });
       expect(resolve("thread-b", second.requestId)).toMatchObject({ state: "invalid", status: 409 });
       expect(resolve("thread-a", first.requestId)).toMatchObject({ state: "already_settled" });
+      // The duplicate check expired the second card; it can no longer be
+      // decided at all, not even cancelled. Its replay stays settled too.
       expect(service.resolve({ botId: "bot-a", threadId: "thread-b", requestId: second.requestId, behavior: "deny" }))
-        .toMatchObject({ state: "denied" });
+        .toMatchObject({ claimed: true, state: "invalid", status: 409 });
+      expect(store.messagesFor("thread-b")[0]!.card).toMatchObject({ expired: true, options: [] });
       expect(routines.listRoutines()).toHaveLength(1);
     });
 
@@ -893,6 +896,24 @@ describe("RoutineRequestService", () => {
     expect(store.messagesFor("thread-a")).toHaveLength(0);
   });
 
+  it("checks the executing bot for own, teammate and existing cloud routines", async () => {
+    const checked: string[] = [];
+    const { service, routines } = harness(undefined, async botId => {
+      checked.push(botId);
+      return { ready: botId === "bot-a", reason: "Target model unavailable" };
+    });
+    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ runOn: "cloud" }) });
+    const peerProposal = createProposal({ runOn: "cloud" });
+    if (peerProposal.action !== "create") throw new Error("Expected create");
+    await expect(service.propose({ botId: "bot-a", threadId: "thread-a", proposal: {
+      ...peerProposal, forBot: { botId: "bot-b", name: "Peer" },
+    } })).rejects.toThrow("Target model unavailable");
+    const routine = routines.create({ botId: "bot-a", name: "Owned cloud", prompt: "Work",
+      runOn: "cloud", enabled: false, schedule: { type: "daily", time: "10:00", weekdays: [1] } });
+    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: { action: "run_now", routineId: routine.id } });
+    expect(checked).toEqual(["bot-a", "bot-b", "bot-a"]);
+  });
+
   it("checks effective cloud destinations while allowing safe moves away and non-running actions", async () => {
     let checks = 0;
     const { service, routines, store } = harness(undefined, async () => {
@@ -1211,7 +1232,10 @@ describe("RoutineRequestService", () => {
       behavior: "allow",
     })).toMatchObject({ claimed: true, state: "invalid", status: 409 });
     expect(routines.listRoutines()[0]).toMatchObject({ name: "Changed elsewhere", enabled: true });
-    expect(store.messagesFor("thread-a")[0]!.card?.held).toMatch(/changed after this confirmation card/);
+    const dead = store.messagesFor("thread-a")[0]!.card!;
+    expect(dead.held).toMatch(/changed after this confirmation card/);
+    expect(dead.expired).toBe(true);
+    expect(dead.options).toEqual([]);
   });
 
   it("keeps a pending manage confirmation valid across recurring scheduler progress", async () => {
@@ -1501,7 +1525,44 @@ describe("RoutineRequestService", () => {
       behavior: "allow",
     })).toMatchObject({ claimed: true, state: "invalid", status: 409 });
     expect(routines.listRoutines()[0]!.schedule.type).toBe("daily");
-    expect(store.messagesFor("thread-a")[0]!.card?.held).toMatch(/now in the past/);
+    expect(store.messagesFor("thread-a")[0]!.card).toMatchObject({ expired: true, held: expect.stringMatching(/now in the past/) });
+  });
+
+  it("never decides an expired routine card, even when its expiry condition reverses", async () => {
+    const { service, routines, store, clock } = harness();
+    const routine = routines.create({
+      botId: "bot-a",
+      name: "One time",
+      prompt: "Do it",
+      schedule: { type: "daily", time: "10:00", weekdays: [1] },
+    });
+    const scheduledAt = clock.now + 60_000;
+    const proposal = await service.propose({
+      botId: "bot-a",
+      threadId: "thread-a",
+      proposal: {
+        action: "update",
+        routineId: routine.id,
+        changes: { schedule: { type: "once", at: new Date(scheduledAt).toISOString() } },
+      },
+    });
+    clock.now = scheduledAt + 1;
+    expect(service.resolve({ botId: "bot-a", threadId: "thread-a", requestId: proposal.requestId, behavior: "allow" }))
+      .toMatchObject({ claimed: true, state: "invalid", status: 409 });
+    expect(store.messagesFor("thread-a")[0]!.card).toMatchObject({ expired: true });
+
+    // The schedule is future again, but the card stays dead for both
+    // decisions and the proposal never applies.
+    clock.now = scheduledAt - 60_000;
+    const expired = "This routine request expired before it was confirmed. Ask for a fresh proposal.";
+    expect(service.resolve({ botId: "bot-a", threadId: "thread-a", requestId: proposal.requestId, behavior: "allow" }))
+      .toEqual({ claimed: true, state: "invalid", error: expired, status: 409 });
+    expect(service.resolve({ botId: "bot-a", threadId: "thread-a", requestId: proposal.requestId, behavior: "deny" }))
+      .toEqual({ claimed: true, state: "invalid", error: expired, status: 409 });
+    expect(routines.listRoutines()[0]!.schedule.type).toBe("daily");
+    const card = store.messagesFor("thread-a")[0]!.card!;
+    expect(card).toMatchObject({ expired: true, options: [] });
+    expect(card.answered).toBeUndefined();
   });
 
   it("never resumes a one-time routine with no future occurrence", async () => {
@@ -1658,7 +1719,7 @@ describe("cross-bot routine targeting", () => {
     expect(result).toMatchObject({ claimed: true, state: "invalid", status: 404 });
     expect(routines.listRoutines()).toHaveLength(0);
     // the refusal is written back onto the card so the user sees why
-    expect(store.messagesFor("thread-a")[0]?.card?.held).toMatch(/no longer exists/);
+    expect(store.messagesFor("thread-a")[0]?.card).toMatchObject({ expired: true, held: expect.stringMatching(/no longer exists/) });
   });
 });
 

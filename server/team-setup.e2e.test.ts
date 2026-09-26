@@ -88,7 +88,7 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     } });
     const plan = { reason: "Set up Research, Engineering and Growth specialists as requested", newTeams: ["Research", "Engineering", "Growth"], operations: [
       build("Mira", "Research", selection(claude)), build("Patch", "Engineering", selection(codex)), build("Quill", "Growth", selection(claude)),
-      { action: "create", key: "Patch", fields: { title: "Implementation and verification engineer" } },
+      { action: "create", key: "Patch", fields: { title: "Implementation and verification engineer", chiefOfStaff: true } },
     ] };
     let token = await start("Clive, review this setup while you are working.");
     const stopped = await api("POST", "/api/internal/team-setup-requests", { plan }, 201, token);
@@ -114,6 +114,7 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     const card = before.messages.find((message: any) => message.card?.requestId === proposed.requestId).card;
     expect(card.teamSetupRequest.operations).toHaveLength(3);
     expect(card.subtitle).toContain("Authorize @Clive");
+    expect(card.subtitle).toContain("Chief of Staff: No → Yes");
     // Origin is forgeable by an active bot shell: it cannot self-grant teams.
     await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: proposed.requestId, behavior: "allow" }, 403);
     expect((await state()).map((bot: any) => bot.id).sort()).toEqual([...existingIds].sort());
@@ -138,7 +139,8 @@ it("Clive reviews multi-provider teams once, continues after each decision, and 
     const saved = await state();
     expect(createdBots(saved).map(bot => bot.name).sort()).toEqual(["Mira", "Patch", "Quill"]);
     const engineer = createdBots(saved).find((bot: any) => bot.name === "Patch");
-    expect(engineer).toMatchObject({ title: "Implementation and verification engineer", section: "Engineering", modelSelection: selection(codex), approvalMode: "ask", autoApprove: false, composio: false });
+    expect(engineer).toMatchObject({ title: "Implementation and verification engineer", section: "Engineering", chiefOfStaff: true, modelSelection: selection(codex), approvalMode: "ask", autoApprove: false, composio: false });
+    expect(engineer.managedSections).toBeUndefined();
     expect(saved.find((bot: any) => bot.id === chief.id).managedSections).toEqual(expect.arrayContaining(plan.newTeams));
     await api("POST", `/api/threads/${chief.threadId}/respond`, { requestId: proposed.requestId, behavior: "allow" });
     expect(createdBots(await state()).filter((bot: any) => bot.name === "Patch")).toHaveLength(1);
