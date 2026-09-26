@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   appendPastedText,
+  attachmentAudioUrl,
   attachmentBasename,
   attachmentImageUrl,
   clipboardHasImages,
@@ -306,11 +307,7 @@ describe("splitTranscriptAttachments", () => {
       '<attached-file path="/tmp/real.pdf" name="Actual.pdf" />',
     ].join("\n");
     const parsed = splitTranscriptAttachments(stored);
-    expect(parsed.display).toBe([
-      '<pasted-text index="1">',
-      '<attached-file path="/tmp/pasted.pdf" />',
-      "</pasted-text>",
-    ].join("\n"));
+    expect(parsed.display).toBe('<attached-file path="/tmp/pasted.pdf" />');
     expect(parsed.files).toEqual([{ path: "/tmp/real.pdf", name: "Actual.pdf" }]);
     expect(parsed.images).toEqual([]);
   });
@@ -324,12 +321,28 @@ describe("splitTranscriptAttachments", () => {
     expect(splitTranscriptAttachments(stored)).toEqual({ display: stored, images: [], files: [] });
   });
 
-  it("leaves plain text and other tags untouched", () => {
-    const stored = '<pasted-text index="1">\nhi\n</pasted-text>';
+  it("shows only what was pasted, not the wrapper the bot reads", () => {
+    const stored = 'this is for 31/08/26\n\n<pasted-text index="1">\nWe, personally, been using it\n\nsecond paragraph\n</pasted-text>';
     const { display, images, files } = splitTranscriptAttachments(stored);
-    expect(display).toBe(stored);
+    expect(display).toBe("this is for 31/08/26\n\nWe, personally, been using it\n\nsecond paragraph");
     expect(images).toEqual([]);
     expect(files).toEqual([]);
+  });
+
+  it("hides every pasted block, and keeps a closing tag that belongs to the paste", () => {
+    const stored = [
+      '<pasted-text index="1">', "first", "</pasted-text>", "",
+      '<pasted-text index="2">', "a literal </pasted-text> mention", "</pasted-text>",
+    ].join("\n");
+    // the first line naming the closing token ends the block, as the bot sees it
+    expect(splitTranscriptAttachments(stored).display).toBe(["first", "", "a literal </pasted-text> mention", "</pasted-text>"].join("\n"));
+  });
+
+  it("keeps tags visible when they are not the exact wrapper lines, and for exports", () => {
+    const inline = '<pasted-text index="1">hi</pasted-text>';
+    expect(splitTranscriptAttachments(inline).display).toBe(inline);
+    const stored = '<pasted-text index="1">\nhi\n</pasted-text>';
+    expect(splitTranscriptAttachments(stored, false, false).display).toBe(stored);
   });
 });
 
@@ -347,6 +360,16 @@ describe("attachmentBasename", () => {
     expect(attachmentImageUrl("https://attacker.example/tracker.png?cookie=1")).toBeNull();
     expect(attachmentImageUrl("/a/b/payload.svg")).toBeNull();
     expect(attachmentImageUrl("/a/b/not%2Fan-image.png")).toBeNull();
+  });
+
+  it("turns only parked mp3 names into same-origin audio sources", () => {
+    expect(attachmentAudioUrl("/a/b/123e4567-e89b-12d3-a456-426614174000.mp3")).toBe(
+      "/api/attachments/123e4567-e89b-12d3-a456-426614174000.mp3",
+    );
+    expect(attachmentAudioUrl("C:\\a\\b\\note.mp3")).toBe("/api/attachments/note.mp3");
+    expect(attachmentAudioUrl("/a/b/note.wav")).toBeNull();
+    expect(attachmentAudioUrl("/a/b/notes.mp3.txt")).toBeNull();
+    expect(attachmentAudioUrl("https://attacker.example/clip.mp3?x=1")).toBeNull();
   });
 });
 

@@ -97,16 +97,16 @@ describe("independent bot tasks through the isolated control surface", () => {
     await session.close();
   });
 
-  it("queues coordinated work behind a peer's approval and delivers it once without another user prompt", async () => {
-    // Fill the recipient's only slot: spare slots can run coordinated work
-    // even while another thread is waiting for approval. Each test owns a fresh server.
-    expect((await api("PUT", "/api/config", { threads: { maxConcurrentPerBot: 1 } })).status).toBe(200);
+  it("queues coordinated work behind a peer's approval even with a spare thread, and delivers it once without another user prompt", async () => {
     const chief = (await tool("create_bot", { name: "Mailbox Chief", instance_id: "claude", model: models[0] })).bot;
     const peer = (await tool("create_bot", { name: "Mailbox Peer", instance_id: "claude", model: models[1] })).bot;
     await api("PATCH", `/api/bots/${peer.id}/tasks/${peer.activeTaskId}`, { approvalMode: "ask" });
     await control(["send", "--bot", peer.id, "--text", "Hold this review until I approve the check."]);
     const answers = await permission(models[1], "mailbox-approval");
     await expect.poll(async () => (await botState(peer.id)).activity).toBe("waiting-on-you");
+    // A spare slot must not hide the approval hold. Capacity 1 would queue
+    // this for a different reason.
+    expect((await api("PATCH", "/api/config", { threads: { maxConcurrentPerBot: 3 } })).status).toBe(200);
     await control(["send", "--bot", chief.id, "--text", "Ask the reviewer to check the release notes, then return the result here."]);
     const token = (await dump(models[0])).mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
     const roster = await internal(token, "GET", "/api/internal/agents");
@@ -121,19 +121,33 @@ describe("independent bot tasks through the isolated control surface", () => {
     expect(queued.body.errors).toEqual([]);
     expect(queued.body.accepted).toHaveLength(1);
     const requestId = queued.body.accepted[0].requestId;
-    // Finish only the Chief. Its peer remains parked on the actual approval
-    // broker. The source's provider can finish, but the coordinator keeps
-    // the source task waiting until its pinned recipient task returns.
+    // The receipt is the sender's honest answer at send time: this peer is
+    // queued behind its open approval card, so nothing has been delivered.
+    expect(queued.body.receipts).toEqual([{
+      botId: peer.id,
+      botName: "Mailbox Peer",
+      outcome: "queued",
+      detail: "handed to the coordinator; the teammate's turn has not started yet",
+      requestId,
+    }]);
+    const handoff = () => JSON.parse(readFileSync(join(session.info.dataDir, "room-handoffs.json"), "utf8"))
+      .find((node: any) => node.id === requestId);
+    const peerThread = handoff().threadId;
+    expect(peerThread).not.toBe(peer.activeTaskId);
+    // The open approval keeps fresh work queued across a tick, spare slot or
+    // not. Ending the source turn does not release it. #1589 admits a spare
+    // slot only beside a sibling that is running, not beside this card.
     writeFileSync(modelFile(models[0], "gate"), "finish");
     await expect.poll(async () => {
       const current = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === chief.id);
       return current.messages.filter((message: any) => message.tool?.name === "Sent to Mailbox Peer").length;
     }).toBe(1);
-    expect((await botState(chief.id)).busy).toBe(true);
-    const coordinationNodes = () => JSON.parse(readFileSync(join(session.info.dataDir, "room-handoffs.json"), "utf8")) as any[];
-    const recipient = coordinationNodes().find(node => node.id === requestId);
-    expect(recipient.status).toBe("queued");
-    expect(recipient.threadId).not.toBe(peer.activeTaskId);
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    const peerNow = (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === peer.id);
+    const side = peerNow?.tasks?.find((task: any) => task.threadId === peerThread || task.taskId === peerThread);
+    expect(peerNow?.activity).toBe("waiting-on-you");
+    expect(side?.busy).not.toBe(true);
+    expect(handoff()?.status).toBe("queued");
     expect(answers).toEqual([]);
     await control(["messages", "--bot", chief.id, "--limit", "10"]);
     const allowed = await api("POST", `/api/threads/${peer.activeTaskId}/respond`, { requestId: "mailbox-approval", behavior: "allow" });
@@ -150,10 +164,10 @@ describe("independent bot tasks through the isolated control surface", () => {
     const peerState = bots.find((bot: any) => bot.id === peer.id);
     expect(peerState.threadId).toBe(peer.activeTaskId);
     expect(peerState.messages.some((message: any) => message.text?.includes("MAILBOX_REVIEW"))).toBe(false);
-    const delivered = (await api("GET", `/api/threads/${recipient.threadId}/messages`)).body.messages;
-    expect(delivered.filter((message: any) => message.roomRequest?.id === requestId && message.roomRequest.phase === "request")).toHaveLength(1);
-    expect(delivered.some((message: any) => message.text?.includes("MAILBOX_REVIEW"))).toBe(true);
-    expect(coordinationNodes().find(node => node.id === requestId).status).toBe("completed");
+    const targetMessages = (await api("GET", `/api/threads/${peerThread}/messages?limit=100`)).body.messages;
+    expect(targetMessages.filter((message: any) => message.roomRequest?.id === requestId && message.roomRequest.phase === "request")).toHaveLength(1);
+    expect(targetMessages.some((message: any) => message.text?.includes("MAILBOX_REVIEW"))).toBe(true);
+    await expect.poll(() => handoff()?.status, { timeout: 10_000 }).toBe("completed");
     expect((await control(["wait", "--bot", peer.id, "--timeout", "15"])).status).toBe("settled");
     await control(["messages", "--bot", peer.id, "--limit", "10"]);
     await control(["messages", "--bot", chief.id, "--limit", "15"]);
@@ -445,7 +459,8 @@ describe("independent bot tasks through the isolated control surface", () => {
     const descriptorDir = join(session.info.dataDir, "Library", "Application Support", "OpenMausBot");
     mkdirSync(descriptorDir, { recursive: true });
     writeFileSync(join(descriptorDir, "cua-connection.json"), JSON.stringify({
-      mcpCommand: join(session.info.dataDir, "never-launched-computer"), mcpArgs: [], mcpEnv: {},
+      mode: "embedded", socketPath: join(session.info.dataDir, "never-used.sock"),
+      mcpCommand: join(session.info.dataDir, "never-launched-computer"), mcpArgs: ["mcp"], mcpEnv: {},
     }));
     const created = await tool("create_bot", { name: "Computer lease fixture", instance_id: "claude", model: models[0] });
     const botId = created.bot.id;
