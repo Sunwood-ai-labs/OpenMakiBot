@@ -1,5 +1,31 @@
 # A bot makes a file in its VM and attaches it to the chat
 
+## Integration verification — 2026-09-26
+
+Updated against main `f2e450726`. The MCP definitions and handlers now live
+in the existing catalog/call modules; the proxy remains unchanged. File
+attachments coexist with voice notes, including in rooms. VM commands and
+exports use the existing computer gate: lazy Auto claims work, and person
+takeover, expired leases and ended turns refuse access.
+
+Verified in disposable homes, without customer data or a real provider:
+
+- Attachment, command, proxy, message-file and gallery suites: 234 tests passed.
+- Catalog source/bundle goldens, VM claim/lease, prompt, gallery and command
+  regressions: 98 tests passed (some overlap with the previous group).
+- Real-server attachment routes: 3 tests passed, including message-only
+  authorization, parallel per-turn limits, and private image delivery.
+- Real-server VM routing: all 31 tests passed. New cases attach and download
+  a room speaker's PDF, reject commands/exports after takeover or lease
+  expiry, revoke stopped turns, and claim Auto on the first shell call.
+- Lint, locale validation, production build/typecheck and packaged-server
+  smoke passed.
+
+The VM routing suite replaces only the container boundary; it does not prove
+Docker/Podman execution or live-model behavior. The real-VM evidence below is
+the original contributor's September 19 run, not a new acceptance run.
+Cloud/VPS file transfer and mobile file rendering are outside this change.
+
 Captured on 2026-09-19 against upstream `main` (v0.1.84) with a real Claude Code CLI
 (2.1.251) running Z.ai `glm-5.3`, a per-bot Podman Local VM desktop, and the
 production build served by the real `server/index.ts` (`OMB_STATIC_DIR`) on a

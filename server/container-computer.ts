@@ -384,7 +384,7 @@ function statusProblem(status: ContainerComputerStatus): string | null {
   if (!status.managed) return "The existing container was not created by OpenMausBot; recreate it";
   if (status.network === "unsafe") return "The existing Local VM exposes its viewer publicly; recreate it";
   if (status.security === "unsafe") return "The existing Local VM is missing safety limits; recreate it";
-  if (status.persistence === "unsafe") return "The existing Local VM is missing its durable workspace; recreate it";
+  if (status.persistence === "unsafe") return "The existing Local VM is missing its durable folder; recreate it";
   if (status.container === "stopped") return "This desktop image cannot safely resume; recreate the Local VM";
   if (status.desktop_error) return `The Local VM desktop failed to start: ${status.desktop_error}`;
   if (!status.desktopReady) return "The Local VM started, but Cua Driver is not ready yet";
@@ -1184,6 +1184,9 @@ export async function containerExec(
 ): Promise<ContainerExecResult> {
   if (!command.trim()) throw Object.assign(new Error("command is required"), { status: 400 });
   if (command.length > 20_000) throw Object.assign(new Error("command is too long"), { status: 400 });
+  if (options.timeoutSeconds !== undefined && !Number.isFinite(options.timeoutSeconds)) {
+    throw Object.assign(new Error("timeout_seconds must be finite"), { status: 400 });
+  }
   const runtime = options.runtime ?? (await containerRuntimeStatus()).runtime;
   if (!runtime) throw Object.assign(new Error("No container runtime is available for the Local VM"), { status: 409 });
   const seconds = Math.min(Math.max(Math.floor(options.timeoutSeconds ?? EXEC_DEFAULT_SECONDS), 1), EXEC_MAX_SECONDS);
@@ -1284,4 +1287,3 @@ export function setupCommands(
     view: target.viewerPort ? `http://127.0.0.1:${target.viewerPort}/vnc.html` : "",
   };
 }
-

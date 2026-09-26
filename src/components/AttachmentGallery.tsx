@@ -91,7 +91,7 @@ export function splitMessageAttachments(attachments: readonly MessageAttachmentE
   const files: GalleryFile[] = [];
   for (const attachment of attachments) {
     if (attachment.kind === "file") files.push({ path: attachment.path, name: attachment.name || attachmentBasename(attachment.path), private: true });
-    else images.push(attachment.path);
+    else if (attachment.kind === "image" || attachment.kind === undefined) images.push(attachment.path);
   }
   return { images, files };
 }

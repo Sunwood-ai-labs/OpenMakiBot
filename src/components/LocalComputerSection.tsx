@@ -17,6 +17,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Card, CommandLine } from "./SettingsPrimitives";
+import { MacLocalControl } from "./MacLocalControl";
 import { cn } from "@/lib/cn";
 
 type Action = "pull" | "run" | "start" | "stop" | "remove" | "recreate";
@@ -1012,18 +1013,15 @@ export function LocalComputerSection() {
     setStatus(body as Status);
   };
 
+  const confirmAction = (message: string) => window.ogb?.confirm ? window.ogb.confirm(message) : window.confirm(message);
+
   const act = async (action: Action) => {
-    if (
-      action === "remove" &&
-      !window.confirm(t("vm.confirm.deleteShared"))
-    ) return;
-    if (
-      action === "recreate" &&
-      !window.confirm(t("vm.confirm.recreate"))
-    ) return;
+    if (pending !== null) return;
     setPending(action);
     setError(null);
     try {
+      if (action === "remove" && !(await confirmAction(t("vm.confirm.deleteShared")))) return;
+      if (action === "recreate" && !(await confirmAction(t("vm.confirm.recreate")))) return;
       if (action === "recreate") {
         await post("remove");
         await post("run");
@@ -1253,6 +1251,8 @@ export function LocalComputerSection() {
         onRemove={(instance) => void removeVpsComputer(instance)}
       />
 
+      <MacLocalControl />
+
       <Card
         title={t("vm.main.title")}
         subtitle={perBot
@@ -1340,7 +1340,7 @@ export function LocalComputerSection() {
               onChange={(event) => void savePolicy(status?.mode ?? "shared", Number(event.target.value))}
               className="rounded-lg border border-hairline/40 bg-control px-2.5 py-1.5 text-[13px] text-ink disabled:opacity-50"
             >
-              {[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
           </div>
         )}

@@ -52,6 +52,10 @@ describe("containerExec", () => {
     await expect(containerExec(target, "   ", { runtime: "podman", exec })).rejects.toMatchObject({ status: 400 });
     await expect(containerExec(target, "x".repeat(20_001), { runtime: "podman", exec })).rejects.toMatchObject({ status: 400 });
     expect(calls).toHaveLength(2);
+    for (const timeoutSeconds of [NaN, Infinity, -Infinity]) {
+      await expect(containerExec(target, "true", { runtime: "podman", exec, timeoutSeconds })).rejects.toMatchObject({ status: 400 });
+    }
+    expect(calls).toHaveLength(2);
   });
 
   it("keeps the start and the end of a long output, where the error usually is", () => {

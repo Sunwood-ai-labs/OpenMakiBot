@@ -25,6 +25,10 @@ describe("bot-attached files", () => {
       ],
     });
     expect(splitMessageAttachments(undefined)).toEqual({ images: [], files: [] });
+    // Voice notes have their own player; unknown future kinds aren't images.
+    expect(splitMessageAttachments([
+      ...attachments, { kind: "audio", path: "/store/voice.mp3" }, { kind: "future", path: "/store/unknown" },
+    ])).toEqual(splitMessageAttachments(attachments));
   });
 
   it("shows an attached clip as a play button and a deck as a save chip, without repeating a linked one", () => {
