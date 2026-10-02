@@ -4,11 +4,13 @@
 // stay pure prop-takers. This hook is the one place in the bot settings
 // dialog that still reaches into useStore.
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { builtInBrowserEnabled } from "@/lib/feature-flags";
+import { browserAvailable, browserUnavailableReason, builtInBrowserEnabled } from "@/lib/feature-flags";
 import { instanceSupportsLocalComputer, localComputerDisabledReason, localComputerSelectable } from "@/lib/local-computer";
 import { stateForBot } from "@/lib/mascot";
+import { placeOffered } from "@/lib/place";
 import { useStore, type Bot } from "@/state/store";
 import { approvalModeFor } from "../../../shared/approval-mode";
+import { connectorGrantsState, type ConnectorGrantsState } from "@/lib/connector-grants";
 
 export type BotPatch = Partial<
   Pick<
@@ -25,31 +27,44 @@ export type BotPatch = Partial<
     | "mascotBody"
     | "avatarUrl"
     | "avatarCrop"
+    | "avatarZoom"
+    | "avatarFocusX"
+    | "avatarFocusY"
     | "alwaysAllow"
     | "autoApprove"
     | "approvalMode"
-    | "autoReview"
     | "speakReplies"
+    | "memoryEnabled"
     | "voice"
     | "chiefOfStaff"
+    | "managedSections"
     | "approvePeerComms"
     | "composio"
     | "browser"
+    | "mcpServers"
     | "modelSelection"
   >
-> & { computer?: Bot["computer"] | null; acknowledgeLocalAuto?: boolean; confirmFullAccess?: boolean };
+> & {
+  computer?: Bot["computer"] | null;
+  /** null drops the explicit record and returns the bot to the legacy
+   * all-tools boolean. */
+  connectorTools?: Bot["connectorTools"] | null;
+  acknowledgeLocalAuto?: boolean;
+  confirmFullAccess?: boolean;
+  acknowledgePeerScope?: boolean;
+};
 
 export function useBotSettingsDerived(bot: Bot) {
   const { state, dispatch } = useStore();
   const { capabilities } = useDesktopCapabilities();
   const providerSupportsLocal = instanceSupportsLocalComputer(state.instances, bot);
-  const localSelectable = localComputerSelectable({ capabilities, providerSupportsLocal });
+  // An OMB Cloud home never offers this computer (shared/cloud-home.ts).
+  const localSelectable = placeOffered("local", state.config) && localComputerSelectable({ capabilities, providerSupportsLocal });
   const localDisabledReason = localComputerDisabledReason({ capabilities, providerSupportsLocal });
   const patch = (p: BotPatch) => dispatch({ type: "updateBot", botId: bot.id, patch: p });
   const activeState = stateForBot(bot);
   const mascotMotion = state.mascotMotion?.botId === bot.id ? state.mascotMotion : null;
   const engine = state.instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId);
-  const canAutoReview = engine?.capabilities?.approvalReview === true;
   // The approval level (ask / auto / full / custom) as the shared rule reads
   // it from the record — bots saved before approvalMode existed still carry
   // only autoApprove. Full and Custom need the packaged desktop's trusted
@@ -61,20 +76,21 @@ export function useBotSettingsDerived(bot: Bot) {
   const canUseVps = engine?.capabilities?.computerMcp === true && engine.driverKind !== "boxAgent";
   const connectedAppsConfigured = state.config?.composio?.configured === true;
   const connectedAppsEnabled = bot.composio !== false;
+  const connectorGrantState: ConnectorGrantsState = connectorGrantsState(bot);
   const canUseBrowser = engine?.capabilities?.browserMcp === true;
-  const desktopBrowser = Boolean(window.ogb?.browser);
+  const desktopBrowser = browserAvailable(state.config);
   const browserBlockedOnWindows = window.ogb?.platform === "win32" && !desktopBrowser;
   const browserFeature = builtInBrowserEnabled(state.config);
   const browserAllowed = bot.browser !== false;
   const browserEnabled = browserFeature && browserAllowed;
   // "Works on: Browser" needs everything the switch needs except the switch
-  // itself; the box-native Computer engine has no browser-only mode.
+  // itself; the boat-native Computer engine has no browser-only mode.
   const browserSelectable = desktopBrowser && browserFeature && canUseBrowser && engine?.driverKind !== "boxAgent";
   const browserDisabledReason = !desktopBrowser
-    ? "The built-in browser needs the OpenMausBot desktop app"
+    ? browserUnavailableReason(state.config)
     : !browserFeature
       ? "The built-in browser is switched off under App Settings → Experimental"
-      : "This model engine cannot use the built-in browser";
+      : "This model cannot use the built-in browser";
   const sectionName = bot.section?.trim() || "General";
   const currentChief = state.bots.find(
     (candidate) =>
@@ -87,7 +103,6 @@ export function useBotSettingsDerived(bot: Bot) {
   return {
     patch,
     engine,
-    canAutoReview,
     approvalMode,
     trustedModesAvailable,
     canCoordinate,
@@ -95,6 +110,7 @@ export function useBotSettingsDerived(bot: Bot) {
     canUseVps,
     connectedAppsConfigured,
     connectedAppsEnabled,
+    connectorGrantState,
     canUseBrowser,
     desktopBrowser,
     browserBlockedOnWindows,

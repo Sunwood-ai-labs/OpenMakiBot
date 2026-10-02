@@ -135,6 +135,19 @@ describe("message-linked files", () => {
     )).toBe(false);
   });
 
+  it("keeps a Windows path's backslash before punctuation, as in \\.openmausbot", () => {
+    const report = "C:\\Users\\Maus\\.openmausbot\\workspaces\\bot\\_drafts\\report.md";
+    const chart = "C:\\Users\\Maus\\.openmausbot\\workspaces\\bot\\chart.png";
+    const notes = "C:\\Users\\Maus\\.openmausbot\\release notes.md";
+    const markdown = `[Report](${report})\n\n![Chart](${chart})\n\n[Notes][notes]\n\n[notes]: <${notes}>`;
+
+    expect(messageReferencesFile(markdown, report)).toBe(true);
+    expect(messageReferencesFile(markdown, notes)).toBe(true);
+    expect(messageImageTargetAt(markdown, markdown.indexOf("![Chart]"))).toBe(chart);
+    // The folders a dropped backslash would have joined are not what was linked.
+    expect(messageReferencesFile(markdown, "C:\\Users\\Maus.openmausbot\\workspaces\\bot_drafts\\report.md")).toBe(false);
+  });
+
   it("resolves only definitions used by rendered reference links", () => {
     expect(messageReferencesFile(
       "[Open the report][Download]\n\n[download]: /Users/milind/report.md",
@@ -272,6 +285,18 @@ describe("message-linked files", () => {
     await opened.handle.close();
   });
 
+  it("accepts an authored file URL without double-decoding percent or filename suffix characters", async () => {
+    for (const name of ["demo#one.mp4", "r%20.pdf", "r .pdf"]) {
+      const path = join(workspace, name);
+      writeFileSync(path, name);
+      const href = pathToFileURL(path).href;
+      expect(messageReferencesFile(`[file](${href})`, href)).toBe(true);
+      const opened = await openMessageFile(href, [workspace]);
+      expect(opened.name).toBe(name);
+      await opened.handle.close();
+    }
+  });
+
   it("serves OpenDocument formats with their standard MIME types", async () => {
     for (const [extension, mime] of [
       ["odt", "application/vnd.oasis.opendocument.text"],
@@ -285,14 +310,34 @@ describe("message-linked files", () => {
     }
   });
 
-  it("refuses traversal and a symlink that resolves outside the allowed root", async () => {
+  it("serves message-authorized video formats without changing the file ceiling", async () => {
+    for (const [extension, mime] of [
+      ["mp4", "video/mp4"], ["m4v", "video/x-m4v"],
+      ["webm", "video/webm"], ["mov", "video/quicktime"],
+    ]) {
+      writeFileSync(join(workspace, `clip.${extension}`), "video fixture");
+      const file = await openMessageFile(`clip.${extension}`, [workspace]);
+      expect(file.mime).toBe(mime);
+      await file.handle.close();
+    }
+    const large = join(workspace, "large.mp4");
+    writeFileSync(large, "x");
+    truncateSync(large, MESSAGE_FILE_MAX_BYTES + 1);
+    await expect(openMessageFile(large, [workspace])).rejects.toMatchObject({ status: 413 });
+  });
+
+  it("refuses traversal and a filesystem link that resolves outside the allowed root", async () => {
     const secret = join(outside, "secret.md");
     writeFileSync(secret, "not for this conversation");
-    symlinkSync(secret, join(workspace, "escape.md"));
+    // A directory junction exercises the same realpath boundary on Windows
+    // without requiring administrator or Developer Mode file-symlink rights.
+    const escape = process.platform === "win32" ? join("escape", "secret.md") : "escape.md";
+    if (process.platform === "win32") symlinkSync(outside, join(workspace, "escape"), "junction");
+    else symlinkSync(secret, join(workspace, escape));
 
     await expect(openMessageFile("../outside/secret.md", [workspace]))
       .rejects.toMatchObject({ status: 403 });
-    await expect(openMessageFile("escape.md", [workspace]))
+    await expect(openMessageFile(escape, [workspace]))
       .rejects.toMatchObject({ status: 403 });
   });
 

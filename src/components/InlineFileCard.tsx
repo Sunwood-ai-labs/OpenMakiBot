@@ -56,7 +56,7 @@ export function InlineFileCard({ kind, label, caption, file, error, visible, exp
         onClick={kind === 'video' && !failed ? play : open}
         aria-label={kind === 'video' && !failed ? t('filePreview.playInline', { name: label }) : t('filePreview.open', { name: label })}
         className="absolute inset-0 flex items-center justify-center focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-accent">
-        {ready && !failed && <span aria-hidden="true" className={`${document ? 'opacity-0 group-hover/file:opacity-100 group-focus-within/file:opacity-100' : ''} flex size-10 items-center justify-center rounded-full border border-white/30 bg-black/50 text-white transition-opacity`}>
+        {ready && !failed && <span aria-hidden="true" className={`flex size-10 items-center justify-center rounded-full border border-white/30 bg-black/50 text-white transition-opacity group-hover/file:opacity-100 group-focus-within/file:opacity-100 touch:opacity-100 ${document ? 'opacity-0' : ''}`}>
           {kind === 'video' ? <Play size={20} fill="currentColor" /> : <Maximize2 size={17} />}
         </span>}
       </button>}

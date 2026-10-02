@@ -54,15 +54,20 @@ export function PreviewableFile({ path, name, message, children, compact = false
   const container = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    if (!container.current) return;
+    if (!container.current || compact) return;
     const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { rootMargin: '160px' });
     observer.observe(container.current);
     return () => observer.disconnect();
-  }, []);
-  const resource = usePreviewFile(path, label, message, kind, open || visible);
+  }, [compact]);
+  // Message galleries own thumbnails. A Markdown caption stays inline and
+  // fetches its preview only after the person opens it.
+  const resource = usePreviewFile(path, label, message, kind, open || (!compact && visible));
   return <span ref={container} className="inline-flex max-w-full align-top">
-    <InlineFileCard key={path} kind={kind} label={label} caption={compact ? children : undefined}
-      file={resource.file} error={resource.error} visible={visible} expanded={open} onExpand={() => setOpen(true)} />
+    {compact ? <button type="button" aria-label={t('filePreview.open', { name: label })}
+      onClick={() => setOpen(true)} className="inline-flex items-center gap-1 break-words text-start text-accent underline decoration-accent/40 hover:decoration-accent">
+      {children ?? label}<FileText size={13} className="shrink-0" aria-hidden="true" />
+    </button> : <InlineFileCard key={path} kind={kind} label={label}
+      file={resource.file} error={resource.error} visible={visible} expanded={open} onExpand={() => setOpen(true)} />}
     {open && <FilePreviewDialog key={path} path={path} name={label} message={message} resource={resource} onClose={() => setOpen(false)} />}
   </span>;
 }

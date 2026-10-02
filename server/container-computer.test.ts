@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   BASE_IMAGE,
@@ -17,14 +20,17 @@ import {
   VM_WORKSPACE_DIR,
   VM_WORKSPACE_GUEST,
   WORKSPACE_LABEL,
-  computerProxyEnv,
   containerComputerAction,
+  containerComputerFrame,
   containerComputerMcp,
   containerComputerScreenshot,
   containerComputerStatus,
   containerRuntimeStatus,
   containerRunArgs,
+  dockerSecurityIsHardened,
   localVmRecreatableOnDemand,
+  localVmResumable,
+  localVmWorkspaceExists,
   managedImageDockerfile,
   perBotLocalVmTarget,
   podmanSecurityIsHardened,
@@ -32,6 +38,7 @@ import {
   setupCommands,
   type CommandRunner,
   type LocalVmTarget,
+  autoLocalVmAttachable,
 } from "./container-computer.ts";
 
 function runner(responses: Record<string, string | Error>) {
@@ -47,6 +54,24 @@ function runner(responses: Record<string, string | Error>) {
   };
   return { calls, run };
 }
+
+it("recognizes only a durable VM workspace directory as prior provisioning evidence", () => {
+  const root = mkdtempSync(join(tmpdir(), "omb-vm-workspace-"));
+  const target = { ...perBotLocalVmTarget("workspace-fixture"), workspaceDir: join(root, "workspace") };
+  try {
+    expect(localVmWorkspaceExists(target)).toBe(false);
+    writeFileSync(target.workspaceDir, "not a directory");
+    expect(localVmWorkspaceExists(target)).toBe(false);
+    rmSync(target.workspaceDir);
+    mkdirSync(target.workspaceDir);
+    expect(localVmWorkspaceExists(target)).toBe(true);
+    const link = join(root, "linked-workspace");
+    symlinkSync(target.workspaceDir, link, "junction");
+    expect(localVmWorkspaceExists({ ...target, workspaceDir: link })).toBe(false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 const driverExec =
   `docker exec -u cua -e HOME=/home/cua -e DISPLAY=:1 -e CUA_DRIVER_INSTALL_CHANNEL=python_package ` +
@@ -155,7 +180,8 @@ describe("containerComputerStatus", () => {
     });
   });
 
-  it("accepts exact Podman-on-Windows hardening and its WSL-translated durable mount", async () => {
+  it.each(["exact", "legacy", "missing-effective", "missing-bounding", "extra-effective", "extra-bounding"])(
+    "checks Podman-on-Windows readiness with %s capabilities and a WSL-translated durable mount", async (caps) => {
     const derived = perBotLocalVmTarget("bot-win");
     const target: LocalVmTarget = {
       ...derived,
@@ -171,8 +197,12 @@ describe("containerComputerStatus", () => {
       UTSMode: "private",
       CgroupnsMode: null,
     };
-    detail.EffectiveCaps = ["CAP_SETGID", "CAP_SETUID"];
-    detail.BoundingCaps = ["CAP_SETGID", "CAP_SETUID"];
+    detail.EffectiveCaps = ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"];
+    detail.BoundingCaps = ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"];
+    if (caps === "legacy" || caps === "missing-effective") detail.EffectiveCaps.pop();
+    if (caps === "legacy" || caps === "missing-bounding") detail.BoundingCaps.pop();
+    if (caps === "extra-effective") detail.EffectiveCaps.push("CAP_SYS_ADMIN");
+    if (caps === "extra-bounding") detail.BoundingCaps.push("CAP_SYS_ADMIN");
     const targetDriverExec =
       `podman exec -u cua -e HOME=/home/cua -e DISPLAY=:1 -e CUA_DRIVER_INSTALL_CHANNEL=python_package ` +
       `-e CUA_DRIVER_RS_TELEMETRY_ENABLED=0 ${target.containerName} ${CUA_EXECUTABLE}`;
@@ -194,6 +224,14 @@ describe("containerComputerStatus", () => {
     });
 
     const status = await containerComputerStatus(fake.run, "win32", target);
+    if (caps !== "exact") {
+      expect(status).toMatchObject({ security: "unsafe", ready: false });
+      expect(status.problem).toContain("recreate");
+      expect(localVmRecreatableOnDemand(status)).toBe(false);
+      expect(fake.calls.some((call) => call.startsWith("podman exec "))).toBe(false);
+      expect(fake.calls.some((call) => /^podman (run|rm|start|stop) /.test(call))).toBe(false);
+      return;
+    }
 
     expect(status).toMatchObject({
       runtime: "podman",
@@ -228,14 +266,31 @@ describe("containerComputerStatus", () => {
     };
     expect(podmanSecurityIsHardened(
       config,
-      ["CAP_SETGID", "CAP_SETUID"],
-      ["CAP_SETGID", "CAP_SETUID"],
+      ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"],
+      ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"],
     )).toBe(true);
+    // Existing two-capability containers must be recreated, not accepted as ready.
+    expect(podmanSecurityIsHardened(
+      config, ["CAP_SETGID", "CAP_SETUID"], ["CAP_SETGID", "CAP_SETUID"],
+    )).toBe(false);
+    for (const mode of ["private", "keep-id:uid=1000,gid=1000", "host", "container:other", "keep-id:uid=0,gid=0", "auto"]) {
+      expect(podmanSecurityIsHardened(
+        { ...config, UsernsMode: mode }, ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"], ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"],
+      )).toBe(mode === "private" || mode === "keep-id:uid=1000,gid=1000");
+    }
     expect(podmanSecurityIsHardened(
       config,
-      ["CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID"],
-      ["CAP_SETGID", "CAP_SETUID"],
+      ["CAP_NET_RAW", "CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"],
+      ["CAP_SETGID", "CAP_SETUID", "CAP_SYS_CHROOT"],
     )).toBe(false);
+  });
+
+  it.each(["no", "unless-stopped"] as const)("does not extend Docker/VPS capabilities with restart policy %s", (restartPolicy) => {
+    const config = JSON.parse(readyInspect())[0].HostConfig;
+    config.RestartPolicy.Name = restartPolicy;
+    expect(dockerSecurityIsHardened(config, { restartPolicy })).toBe(true);
+    config.CapAdd.push("CAP_SYS_CHROOT");
+    expect(dockerSecurityIsHardened(config, { restartPolicy })).toBe(false);
   });
 
   it("keeps per-bot identities, workspaces, and ephemeral viewer ports separate", async () => {
@@ -422,7 +477,7 @@ describe("containerComputerStatus", () => {
 
     expect(status.persistence).toBe("unsafe");
     expect(status.ready).toBe(false);
-    expect(status.problem).toContain("durable workspace");
+    expect(status.problem).toBe("The existing Local VM is missing its durable folder; recreate it");
   });
 
   it("does not mistake an unrelated container executable for Apple container off macOS", async () => {
@@ -466,6 +521,20 @@ describe("containerComputerStatus", () => {
       driver_version: "0.20.0",
     });
     expect(status.viewer_url).toContain("#autoconnect=true&resize=scale&password=secret123");
+  });
+
+  it("can inspect the viewer without waiting for CUA health or screenshots", async () => {
+    const fake = runner({
+      "/usr/bin/which docker": "docker\n",
+      "/usr/bin/which podman": new Error("missing"),
+      "docker info --format {{.ServerVersion}}": "29\n",
+      [`docker image inspect ${IMAGE}`]: preparedImageInspect(),
+      [`docker inspect ${CONTAINER}`]: readyInspect(),
+    });
+    const status = await containerComputerStatus(fake.run, "linux", undefined, { probeDesktop: false });
+    expect(status.viewer_url).toContain("#autoconnect=true&resize=scale&password=secret123");
+    expect(status.managed).toBe(true);
+    expect(fake.calls.some(call => call.startsWith("docker exec"))).toBe(false);
   });
 
   it("reports the bounded desktop startup error instead of waiting forever", async () => {
@@ -572,13 +641,6 @@ describe("containerComputerStatus", () => {
 });
 
 describe("Cua integration", () => {
-  it("hands cloud credentials only to the isolated remote adapter", () => {
-    expect(computerProxyEnv({ boxId: "bx_1", token: "t" })).toEqual({
-      OGB_BOX_ID: "bx_1",
-      OGB_BOX_TOKEN: "t",
-    });
-  });
-
   it("mounts the official Cua MCP server for Local VM turns", () => {
     const connection = containerComputerMcp("podman");
     expect(connection.command).toBe(process.execPath);
@@ -609,6 +671,16 @@ describe("Cua integration", () => {
     expect(dockerfile).toContain(`${IMAGE_LAYER_LABEL}="${IMAGE_LAYER_VERSION}"`);
     expect(dockerfile).toContain("did not become ready within 45 seconds");
     expect(dockerfile).not.toContain("while ! DISPLAY=:1 xset q");
+  });
+
+  it("installs checksum-pinned Japanese fonts and their license before the desktop starts", () => {
+    const dockerfile = managedImageDockerfile();
+    expect(dockerfile).toContain("NotoSansCJKjp-Regular.otf");
+    expect(dockerfile).toContain("68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5");
+    expect(dockerfile).toContain("6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2");
+    expect(dockerfile).toContain("/usr/local/share/licenses/noto-cjk/OFL.txt");
+    expect(dockerfile).toContain("fc-cache -f");
+    expect(IMAGE_LAYER_VERSION).toBe("5");
   });
 
   it("rejects a zero-byte OpenSSL base image before the wheel download needs curl", () => {
@@ -651,6 +723,33 @@ describe("Cua integration", () => {
     expect(image).toBe(`data:image/png;base64,${png.toString("base64")}`);
     expect(fake.calls).toContain(screenshotCall);
     expect(fake.calls.some((call) => /xdotool|scrot|vnc/i.test(call))).toBe(false);
+  });
+
+  // The live screen poller broadcasts this shape verbatim to every SSE
+  // client, and the phone renders nothing but those events: a data URL here
+  // would reach it as base64 that decodes to garbage.
+  it("hands the screen poller raw base64 and a bare format, not a data URL", async () => {
+    const png = validPng;
+    const fake = runner({
+      "/usr/bin/which docker": "docker\n",
+      "/usr/bin/which podman": new Error("missing"),
+      "docker info --format {{.ServerVersion}}": "29\n",
+      [`docker image inspect ${IMAGE}`]: preparedImageInspect(),
+      [`docker inspect ${CONTAINER}`]: readyInspect(),
+      [versionProbe]: `cua-driver ${CUA_DRIVER_VERSION}\n`,
+      [statusProbe]: "running\n",
+      [healthProbe]: JSON.stringify({ schema_version: "1", overall: "degraded", checks: [] }),
+      [readinessProbe]: "{}\n",
+      [readinessRead]: png.toString("base64"),
+      [`${driverExec} call get_desktop_state {} --socket ${CUA_SOCKET} ` +
+        "--screenshot-out-file /tmp/openmausbot-preview.png"]: "{}\n",
+      [`docker exec ${CONTAINER} base64 -w0 /tmp/openmausbot-preview.png`]: png.toString("base64"),
+    });
+
+    const frame = await containerComputerFrame(fake.run, "linux");
+
+    expect(frame).toEqual({ png: png.toString("base64"), format: "png" });
+    expect(frame.png.startsWith("data:")).toBe(false);
   });
 });
 
@@ -731,17 +830,23 @@ describe("containerComputerAction", () => {
     expect(fake.calls.some((call) => call.startsWith("docker run "))).toBe(false);
   });
 
-  it("never starts a stopped desktop because its stale X lock makes resume unsafe", async () => {
+  it("resumes a compatible stopped desktop without removing it", async () => {
     const fake = runner({
       "/usr/bin/which docker": "docker\n",
       "/usr/bin/which podman": new Error("missing"),
       "docker info --format {{.ServerVersion}}": "29\n",
       [`docker image inspect ${IMAGE}`]: preparedImageInspect(),
-      [`docker inspect ${CONTAINER}`]: readyInspect({ State: { Running: false } }),
+      [`docker inspect ${CONTAINER}`]: readyInspect({ State: { Running: false, FinishedAt: "2026-10-01T12:00:00Z" } }),
+      [`docker start ${CONTAINER}`]: CONTAINER,
     });
 
-    await expect(containerComputerAction("start", fake.run, "linux")).rejects.toThrow("cannot safely resume");
-    expect(fake.calls).not.toContain(`docker start ${CONTAINER}`);
+    const stopped = await containerComputerStatus(fake.run, "linux");
+    expect(localVmResumable(stopped)).toBe(true);
+    expect(stopped.resumable).toBe(true);
+    expect(stopped.stopped_at).toBe("2026-10-01T12:00:00Z");
+    await containerComputerAction("start", fake.run, "linux");
+    expect(fake.calls).toContain(`docker start ${CONTAINER}`);
+    expect(fake.calls.some(call => call.includes(" rm ") || call.includes(" run "))).toBe(false);
   });
 });
 
@@ -768,6 +873,9 @@ describe("setupCommands", () => {
     expect(command).toContain(`source=${target.workspaceDir},target=${VM_WORKSPACE_GUEST}`);
     expect(command).toContain("-p 127.0.0.1::6901");
     expect(command).not.toContain("127.0.0.1:6080:6901");
+    expect(args).not.toContain("--userns");
+    expect(args).not.toContain("--user");
+    expect(command).not.toContain("relabel=");
   });
 
   it("does not invent Docker commands when no runtime was detected", () => {
@@ -787,8 +895,8 @@ describe("setupCommands", () => {
     expect(command).toContain("VNC_PW=CHANGE_ME");
   });
 
-  it("does not suggest docker start for an image that must be recreated", () => {
-    expect(setupCommands("docker", "linux").start).toBeNull();
+  it("offers a start command for a stopped compatible desktop", () => {
+    expect(setupCommands("docker", "linux").start).toBe(`docker start ${CONTAINER}`);
   });
 
   it("limits resources and retains only the sandbox supervisor's identity-switch caps", () => {
@@ -808,9 +916,28 @@ describe("setupCommands", () => {
 
   it("asks rootless Podman to map and privately relabel the durable workspace", () => {
     const command = setupCommands("podman", "linux").run!;
+    expect(command).toContain("--cap-add SYS_CHROOT");
+    expect(command).not.toContain("--privileged");
+    expect(command).not.toContain("unconfined");
+    expect(setupCommands("docker", "linux").run).not.toContain("SYS_CHROOT");
     expect(command).toContain(
-      `--mount type=bind,source=${VM_WORKSPACE_DIR},target=${VM_WORKSPACE_GUEST},relabel=private,U=true`,
+      `--mount type=bind,source=${VM_WORKSPACE_DIR},target=${VM_WORKSPACE_GUEST},relabel=private`,
     );
+    expect(command).toContain("--userns keep-id:uid=1000,gid=1000 --user 0:0");
+    expect(command).not.toContain("U=true");
+  });
+
+  it("keeps per-bot Podman workspaces separate without recursively changing their owner", () => {
+    for (const id of ["podman-a", "podman-b"]) {
+      const target = perBotLocalVmTarget(id);
+      const args = containerRunArgs("podman", "secret", target);
+      expect(args.slice(args.indexOf("--userns"), args.indexOf("--userns") + 4))
+        .toEqual(["--userns", "keep-id:uid=1000,gid=1000", "--user", "0:0"]);
+      expect(args[args.indexOf("--mount") + 1]).toBe(
+        `type=bind,source=${target.workspaceDir},target=${VM_WORKSPACE_GUEST},relabel=private`,
+      );
+      expect(args).toContain("127.0.0.1::6901");
+    }
   });
 
   it("shows the pinned base pull while creating the managed derivative through the API", () => {
@@ -859,7 +986,7 @@ describe("localVmRecreatableOnDemand", () => {
     expect(localVmRecreatableOnDemand(status)).toBe(true);
   });
 
-  it("leaves a stopped container alone, because it is asked to be recreated not started", async () => {
+  it("does not recreate an existing stopped container", async () => {
     const target = SHARED_LOCAL_VM_TARGET;
     const detail = JSON.parse(readyInspect())[0];
     detail.State = { Running: false, Status: "exited" };
@@ -899,5 +1026,38 @@ describe("localVmRecreatableOnDemand", () => {
 
     expect(status.image).toBe(false);
     expect(localVmRecreatableOnDemand(status)).toBe(false);
+  });
+});
+
+describe("Auto's Local VM eligibility", () => {
+  const base = { runtime: "podman", daemonUp: true, image: true, container: "missing", create_supported: true, ready: false } as unknown as Parameters<typeof autoLocalVmAttachable>[0];
+  it("attaches a ready desktop or one whose prepared image can be recreated, and nothing else", () => {
+    expect(autoLocalVmAttachable({ ...base, ready: true, container: "running" })).toBe(true);
+    expect(autoLocalVmAttachable(base)).toBe(true);
+    // Never a first-time setup, an unverified stopped image, or a dead daemon
+    expect(autoLocalVmAttachable({ ...base, image: false })).toBe(false);
+    expect(autoLocalVmAttachable({ ...base, daemonUp: false })).toBe(false);
+    expect(autoLocalVmAttachable({ ...base, container: "stopped" })).toBe(false);
+    expect(autoLocalVmAttachable({ ...base, runtime: null })).toBe(false);
+    expect(autoLocalVmAttachable({ ...base, create_supported: false })).toBe(false);
+  });
+});
+
+describe("Local VM resume safety", () => {
+  it.each([
+    { Config: { Image: "foreign" } },
+    { HostConfig: { Privileged: true } },
+    { Mounts: [] },
+    { State: { Running: true } },
+  ])("refuses an incompatible, unsafe, or running desktop: %j", async patch => {
+    const fake = runner({
+      "/usr/bin/which docker": "docker\n",
+      "docker info --format {{.ServerVersion}}": "29\n",
+      [`docker image inspect ${IMAGE}`]: preparedImageInspect(),
+      [`docker inspect ${CONTAINER}`]: readyInspect({ State: { Running: false }, ...patch }),
+    });
+    expect((await containerComputerStatus(fake.run, "linux")).resumable).toBe(false);
+    await expect(containerComputerAction("start", fake.run, "linux")).rejects.toThrow();
+    expect(fake.calls).not.toContain(`docker start ${CONTAINER}`);
   });
 });

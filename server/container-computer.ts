@@ -7,6 +7,7 @@
 // typing, screenshots, accessibility, or window discovery.
 import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
+import { lstatSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -36,7 +37,7 @@ export const BASE_IMAGE = `${BASE_IMAGE_REPOSITORY}@${BASE_IMAGE_DIGEST}`;
 // Image and container labels below remain the authoritative compatibility
 // check, not the mutable tag.
 export const IMAGE_REPOSITORY = "localhost/openmausbot/cua-local-vm";
-export const IMAGE_LAYER_VERSION = "4";
+export const IMAGE_LAYER_VERSION = "5";
 export const IMAGE_LAYER_LABEL = "com.openmausbot.image-layer";
 export const IMAGE = `${IMAGE_REPOSITORY}:driver-${CUA_DRIVER_VERSION}-v${IMAGE_LAYER_VERSION}`;
 export const CONTAINER = "openmausbot-computer";
@@ -95,6 +96,29 @@ export function perBotLocalVmTarget(botId: string): LocalVmTarget {
   };
 }
 
+/** A pool-mode seat (issue #1654): one of N desktops shared by every
+ * conversation, addressed by seat index. Identities stay disjoint from the
+ * shared singleton and from per-bot digests, so discovery, labels, and lease
+ * lanes never confuse the three modes. */
+export function poolLocalVmTarget(seat: number): LocalVmTarget {
+  return {
+    key: `pool:${seat}`,
+    containerName: `${CONTAINER}-p${seat}`,
+    workspaceDir: join(DATA_DIR, "vm-homes", `pool-${seat}`),
+    viewerPort: null,
+    label: `pool-${seat}`,
+  };
+}
+
+/** Only provisioning creates this durable directory; idle shutdown keeps it. */
+export function localVmWorkspaceExists(target: LocalVmTarget): boolean {
+  try {
+    return lstatSync(target.workspaceDir, { throwIfNoEntry: false })?.isDirectory() === true;
+  } catch {
+    return false;
+  }
+}
+
 const LINUX_WHEELS = {
   x86_64: {
     url: "https://files.pythonhosted.org/packages/fa/d7/a43008a328a40c85e7bc706fc20235b9abedc75e28b413817655153157ff/cua_driver-0.20.0-py3-none-manylinux_2_31_x86_64.whl",
@@ -140,6 +164,17 @@ RUN set -eux; \\
     install -D -m 0755 "$driver_bin" ${CUA_EXECUTABLE}; \\
     install -d -o cua -g cua -m 0700 ${VM_WORKSPACE_GUEST}; \\
     test "$(${CUA_EXECUTABLE} --version)" = "cua-driver ${CUA_DRIVER_VERSION}"
+# Install before XFCE starts so the panel and window manager see the font too.
+# Noto Sans CJK JP is distributed under the SIL Open Font License 1.1.
+RUN set -eux; \\
+    install -d -m 0755 /usr/local/share/fonts; \\
+    curl -fsSL 'https://raw.githubusercontent.com/notofonts/noto-cjk/165c01b46ea533872e002e0785ff17e44f6d97d8/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf' -o /usr/local/share/fonts/NotoSansCJKjp-Regular.otf; \\
+    echo '68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5  /usr/local/share/fonts/NotoSansCJKjp-Regular.otf' | sha256sum -c -; \\
+    chmod 0644 /usr/local/share/fonts/NotoSansCJKjp-Regular.otf; \\
+    install -d -m 0755 /usr/local/share/licenses/noto-cjk; \\
+    curl -fsSL 'https://raw.githubusercontent.com/notofonts/noto-cjk/165c01b46ea533872e002e0785ff17e44f6d97d8/LICENSE' -o /usr/local/share/licenses/noto-cjk/OFL.txt; \\
+    echo '6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2  /usr/local/share/licenses/noto-cjk/OFL.txt' | sha256sum -c -; \\
+    fc-cache -f
 RUN printf '%s\\n' \\
       '#!/bin/sh' \\
       'set -eu' \\
@@ -282,6 +317,10 @@ export interface ContainerComputerStatus {
   persistence: "durable" | "unsafe" | "unknown";
   desktopReady: boolean;
   desktop_error: string | null;
+  /** Runtime timestamp used to match an idle-stop record, never an inferred cause. */
+  stopped_at?: string | null;
+  /** A stopped desktop whose only problem is that it is stopped. */
+  resumable: boolean;
   create_supported: boolean;
   ready: boolean;
   problem: string | null;
@@ -313,6 +352,7 @@ function emptyStatus(platform: NodeJS.Platform, target: LocalVmTarget): Containe
     desktopReady: false,
     desktop_error: null,
     create_supported: true,
+    resumable: false,
     ready: false,
     problem: "Install a supported container runtime first",
     image_ref: IMAGE,
@@ -328,21 +368,8 @@ function emptyStatus(platform: NodeJS.Platform, target: LocalVmTarget): Containe
   };
 }
 
-/** Whether a turn may recreate this Local VM itself instead of failing.
- *
- * True for exactly one state: the container is gone, and a plain `run` is all
- * that is needed to bring it back. That is what `LocalVmIdleTimer` leaves
- * behind — it removes an unused Local VM rather than pausing it — so a turn
- * arriving after an idle period should not have to send the person to App
- * Settings for a container the app itself deleted.
- *
- * Every other problem in `statusProblem` stays the person's call and returns
- * false here: no runtime, daemon down, image never prepared, `create_supported`
- * false, and any existing container — stale image, unmanaged, unsafe network,
- * security or persistence. A stopped container is excluded deliberately, since
- * `statusProblem` says this desktop image cannot safely resume and asks for a
- * recreate rather than a start.
- */
+/** Recreate a missing desktop when its image and runtime are already prepared.
+ * This also recovers desktops deleted by older versions' idle cleanup. */
 export function localVmRecreatableOnDemand(
   status: ContainerComputerStatus,
 ): status is ContainerComputerStatus & { runtime: Runtime } {
@@ -353,6 +380,32 @@ export function localVmRecreatableOnDemand(
     && status.create_supported;
 }
 
+/** Start only an existing, compatible desktop with the managed safety boundary.
+ * Fails closed on fields left "unknown" by a partial inspect, which
+ * `statusProblem` alone would let through. */
+export function localVmResumable(
+  status: ContainerComputerStatus,
+): status is ContainerComputerStatus & { runtime: Runtime } {
+  return Boolean(status.runtime) && status.daemonUp && status.image && status.container === "stopped"
+    && existingContainerProblem(status) === null
+    && status.network === "loopback" && status.security === "hardened" && status.persistence === "durable";
+}
+
+/** What a turn may do on its own to bring this Local VM up, if anything. */
+export function localVmWakeAction(status: ContainerComputerStatus): "run" | "start" | null {
+  if (localVmRecreatableOnDemand(status)) return "run";
+  if (localVmResumable(status)) return "start";
+  return null;
+}
+
+/** Whether Auto may attach this Local VM without a person choosing it: the
+ * desktop is ready, a compatible stopped desktop can be started, or its image
+ * is prepared and a missing container can be recreated. Anything else — no runtime, daemon down, image
+ * never prepared, an unmanaged or unsafe container — stays the person's call. */
+export function autoLocalVmAttachable(status: ContainerComputerStatus): boolean {
+  return status.ready === true || localVmWakeAction(status) !== null;
+}
+
 function statusProblem(status: ContainerComputerStatus): string | null {
   if (!status.runtime) return "Install a supported container runtime first";
   if (!status.daemonUp) return `Start ${status.runtime} first`;
@@ -361,14 +414,21 @@ function statusProblem(status: ContainerComputerStatus): string | null {
     return "Per-bot Local VMs require Docker or Podman because Apple container requires a fixed host port";
   }
   if (status.container === "missing") return "Create the Local VM";
+  const existing = existingContainerProblem(status);
+  if (existing) return existing;
+  if (status.container === "stopped") return "The Local VM is stopped; start it to continue";
+  if (status.desktop_error) return `The Local VM desktop failed to start: ${status.desktop_error}`;
+  if (!status.desktopReady) return "The Local VM started, but Cua Driver is not ready yet";
+  return null;
+}
+
+/** Problems with an existing container that only a recreate fixes. */
+function existingContainerProblem(status: ContainerComputerStatus): string | null {
   if (!status.imageMatches) return "The existing Local VM uses an older desktop or Cua Driver; recreate it";
   if (!status.managed) return "The existing container was not created by OpenMausBot; recreate it";
   if (status.network === "unsafe") return "The existing Local VM exposes its viewer publicly; recreate it";
   if (status.security === "unsafe") return "The existing Local VM is missing safety limits; recreate it";
-  if (status.persistence === "unsafe") return "The existing Local VM is missing its durable workspace; recreate it";
-  if (status.container === "stopped") return "This desktop image cannot safely resume; recreate the Local VM";
-  if (status.desktop_error) return `The Local VM desktop failed to start: ${status.desktop_error}`;
-  if (!status.desktopReady) return "The Local VM started, but Cua Driver is not ready yet";
+  if (status.persistence === "unsafe") return "The existing Local VM is missing its durable folder; recreate it";
   return null;
 }
 
@@ -467,6 +527,7 @@ export async function containerComputerStatus(
   runner: CommandRunner = sh,
   platform: NodeJS.Platform = process.platform,
   target: LocalVmTarget = SHARED_LOCAL_VM_TARGET,
+  options: { probeDesktop?: boolean } = {},
 ): Promise<ContainerComputerStatus> {
   const status = emptyStatus(platform, target);
   const runtimeStatus = await containerRuntimeStatus(runner, platform);
@@ -542,11 +603,12 @@ export async function containerComputerStatus(
         }>;
         EffectiveCaps?: string[];
         BoundingCaps?: string[];
-        State?: { Running?: boolean };
+        State?: { Running?: boolean; FinishedAt?: string };
         Image?: string;
       }>;
       const detail = inspected[0];
       status.container = detail?.State?.Running ? "running" : "stopped";
+      status.stopped_at = status.container === "stopped" ? detail?.State?.FinishedAt ?? null : null;
       status.network = dockerPortsAreLocal(detail?.HostConfig?.PortBindings) ? "loopback" : "unsafe";
       status.viewer_port = dockerViewerPort(detail?.NetworkSettings?.Ports, target.viewerPort);
       status.imageMatches =
@@ -572,7 +634,7 @@ export async function containerComputerStatus(
     // No container with this name.
   }
 
-  const canProbe =
+  const canProbe = options.probeDesktop !== false &&
     status.container === "running" &&
     status.imageMatches &&
     status.managed &&
@@ -643,6 +705,7 @@ export async function containerComputerStatus(
 
   status.problem = statusProblem(status);
   status.ready = status.problem === null;
+  status.resumable = localVmResumable(status);
   return status;
 }
 
@@ -770,13 +833,14 @@ export interface DockerHardeningConfig {
 /** One hardening contract for both managed containers (Local VM here, the
  * BYO-VPS backend in vps-computer.ts): exact resource limits, no privilege,
  * no host namespaces or devices, no disabled security profiles. The only
- * knob the callers legitimately disagree on is the restart policy — the VPS
+ * runtime-specific capability exception is Podman's Firefox sandbox chroot.
+ * Callers also differ on restart policy — the VPS
  * container must survive a reboot nobody is watching ("unless-stopped"),
- * while the Local VM must NOT auto-resume: its desktop leaves a stale X lock
- * on stop, so a restarted container is a broken one. */
+ * while Local VM starts remain controlled by OMB's idle policy and turn
+ * lifecycle rather than a daemon restart policy. */
 export function dockerSecurityIsHardened(
   config: DockerHardeningConfig | undefined,
-  options: { restartPolicy?: "no" | "unless-stopped" } = {},
+  options: { restartPolicy?: "no" | "unless-stopped"; podmanBrowserSandbox?: boolean } = {},
 ): boolean {
   if (!config) return false;
   const capDrop = (config.CapDrop ?? []).map((cap) => cap.toLowerCase());
@@ -795,7 +859,7 @@ export function dockerSecurityIsHardened(
     (config.NanoCpus ?? 0) === NANO_CPUS &&
     config.PidsLimit === PIDS_LIMIT &&
     capDrop.includes("all") &&
-    capAdd.join(",") === "setgid,setuid" &&
+    capAdd.join(",") === (options.podmanBrowserSandbox ? "setgid,setuid,sys_chroot" : "setgid,setuid") &&
     config.Privileged === false &&
     !config.PidMode &&
     config.IpcMode === "private" &&
@@ -815,7 +879,7 @@ export function dockerSecurityIsHardened(
 /** Podman normalizes HostConfig capability and namespace fields when it
  * serializes inspect output. Validate its authoritative effective/bounding
  * sets, then normalize only those known representation differences through
- * the unchanged Docker hardening contract. */
+ * the shared hardening contract with the Podman-only chroot exception. */
 export function podmanSecurityIsHardened(
   config: DockerHardeningConfig | undefined,
   effectiveCaps: string[] | undefined,
@@ -825,7 +889,7 @@ export function podmanSecurityIsHardened(
   const normalizeCaps = (caps: string[] | undefined) => (caps ?? [])
     .map((cap) => cap.toLowerCase().replace(/^cap_/, ""))
     .sort();
-  const exactCaps = "setgid,setuid";
+  const exactCaps = "setgid,setuid,sys_chroot";
   if (normalizeCaps(effectiveCaps).join(",") !== exactCaps) return false;
   if (normalizeCaps(boundingCaps).join(",") !== exactCaps) return false;
   return dockerSecurityIsHardened({
@@ -834,8 +898,12 @@ export function podmanSecurityIsHardened(
     CapAdd: effectiveCaps,
     PidMode: config.PidMode === "private" ? "" : config.PidMode,
     UTSMode: config.UTSMode === "private" ? "" : config.UTSMode,
+    // Rootless keep-id maps the workspace owner to the guest cua account.
+    // Do not accept arbitrary user namespace sharing or host namespaces.
+    UsernsMode: config.UsernsMode === "private" || config.UsernsMode === "keep-id:uid=1000,gid=1000"
+      ? "" : config.UsernsMode,
     CgroupnsMode: config.CgroupnsMode || "private",
-  });
+  }, { podmanBrowserSandbox: true });
 }
 
 export function containerRunArgs(
@@ -847,6 +915,11 @@ export function containerRunArgs(
     throw new Error("Per-bot Local VMs require Docker or Podman because Apple container requires a fixed host port");
   }
   const common = ["run", "-d", "--name", target.containerName];
+  if (runtime === "podman") {
+    // The supervisor starts as namespace-root then drops to cua (1000).
+    // Preserve the host workspace owner instead of :U chowning it to root.
+    common.push("--userns", "keep-id:uid=1000,gid=1000", "--user", "0:0");
+  }
   common.push(
     "--label",
     `${MANAGED_LABEL}=1`,
@@ -907,10 +980,13 @@ export function containerRunArgs(
       "512m",
     );
   }
+  // Podman's default seccomp profile gates chroot on this capability.
+  // Firefox uses chroot inside its own namespace to establish its sandbox.
+  if (runtime === "podman") common.push("--cap-add", "SYS_CHROOT");
   common.push(
     "--mount",
     runtime === "podman"
-      ? `type=bind,source=${target.workspaceDir},target=${VM_WORKSPACE_GUEST},relabel=private,U=true`
+      ? `type=bind,source=${target.workspaceDir},target=${VM_WORKSPACE_GUEST},relabel=private`
       : `type=bind,source=${target.workspaceDir},target=${VM_WORKSPACE_GUEST}`,
     "-e",
     `VNC_PW=${password}`,
@@ -960,10 +1036,8 @@ export async function containerComputerAction(
   if (action === "run" && !before.create_supported) {
     throw Object.assign(new Error(before.problem ?? "This runtime cannot create a per-bot Local VM"), { status: 409 });
   }
-  if (action === "start") {
-    throw Object.assign(new Error("This desktop image cannot safely resume; remove and recreate the Local VM"), {
-      status: 409,
-    });
+  if (action === "start" && !localVmResumable(before)) {
+    throw Object.assign(new Error(before.problem ?? "The Local VM is not stopped"), { status: 409 });
   }
   if (action === "stop" && before.container !== "running") {
     throw Object.assign(new Error("The Local VM is not running"), { status: 409 });
@@ -1028,11 +1102,14 @@ export function wholeScreenshot(bytes: Buffer): ScreenshotCheck {
   };
 }
 
-export async function containerComputerScreenshot(
+/** The raw frame, in the shape the live screen poller broadcasts to every
+ * client (server/index.ts). The web panel wants a data URL instead, so
+ * containerComputerScreenshot below wraps this one. */
+export async function containerComputerFrame(
   runner: CommandRunner = sh,
   platform: NodeJS.Platform = process.platform,
   target: LocalVmTarget = SHARED_LOCAL_VM_TARGET,
-): Promise<string> {
+): Promise<{ png: string; format: "png" | "jpeg" }> {
   const cacheable = runner === sh && platform === process.platform;
   const now = Date.now();
   const cached = screenshotStatusCache.get(target.key);
@@ -1070,11 +1147,20 @@ export async function containerComputerScreenshot(
     if (!checked.ok) {
       throw Object.assign(new Error("Cua Driver returned an incomplete screenshot"), { status: 502 });
     }
-    return `data:${checked.mime};base64,${data}`;
+    return { png: data, format: checked.mime === "image/jpeg" ? "jpeg" : "png" };
   } catch (error) {
     if (cacheable) screenshotStatusCache.delete(target.key);
     throw error;
   }
+}
+
+export async function containerComputerScreenshot(
+  runner: CommandRunner = sh,
+  platform: NodeJS.Platform = process.platform,
+  target: LocalVmTarget = SHARED_LOCAL_VM_TARGET,
+): Promise<string> {
+  const { png, format } = await containerComputerFrame(runner, platform, target);
+  return `data:image/${format};base64,${png}`;
 }
 
 const screenshotStatusCache = new Map<
@@ -1083,6 +1169,86 @@ const screenshotStatusCache = new Map<
 >();
 
 const containerMcpPath = SPAWNED_PROXIES.containerMcp;
+
+export interface ContainerExecResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}
+
+type ContainerExecRunner = (
+  command: string,
+  args: string[],
+  options: { timeout: number },
+) => Promise<{ stdout: string; stderr: string; code: number }>;
+
+const EXEC_DEFAULT_SECONDS = 60;
+const EXEC_MAX_SECONDS = 300;
+const EXEC_OUTPUT_LIMIT = 20_000;
+
+/** Keep the start and the end: a failure message is nearly always at the end. */
+export function clipExecOutput(text: string, limit = EXEC_OUTPUT_LIMIT): string {
+  if (text.length <= limit) return text;
+  const head = Math.floor(limit / 5);
+  return `${text.slice(0, head)}\n… ${text.length - limit} characters omitted …\n${text.slice(text.length - (limit - head))}`;
+}
+
+const defaultExecRunner: ContainerExecRunner = async (command, args, options) => {
+  const resolved = resolveCliSpawn(command, args);
+  try {
+    const { stdout, stderr } = await run(resolved.command, resolved.args, {
+      timeout: options.timeout,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, PATH: augmentedPath() },
+    });
+    return { stdout, stderr, code: 0 };
+  } catch (error) {
+    const failure = error as { stdout?: string; stderr?: string; code?: unknown; killed?: boolean; message?: string };
+    // A non-zero exit still carries the output; anything else (runtime missing,
+    // client killed) is a real failure to run at all.
+    if (typeof failure.code === "number") {
+      return { stdout: failure.stdout ?? "", stderr: failure.stderr ?? "", code: failure.code };
+    }
+    throw Object.assign(new Error(failure.killed ? "the command client timed out" : failure.message ?? "could not run the command"), { status: 502 });
+  }
+};
+
+/** Run one shell command inside a Local VM as the desktop user, in its durable
+ * workspace, and return the exit code and text output. Bots use this instead of
+ * typing into a terminal window and reading screenshots. The limit is enforced
+ * inside the container so a runaway process is really stopped. */
+export async function containerExec(
+  target: LocalVmTarget,
+  command: string,
+  options: { timeoutSeconds?: number; runtime?: Runtime; exec?: ContainerExecRunner } = {},
+): Promise<ContainerExecResult> {
+  if (!command.trim()) throw Object.assign(new Error("command is required"), { status: 400 });
+  if (command.length > 20_000) throw Object.assign(new Error("command is too long"), { status: 400 });
+  if (options.timeoutSeconds !== undefined && !Number.isFinite(options.timeoutSeconds)) {
+    throw Object.assign(new Error("timeout_seconds must be finite"), { status: 400 });
+  }
+  const runtime = options.runtime ?? (await containerRuntimeStatus()).runtime;
+  if (!runtime) throw Object.assign(new Error("No container runtime is available for the Local VM"), { status: 409 });
+  const seconds = Math.min(Math.max(Math.floor(options.timeoutSeconds ?? EXEC_DEFAULT_SECONDS), 1), EXEC_MAX_SECONDS);
+  const result = await (options.exec ?? defaultExecRunner)(
+    runtime,
+    [
+      "exec",
+      "-u", "cua",
+      "-w", VM_WORKSPACE_GUEST,
+      "-e", "HOME=/home/cua",
+      "-e", `DISPLAY=${DISPLAY}`,
+      target.containerName,
+      "timeout", "-k", "5", String(seconds),
+      "sh", "-lc", command,
+    ],
+    { timeout: (seconds + 20) * 1000 },
+  );
+  const timedOut = result.code === 124 || result.code === 137;
+  return { exitCode: result.code, stdout: clipExecOutput(result.stdout), stderr: clipExecOutput(result.stderr), timedOut };
+}
 
 /** Spawn contract handed directly to agent runtimes. The tiny host wrapper
  * only preserves stdio through the container CLI; Cua Driver owns the MCP
@@ -1157,24 +1323,9 @@ export function setupCommands(
       runtime === "container" && target.key !== SHARED_LOCAL_VM_TARGET.key
         ? null
         : command(containerRunArgs(runtime, "CHANGE_ME", target)),
-    start: null,
+    start: command(["start", target.containerName]),
     stop: command(["stop", target.containerName]),
     remove: command(["rm", runtime === "container" ? "--force" : "-f", target.containerName]),
     view: target.viewerPort ? `http://127.0.0.1:${target.viewerPort}/vnc.html` : "",
-  };
-}
-
-/** Cloud boxes still use OpenMausBot's high-latency REST adapter. Local VMs
- * bypass it and mount Cua Driver's official MCP server through
- * containerComputerMcp(). */
-export function computerProxyEnv(
-  computer: { boxId?: string; token?: string; control?: { url: string; token: string } },
-): NodeJS.ProcessEnv {
-  return {
-    OGB_BOX_ID: computer.boxId ?? "",
-    OGB_BOX_TOKEN: computer.token ?? "",
-    ...(computer.control
-      ? { OMB_CONTROL_URL: computer.control.url, OMB_CONTROL_TOKEN: computer.control.token }
-      : {}),
   };
 }

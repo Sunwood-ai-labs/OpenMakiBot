@@ -32,6 +32,18 @@ final class DecodingTests: XCTestCase {
 
     // MARK: - Hydration
 
+    func testRoutineExecutionMarkerIsOptionalAndPreserved() throws {
+        let legacy = try JSONDecoder().decode(
+            BotTask.self, from: Data(#"{"threadId":"legacy","title":"Legacy","createdAt":1}"#.utf8)
+        )
+        let execution = try JSONDecoder().decode(
+            BotTask.self, from: Data(#"{"threadId":"run-thread","title":"Brief","createdAt":2,"routineRunId":"run-1"}"#.utf8)
+        )
+        XCTAssertNil(legacy.routineRunId)
+        XCTAssertEqual(execution.routineRunId, "run-1")
+        XCTAssertEqual(try JSONDecoder().decode(BotTask.self, from: JSONEncoder().encode(execution)), execution)
+    }
+
     func testDecodesThePagedFleet() throws {
         let fleet = try decode(Fleet.self, "bots-paged")
         XCTAssertFalse(fleet.bots.isEmpty)
@@ -63,6 +75,60 @@ final class DecodingTests: XCTestCase {
         XCTAssertFalse(overview.does.isEmpty)
         XCTAssertFalse(overview.wont.isEmpty)
         XCTAssertFalse(overview.recent.isEmpty)
+        // The captured bot predates connector grants: a computer that never
+        // assigns them must keep decoding on a phone that knows about them.
+        XCTAssertNil(overview.grants)
+    }
+
+    func testDecodesConnectorGrantsInABotOverview() throws {
+        let json = """
+        {"who":{"name":"Kiwi","title":"","blurb":"","soulLead":""},
+         "does":[],"reaches":[],"wont":[],"recent":[],
+         "grants":[
+           {"slug":"gmail","level":"all","toolCount":0},
+           {"slug":"slack","level":"partial","toolCount":2},
+           {"slug":"notion","level":"none","toolCount":0}
+         ]}
+        """
+        let overview = try JSONDecoder().decode(BotOverview.self, from: Data(json.utf8))
+        let grants = try XCTUnwrap(overview.grants)
+        XCTAssertEqual(grants.count, 3)
+        XCTAssertEqual(grants[0], BotOverviewGrant(slug: "gmail", level: .all, toolCount: 0))
+        XCTAssertEqual(grants[1].slug, "slack")
+        XCTAssertEqual(grants[1].level, .partial)
+        XCTAssertEqual(grants[1].toolCount, 2)
+        XCTAssertEqual(grants[2], BotOverviewGrant(slug: "notion", level: .none, toolCount: 0))
+        XCTAssertEqual(try JSONDecoder().decode(BotOverview.self, from: JSONEncoder().encode(overview)).grants, grants)
+    }
+
+    func testAnExplicitNoToolsRecordIsAnEmptyGrantList() throws {
+        let json = #"{"who":{"name":"Kiwi","title":"","blurb":"","soulLead":""},"does":[],"reaches":[],"wont":[],"recent":[],"grants":[]}"#
+        let overview = try JSONDecoder().decode(BotOverview.self, from: Data(json.utf8))
+        XCTAssertEqual(overview.grants, [])
+    }
+
+    func testAnEntirelyUnreadableGrantsRecordDecodesAsAbsent() throws {
+        let json = #"{"who":{"name":"Kiwi","title":"","blurb":"","soulLead":""},"does":[],"reaches":[],"wont":[],"recent":[],"grants":[{"level":"all","toolCount":0},{"slug":"gmail","toolCount":0}]}"#
+        let overview = try JSONDecoder().decode(BotOverview.self, from: Data(json.utf8))
+        XCTAssertNil(overview.grants)
+    }
+
+    func testUnknownGrantShapesDoNotCostTheOverview() throws {
+        // A level this build does not know still renders (as "some tools"),
+        // and one entry the decoder cannot read is dropped rather than
+        // taking the whole overview with it.
+        let unknownLevel = #"{"who":{"name":"Kiwi","title":"","blurb":"","soulLead":""},"does":[],"reaches":[],"wont":[],"recent":[],"grants":[{"slug":"gmail","level":"scoped","toolCount":7}]}"#
+        let overview = try JSONDecoder().decode(BotOverview.self, from: Data(unknownLevel.utf8))
+        XCTAssertEqual(overview.who.name, "Kiwi")
+        XCTAssertEqual(overview.grants, [BotOverviewGrant(slug: "gmail", level: .partial, toolCount: 7)])
+
+        let malformedEntry = #"{"who":{"name":"Kiwi","title":"","blurb":"","soulLead":""},"does":[],"reaches":[],"wont":[],"recent":[],"grants":[{"slug":"gmail","level":3},{"slug":"slack","level":"all","toolCount":0}]}"#
+        let surviving = try JSONDecoder().decode(BotOverview.self, from: Data(malformedEntry.utf8))
+        XCTAssertEqual(surviving.grants?.map(\.slug), ["slack"])
+
+        let malformedField = #"{"who":{"name":"Kiwi","title":"","blurb":"","soulLead":""},"does":[],"reaches":[],"wont":[],"recent":[],"grants":5}"#
+        let tolerated = try JSONDecoder().decode(BotOverview.self, from: Data(malformedField.utf8))
+        XCTAssertNil(tolerated.grants)
     }
 
     func testStorePreviewRemainsADecodableFleet() throws {
@@ -489,6 +555,98 @@ final class DecodingTests: XCTestCase {
         XCTAssertEqual(message.text, "hi")
     }
 
+    func testDecodesAThreadOpenedByABotAndOneOpenedByThePerson() throws {
+        // Newer computers say which bot opened a thread on itself or a
+        // teammate. The captured fixtures predate that, so every thread in
+        // them was opened by the person — and must still decode as such.
+        let json = """
+        {"threadId":"t2","title":"Ship it","createdAt":1,
+         "openedBy":{"botId":"scout","name":"Scout","delegationId":"d1","at":2}}
+        """
+        let opened = try JSONDecoder().decode(BotTask.self, from: Data(json.utf8))
+        XCTAssertEqual(opened.openedBy?.botId, "scout")
+        XCTAssertEqual(opened.openedBy?.name, "Scout")
+        XCTAssertEqual(opened.openedBy?.delegationId, "d1")
+        XCTAssertEqual(opened.openedBy?.at, 2)
+
+        let minimal = try JSONDecoder().decode(
+            BotTask.self,
+            from: Data(#"{"threadId":"t1","title":"","createdAt":1,"openedBy":{"botId":"scout","name":"Scout","at":2}}"#.utf8)
+        )
+        XCTAssertNil(minimal.openedBy?.delegationId)
+
+        let byThePerson = try JSONDecoder().decode(
+            BotTask.self, from: Data(#"{"threadId":"t1","title":"","createdAt":1}"#.utf8)
+        )
+        XCTAssertNil(byThePerson.openedBy)
+        for task in try decode(Fleet.self, "bots-paged").bots.flatMap({ $0.tasks ?? [] }) {
+            XCTAssertNil(task.openedBy, task.threadId)
+        }
+    }
+
+    func testDecodesAThreadABotClosedAndOneStillOpen() throws {
+        // close_thread stamps who closed a thread; an open thread — and every
+        // thread from an older computer — has no stamp and decodes as open.
+        let closed = try JSONDecoder().decode(BotTask.self, from: Data("""
+        {"threadId":"t2","title":"Ship it","createdAt":1,
+         "openedBy":{"botId":"pm","name":"Parker","at":2},
+         "closedBy":{"botId":"pm","name":"Parker","at":9}}
+        """.utf8))
+        XCTAssertEqual(closed.closedBy?.botId, "pm")
+        XCTAssertEqual(closed.closedBy?.name, "Parker")
+        XCTAssertEqual(closed.closedBy?.at, 9)
+        XCTAssertTrue(closed.isClosed)
+        XCTAssertEqual(closed.bylineLabel, "closed by Parker", "closed outranks opened on the one byline")
+
+        let open = try JSONDecoder().decode(
+            BotTask.self,
+            from: Data(#"{"threadId":"t1","title":"","createdAt":1,"openedBy":{"botId":"pm","name":"Parker","at":2}}"#.utf8)
+        )
+        XCTAssertNil(open.closedBy)
+        XCTAssertFalse(open.isClosed)
+        XCTAssertEqual(open.bylineLabel, "opened by Parker")
+        XCTAssertNil(try JSONDecoder().decode(BotTask.self, from: Data(#"{"threadId":"t1","title":"","createdAt":1}"#.utf8)).bylineLabel)
+        for task in try decode(Fleet.self, "bots-paged").bots.flatMap({ $0.tasks ?? [] }) {
+            XCTAssertFalse(task.isClosed, task.threadId)
+        }
+    }
+
+    func testAThreadOpenedByABotSaysSoInTheList() throws {
+        // Same words as the desktop's thread list, so a person reading both
+        // screens reads one sentence.
+        let opened = try JSONDecoder().decode(
+            BotTask.self,
+            from: Data(#"{"threadId":"t2","title":"Ship it","createdAt":1,"openedBy":{"botId":"scout","name":"Scout","at":2}}"#.utf8)
+        )
+        XCTAssertEqual(opened.openedByLabel, "opened by Scout")
+
+        let byThePerson = try JSONDecoder().decode(
+            BotTask.self, from: Data(#"{"threadId":"t1","title":"","createdAt":1}"#.utf8)
+        )
+        XCTAssertNil(byThePerson.openedByLabel)
+    }
+
+    func testDecodesAThreadRefOnAnActivityChipAndItsAbsence() throws {
+        let json = """
+        {"id":"m3","role":"bot","kind":"activity","at":1,
+         "tool":{"name":"Opened thread #Ship it on Scout","ok":true},
+         "threadRef":{"botId":"scout","threadId":"t2","title":"Ship it"}}
+        """
+        let chip = try JSONDecoder().decode(Message.self, from: Data(json.utf8))
+        XCTAssertEqual(chip.kind, .activity)
+        XCTAssertEqual(chip.tool?.name, "Opened thread #Ship it on Scout")
+        XCTAssertEqual(chip.threadRef, ThreadRef(botId: "scout", threadId: "t2", title: "Ship it"))
+
+        let receipt = try JSONDecoder().decode(
+            Message.self,
+            from: Data(#"{"id":"m4","role":"bot","kind":"activity","at":1,"tool":{"name":"Read","ok":true}}"#.utf8)
+        )
+        XCTAssertNil(receipt.threadRef)
+        for message in try decode(ThreadPage.self, "thread-page").messages {
+            XCTAssertNil(message.threadRef, message.id)
+        }
+    }
+
     // MARK: - Pairing and errors
 
     func testDecodesThePairResponse() throws {
@@ -636,6 +794,28 @@ final class DecodingTests: XCTestCase {
         XCTAssertEqual(message.text, "Stripe fired")
     }
 
+    // A digest is known, not new: it must not take the unknown-kind path,
+    // which draws any text it carries as a message bubble.
+    func testADigestIsNotAnUnknownKind() throws {
+        let json = """
+        {"id":"m1","role":"bot","kind":"digest","at":1,"text":"[digest] · tools: shell ×1"}
+        """
+        let message = try JSONDecoder().decode(Message.self, from: Data(json.utf8))
+        XCTAssertNotEqual(message.kind, .unknown)
+    }
+
+    func testACompactionMessageDecodesItsRecord() throws {
+        let json = """
+        {"id":"c1","role":"bot","kind":"compaction","at":1,"text":"[compaction] Earlier: …",
+         "compaction":{"summary":"Earlier: the user asked for X.","firstKeptId":"c1","tokensBefore":12345,"by":"person"}}
+        """
+        let message = try JSONDecoder().decode(Message.self, from: Data(json.utf8))
+        XCTAssertEqual(message.kind, .compaction)
+        XCTAssertEqual(message.compaction?.summary, "Earlier: the user asked for X.")
+        XCTAssertTrue(message.compaction?.chipText.hasPrefix("Context compacted · ") == true)
+        XCTAssertTrue(message.compaction?.chipText.hasSuffix("345 tokens summarised") == true)
+    }
+
     func testAnUnknownRoleIsNotAttributedToYou() throws {
         let json = """
         {"id":"m1","role":"system","kind":"text","at":1,"text":"hello"}
@@ -665,7 +845,7 @@ final class DecodingTests: XCTestCase {
     func testAnUnknownMessageArrivesOverTheStream() throws {
         let json = """
         {"kind":"message","seq":3,"threadId":"t1",
-         "message":{"id":"m9","role":"bot","kind":"routine.run","at":9,"text":"ran"}}
+         "message":{"id":"m9","role":"bot","kind":"calendar.invite","at":9,"text":"ran"}}
         """
         let frame = try JSONDecoder().decode(StreamFrame.self, from: Data(json.utf8))
         guard case let .message(threadId, message) = frame.frame else {

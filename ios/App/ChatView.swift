@@ -21,11 +21,15 @@ import AVFoundation
 
 struct ChatView: View {
     let chat: Chat
+    @State private var selectedThreadId: String
     @EnvironmentObject private var session: Session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var draft = ""
+    @State private var revealedMessageId: String?
+    /// The reader has dragged this thread's transcript since it opened.
+    @State private var readerScrolled = false
     @State private var showingTasks = false
     @State private var showingComputer = false
     @State private var showingPlus = false
@@ -36,6 +40,12 @@ struct ChatView: View {
     @State private var showingFileImporter = false
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var attachments: [PendingMessageAttachment] = []
+    private struct ComposerSnapshot {
+        var text = ""
+        var attachments: [PendingMessageAttachment] = []
+        var error: String?
+    }
+    @State private var threadDrafts: [String: ComposerSnapshot] = [:]
     @State private var preparingAttachments = false
     @State private var sendingMessage = false
     @State private var attachmentError: String?
@@ -44,7 +54,7 @@ struct ChatView: View {
     @State private var filePreview: FilePreviewItem?
     @State private var fileDownloadTask: Task<Void, Never>?
     @State private var fileDownloadRequestID: UUID?
-    @State private var acceptsNextHardwareLineBreak = false
+    @State private var threadOpenTask: Task<Void, Never>?
     @FocusState private var composerFocused: Bool
     @StateObject private var dictation = SpeechDictation()
     /// The opening beat: the island grows with the bot's face in it, then
@@ -59,6 +69,11 @@ struct ChatView: View {
     @AppStorage(PrefKey.activityDetail) private var activityDetail = ActivityDetail.full.rawValue
     @AppStorage(PrefKey.quickReplies) private var quickReplies = ""
 
+    init(chat: Chat) {
+        self.chat = chat
+        _selectedThreadId = State(initialValue: chat.threadId)
+    }
+
     /// The live bubble's scroll target. A constant because there is at most
     /// one per chat and it has no message id to borrow.
     static let liveBubbleId = "companion.live"
@@ -66,16 +81,28 @@ struct ChatView: View {
     /// The live chat record, so busy/unread stay current as frames land.
     private var current: Chat {
         switch chat {
-        case let .bot(bot): return session.state.bot(bot.id).map(Chat.bot) ?? chat
+        case let .bot(bot):
+            if let view = session.state.bot(bot.id)?.projected(forThread: selectedThreadId) { return .bot(view) }
+            // Keep the exact target until a removed thread dismisses. Never
+            // briefly fall back to a sibling while the view is closing.
+            var removed = bot
+            removed.threadId = selectedThreadId
+            removed.busy = false
+            return .bot(removed)
         case let .room(room):
             return session.state.rooms.first { $0.id == room.id }.map(Chat.room) ?? chat
         }
     }
 
-    /// A bot receives a new thread when its task changes. Navigation keeps
-    /// the original Chat value, so every transcript lookup must follow the
-    /// live record instead of the snapshot that opened this screen.
+    /// Bot selection is local to this screen; another device's navigation
+    /// must not move a draft, approval, or Stop action to a different thread.
     private var threadId: String { current.threadId }
+
+    private var selectedThreadWasRemoved: Bool {
+        guard case let .bot(bot) = chat else { return false }
+        guard let live = session.state.bot(bot.id) else { return true }
+        return live.tasks.map { !$0.contains { $0.threadId == selectedThreadId } } ?? false
+    }
 
     /// A task changes a bot's thread, but it does not make it a new bot.
     /// Intro history follows the chat itself so switching tasks cannot replay
@@ -169,10 +196,17 @@ struct ChatView: View {
                                         chat: current,
                                         message: message,
                                         endsRun: endsRun(at: index, in: transcript),
-                                        openLink: openLink
+                                        openLink: openLink,
+                                        openThread: openThread
                                     )
                                 case let .activityRun(items):
-                                    ActivityRunChip(items: items)
+                                    ActivityRunChip(items: items, openThread: openThread)
+                                case let .assistantTurn(turn):
+                                    AssistantTurnChip(
+                                        turn: turn, chat: current, openLink: openLink, openThread: openThread,
+                                        revealedMessageId: revealedMessageId,
+                                        scrollToMessage: { proxy.scrollTo($0, anchor: .center) }
+                                    )
                                 }
                             }
                             .id(row.id)
@@ -186,7 +220,8 @@ struct ChatView: View {
                         if let live = session.state.streaming[threadId], !live.isEmpty {
                             StreamingBubble(text: live, reasoning: nil, color: current.color)
                                 .id(Self.liveBubbleId)
-                        } else if let thinking = session.state.reasoning[threadId], !thinking.isEmpty {
+                        } else if activityDetail != ActivityDetail.hidden.rawValue,
+                                  let thinking = session.state.reasoning[threadId], !thinking.isEmpty {
                             // Only while there is no answer yet. Once tokens
                             // of the reply exist, the reasoning is behind us
                             // and showing both is just noise.
@@ -218,7 +253,6 @@ struct ChatView: View {
                     // edge: it sits in the island while that is open and
                     // glides into its header slot when the island lets go.
                     let topInset = IslandGeometry.topInset
-                    let hasIsland = IslandGeometry.hasIsland(topInset: topInset)
                     let islandSide: CGFloat = 220
                     // centred in the part of the square the hardware island does not cover
                     let islandFaceCentre = IslandGeometry.top + IslandGeometry.size.height + (islandSide - IslandGeometry.size.height) / 2
@@ -227,7 +261,7 @@ struct ChatView: View {
                     let faceCentre = headerFaceCentre + (islandFaceCentre - headerFaceCentre) * facePhase
                     ZStack(alignment: .top) {
                         if islandVisible {
-                            IslandShell(expanded: islandExpanded, hasIsland: hasIsland, expandedSize: CGSize(width: islandSide, height: islandSide)) {
+                            IslandShell(expanded: islandExpanded, expandedSize: CGSize(width: islandSide, height: islandSide)) {
                                 Color.clear
                             }
                         }
@@ -237,6 +271,7 @@ struct ChatView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .top)
                     .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
                 }
                 .task {
                     // grow, hold a beat, shrink — the face rides along
@@ -264,31 +299,64 @@ struct ChatView: View {
                 // A conversation grows from the bottom: a transcript shorter
                 // than the screen rests at the bottom, and opening a chat
                 // starts on the newest message rather than the oldest.
-                .defaultScrollAnchor(.bottom)
-                .onChange(of: transcript.last?.id) { _, _ in
+                .scrollAnchorCompat(.bottom)
+                // Tapping the transcript puts the keyboard away. The composer
+                // is a sibling of this scroll view rather than inside it, so
+                // nothing else here drops its focus — until this, the only way
+                // back to the whole conversation was to leave the chat.
+                // Simultaneous, not `.onTapGesture`: a tap that lands on a
+                // link, a card button or a selected word still reaches the row
+                // that owns it, and only also closes the keyboard.
+                .simultaneousGesture(TapGesture().onEnded {
+                    if composerFocused { composerFocused = false }
+                })
+                // And a drag down over the transcript pushes it away, the way
+                // it does in Mail and Messages.
+                .scrollDismissesKeyboard(.interactively)
+                // `initial: true` is what opens the chat on the newest
+                // message where `scrollAnchorCompat` cannot (iOS 16). On 17 the
+                // anchor has already put us there and this is a no-op.
+                .onValueChange(of: transcript.last?.id, initial: true) { _ in
                     guard let last = transcript.last else { return }
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
+                // Neither of the above is enough on its own when the newest
+                // message holds a table or a code block. Their horizontal
+                // scroll views throw off the height the anchor measures on
+                // the first pass, so the chat opened a table's height short
+                // of the end; and the `initial` scroll above runs before
+                // there is anything to scroll. One more scroll once the first
+                // layout has settled lands on the end — again when the page
+                // arrives from the computer, which can be after the push,
+                // unless the reader has already scrolled away to read.
+                .task(id: "\(threadId)|\(session.state.hasLoadedPage(forThread: threadId))") {
+                    try? await Task.sleep(for: .milliseconds(50))
+                    guard !Task.isCancelled, !readerScrolled, let last = rows.last else { return }
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+                .onUserScrollCompat { readerScrolled = true }
                 // Follow the text as it arrives. Keyed on length rather than
                 // the string so this fires once per delta batch, and without
                 // animation — animating every token turns a smooth stream
                 // into a stutter, because each scroll interrupts the last.
-                .onChange(of: session.state.streaming[threadId]?.count ?? 0) { _, length in
+                .onValueChange(of: session.state.streaming[threadId]?.count ?? 0) { length in
                     guard length > 0 else { return }
                     proxy.scrollTo(Self.liveBubbleId, anchor: .bottom)
                 }
-                .onChange(of: session.focusedMessageId) { _, messageId in
-                    guard let messageId,
-                          messages.contains(where: { $0.id == messageId })
-                    else { return }
-                    withAnimation { proxy.scrollTo(messageId, anchor: .center) }
-                    session.consumeFocus(messageId)
-                }
-                .task {
+                .task(id: session.focusedMessageId) {
                     guard let messageId = session.focusedMessageId,
                           messages.contains(where: { $0.id == messageId })
                     else { return }
-                    proxy.scrollTo(messageId, anchor: .center)
+                    revealedMessageId = messageId
+                    // Materialize the lazy folded row first. Its target bubble
+                    // scrolls itself into view once expansion has laid it out.
+                    let folded = transcript.first { row in
+                        if case let .assistantTurn(turn) = row {
+                            return turn.messages.contains { $0.id == messageId }
+                        }
+                        return false
+                    }
+                    proxy.scrollTo(folded?.id ?? messageId, anchor: .center)
                     session.consumeFocus(messageId)
                 }
             }
@@ -301,12 +369,21 @@ struct ChatView: View {
         .overlay(alignment: .bottom) { plusSheet }
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
+        // Hiding the bar above also disarms the system edge-swipe back
+        // gesture, which is wired to the bar's navigation controller.
+        // Re-arm it so a rightward swipe from the left edge pops back to
+        // Home, the way the rest of iOS behaves.
+        .background(SwipeBackBridge())
         .navigationDestination(isPresented: $showingComputer) {
             if case let .bot(bot) = current { ComputerView(bot: bot) }
         }
         .task(id: threadId) {
+            if selectedThreadWasRemoved { dismiss(); return }
+            let openedChat = current
+            session.threadSelection.rememberThread(openedChat, connectionID: session.connection?.id)
+            await session.loadThreadIfNeeded(openedChat.threadId)
             // opening a chat is what marks it read, exactly as on the desktop
-            if current.unread { await session.markRead(current) }
+            if openedChat.unread { await session.markRead(openedChat) }
 #if DEBUG
             // `-open-plus`: the + sheet up, for the screenshot harness
             if ProcessInfo.processInfo.arguments.contains("-open-plus") { showingPlus = true }
@@ -315,35 +392,58 @@ struct ChatView: View {
             if ProcessInfo.processInfo.arguments.contains("-open-profile") { showingProfile = true }
 #endif
         }
-        .onChange(of: current.unread) { _, unread in
+        .onValueChange(of: selectedThreadWasRemoved) { removed in
+            if removed { dismiss() }
+        }
+        .onValueChange(of: session.state.hasLoadedPage(forThread: threadId)) { loaded in
+            let requestedThread = threadId
+            if !loaded { Task { await session.loadThreadIfNeeded(requestedThread) } }
+        }
+        .onValueChange(of: current.unread) { unread in
             // A message can arrive while this chat is already on screen. The
             // initial task above will not run again, so clear that new unread
             // bit here rather than leaving a badge on an open conversation.
-            if unread { Task { await session.markRead(current) } }
+            let readChat = current
+            if unread { Task { await session.markRead(readChat) } }
         }
-        .onChange(of: threadId) { _, _ in
-            // ChatView follows a bot when its active task changes. A download
+        .onValueChangePair(of: threadId) { previous, next in
+            dictation.stop()
+            threadDrafts[previous] = ComposerSnapshot(text: draft, attachments: attachments, error: attachmentError)
+            let restored = threadDrafts.removeValue(forKey: next) ?? ComposerSnapshot()
+            draft = restored.text
+            attachments = restored.attachments
+            attachmentError = restored.error
+            selectedPhotos = []
+            showCommandHUD = false
+            showingPlus = false
+            readerScrolled = false
+            // The local task picker changed threads. A download
             // started in the previous task must not open a sheet (or surface
             // its error) in the new one when the network reply arrives late.
             resetFilePreview()
+            cancelThreadOpen()
+        }
+        .onValueChange(of: session.connection?.id) { _ in
+            cancelThreadOpen()
         }
         .onDisappear {
             dictation.stop()
             resetFilePreview()
+            cancelThreadOpen()
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onValueChange(of: scenePhase) { phase in
             if phase != .active { dictation.stop() }
         }
-        .onChange(of: showingComputer) { _, shown in
+        .onValueChange(of: showingComputer) { shown in
             if shown { dictation.stop() }
         }
-        .onChange(of: showingTasks) { _, shown in
+        .onValueChange(of: showingTasks) { shown in
             if shown { dictation.stop() }
         }
-        .onChange(of: showingProfile) { _, shown in
+        .onValueChange(of: showingProfile) { shown in
             if shown { dictation.stop() }
         }
-        .onChange(of: showingPlus) { _, shown in
+        .onValueChange(of: showingPlus) { shown in
             if shown { dictation.stop() }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { note in
@@ -353,16 +453,18 @@ struct ChatView: View {
                 dictation.stop()
             }
         }
-        .onChange(of: dictation.transcript) { _, spoken in
+        .onValueChange(of: dictation.transcript) { spoken in
             // Always join against the text frozen at capture start. A newer
             // partial then replaces the older partial instead of duplicating it.
             draft = Dictation.draft(base: dictation.base, transcript: spoken)
         }
-        .onChange(of: dictation.isListening) { _, listening in
+        .onValueChange(of: dictation.isListening) { listening in
             if listening { composerFocused = false }
         }
         .sheet(isPresented: $showingTasks) {
-            if current.supportsTasks { TaskManagerView(chat: current) }
+            if current.supportsTasks {
+                TaskManagerView(chat: current) { selectedThreadId = $0 }
+            }
         }
         .sheet(isPresented: $showingProfile) {
             if case let .bot(bot) = current { AgentProfileView(bot: bot) }
@@ -377,7 +479,7 @@ struct ChatView: View {
             matching: .images,
             preferredItemEncoding: .current
         )
-        .onChange(of: selectedPhotos) { _, items in
+        .onValueChange(of: selectedPhotos) { items in
             guard !items.isEmpty else { return }
             Task { await importPhotos(items) }
         }
@@ -396,8 +498,8 @@ struct ChatView: View {
 
     // MARK: - Header
 
-    /// Back on the left with the rest-of-app unread count, the bot's
-    /// computer on the right — a blurred strip to the top edge.
+    /// Back on the left with the rest-of-app unread count, threads and the
+    /// bot's computer on the right — a blurred strip to the top edge.
     private var headerBar: some View {
         HStack(alignment: .top) {
             Button { dismiss() } label: {
@@ -415,7 +517,9 @@ struct ChatView: View {
                 .foregroundStyle(Color.primary)
                 .padding(.leading, 12)
                 .padding(.trailing, unreadElsewhere > 0 ? 8 : 12)
-                .frame(height: 44)
+                // At least as wide as it is tall: a circle alone, a pill
+                // once the unread count joins it.
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -424,13 +528,30 @@ struct ChatView: View {
 
             Spacer(minLength: 4)
 
-            if case .bot = current {
-                GlassButton(systemImage: "display", size: 44, weight: .medium) {
-                    showingComputer = true
+            HStack(spacing: 8) {
+                if current.supportsTasks {
+                    Button {
+                        showingTasks = true
+                    } label: {
+                        Label("Threads", systemImage: "square.stack")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.primary)
+                            .padding(.horizontal, 12)
+                            .frame(height: 44)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .glassCapsule()
+                    .accessibilityIdentifier("header-threads")
                 }
-                .accessibilityLabel("Watch \(current.name)'s computer")
-            } else {
-                Color.clear.frame(width: 44, height: 44)
+                if case .bot = current {
+                    GlassButton(systemImage: "display", size: 44, weight: .medium) {
+                        showingComputer = true
+                    }
+                    .accessibilityLabel("Watch \(current.name)'s computer")
+                } else {
+                    Color.clear.frame(width: 44, height: 44)
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -479,7 +600,7 @@ struct ChatView: View {
                 Color.clear.frame(width: 60, height: 60)
             }
             Button {
-                if case .bot = current { showingProfile = true }
+                if current.supportsTasks { showingTasks = true }
                 else { showingPlus = true }
             } label: {
                 HStack(spacing: 6) {
@@ -487,13 +608,13 @@ struct ChatView: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
-                    if !current.subtitle.isEmpty {
-                        Text(current.subtitle)
+                    if current.supportsTasks || !current.subtitle.isEmpty {
+                        Text(current.supportsTasks ? current.threadTitle : current.subtitle)
                             .font(.system(size: 13))
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
                     }
-                    Image(systemName: current.isBot ? "gearshape" : "ellipsis")
+                    Image(systemName: current.supportsTasks ? "chevron.down" : "ellipsis")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(Color.secondary)
                 }
@@ -504,7 +625,9 @@ struct ChatView: View {
             }
             .buttonStyle(.plain)
             .glassCapsule()
-            .accessibilityLabel(current.isBot ? "Open \(current.name) settings" : "Open \(current.name) chat options")
+            .accessibilityLabel(current.supportsTasks ? "Switch thread: \(current.threadTitle)" : "Open \(current.name) thread options")
+            .accessibilityHint("Choose a conversation or start a new thread")
+            .accessibilityIdentifier("thread-switcher")
         }
         .padding(.top, -4)
     }
@@ -568,8 +691,8 @@ struct ChatView: View {
     private struct PlusAction: Identifiable {
         let id: String
         let systemImage: String
-        let title: String
-        let subtitle: String
+        let title: LocalizedStringKey
+        let subtitle: LocalizedStringKey
         var destructive = false
         var disabled = false
         let run: () -> Void
@@ -590,11 +713,15 @@ struct ChatView: View {
         ]
         if case let .bot(bot) = current {
             out.append(PlusAction(
-                id: "task", systemImage: "plus.square.on.square", title: "New task",
-                subtitle: "Start a fresh thread with \(bot.name)", disabled: bot.busy == true
-            ) { Task { await session.createTask(for: bot, title: nil) } })
+                id: "task", systemImage: "plus.square.on.square", title: "New thread",
+                subtitle: "Start a fresh thread with \(bot.name)"
+            ) { Task {
+                if let created = await session.createTask(for: bot, title: nil) {
+                    selectedThreadId = created.threadId
+                }
+            } })
             out.append(PlusAction(
-                id: "tasks", systemImage: "square.stack", title: "Tasks",
+                id: "tasks", systemImage: "square.stack", title: "Threads",
                 subtitle: "Switch, rename or remove one"
             ) { showingTasks = true })
             out.append(PlusAction(
@@ -608,18 +735,18 @@ struct ChatView: View {
         }
         if case let .room(room) = current, room.dm != true {
             out.append(PlusAction(
-                id: "task", systemImage: "plus.square.on.square", title: "New task",
+                id: "task", systemImage: "plus.square.on.square", title: "New thread",
                 subtitle: "Start a fresh conversation in \(room.name)",
                 disabled: current.busy || hasPendingApproval
             ) { Task { await session.createTask(for: room, title: nil) } })
             out.append(PlusAction(
-                id: "tasks", systemImage: "square.stack", title: "Tasks",
+                id: "tasks", systemImage: "square.stack", title: "Threads",
                 subtitle: "Switch, rename or remove one"
             ) { showingTasks = true })
         }
         out.append(PlusAction(
             id: "share", systemImage: "doc.plaintext", title: "Share transcript",
-            subtitle: "This chat as Markdown"
+            subtitle: "This thread as Markdown"
         ) {
             Task {
                 if let url = await session.export(threadId: current.threadId, format: "markdown") {
@@ -670,27 +797,12 @@ struct ChatView: View {
             && !preparingAttachments && !sendingMessage
     }
 
-    /// A vertically growing SwiftUI TextField treats the software keyboard's
-    /// Return key as a newline even when the key is labelled “Send”. Intercept
-    /// that proposed edit before it reaches the draft. Hardware Shift-Return
-    /// opts into one real line break through `acceptsNextHardwareLineBreak`.
-    private var composerDraft: Binding<String> {
-        Binding(
-            get: { draft },
-            set: { proposed in
-                if acceptsNextHardwareLineBreak {
-                    acceptsNextHardwareLineBreak = false
-                    draft = proposed
-                } else if ComposerKeyboard.shouldSubmit(
-                    previousText: draft,
-                    proposedText: proposed
-                ) {
-                    submit()
-                } else {
-                    draft = proposed
-                }
-            }
-        )
+    /// Messages the harness is holding for this thread. They sit above the
+    /// composer rather than pretending to be part of the transcript: the
+    /// turn that is still running owns the transcript's tail, and these
+    /// words have not been said yet.
+    private var heldSends: [QueuedSend] {
+        session.state.pendingQueued[threadId] ?? []
     }
 
     private var hasPendingApproval: Bool {
@@ -704,6 +816,7 @@ struct ChatView: View {
         let draftAtSend = draft
         let text = (explicitText ?? draftAtSend).trimmingCharacters(in: .whitespacesAndNewlines)
         let outgoingAttachments = attachments
+        let chatAtSend = current
         guard !text.isEmpty || !outgoingAttachments.isEmpty,
               !preparingAttachments,
               !sendingMessage
@@ -716,12 +829,21 @@ struct ChatView: View {
             let sent = await session.send(
                 text: text,
                 attachments: outgoingAttachments,
-                to: current
+                to: chatAtSend
             )
             sendingMessage = false
             guard sent else {
-                attachmentError = session.actionError ?? "Couldn't send this message. Try again."
+                let failure = session.actionError ?? "Couldn't send this message. Try again."
+                if threadId == chatAtSend.threadId { attachmentError = failure }
+                else { threadDrafts[chatAtSend.threadId]?.error = failure }
                 session.actionError = nil
+                return
+            }
+            if threadId != chatAtSend.threadId {
+                if threadDrafts[chatAtSend.threadId]?.text == draftAtSend { threadDrafts[chatAtSend.threadId]?.text = "" }
+                if threadDrafts[chatAtSend.threadId]?.attachments.map(\.id) == outgoingAttachments.map(\.id) {
+                    threadDrafts[chatAtSend.threadId]?.attachments = []
+                }
                 return
             }
             // HUD commands expand `/diff` into a longer prompt. Compare with
@@ -740,7 +862,9 @@ struct ChatView: View {
 
     private func importPhotos(_ items: [PhotosPickerItem]) async {
         guard !preparingAttachments, !sendingMessage else { return }
-        let available = AttachmentPolicy.maximumItems - attachments.count
+        let importingThread = threadId
+        let existingAttachments = attachments
+        let available = AttachmentPolicy.maximumItems - existingAttachments.count
         guard items.count <= available else {
             selectedPhotos = []
             attachmentError = "Send up to \(AttachmentPolicy.maximumItems) items at a time."
@@ -789,13 +913,15 @@ struct ChatView: View {
                     mime: mime,
                     kind: .image
                 )
-                try AttachmentPolicy.validate(attachments + imported + [candidate])
+                try AttachmentPolicy.validate(existingAttachments + imported + [candidate])
                 imported.append(candidate)
             }
-            attachments.append(contentsOf: imported)
+            if threadId == importingThread { attachments.append(contentsOf: imported) }
+            else { threadDrafts[importingThread, default: ComposerSnapshot()].attachments.append(contentsOf: imported) }
             Haptics.selection()
         } catch {
-            attachmentError = error.localizedDescription
+            if threadId == importingThread { attachmentError = error.localizedDescription }
+            else { threadDrafts[importingThread]?.error = error.localizedDescription }
         }
     }
 
@@ -810,7 +936,9 @@ struct ChatView: View {
 
     private func importFiles(_ urls: [URL]) async {
         guard !preparingAttachments, !sendingMessage else { return }
-        let available = AttachmentPolicy.maximumItems - attachments.count
+        let importingThread = threadId
+        let existingAttachments = attachments
+        let available = AttachmentPolicy.maximumItems - existingAttachments.count
         guard urls.count <= available else {
             attachmentError = "Send up to \(AttachmentPolicy.maximumItems) items at a time."
             return
@@ -823,18 +951,20 @@ struct ChatView: View {
         do {
             var imported: [PendingMessageAttachment] = []
             for url in urls {
-                let usedBytes = (attachments + imported).reduce(0) { $0 + $1.data.count }
+                let usedBytes = (existingAttachments + imported).reduce(0) { $0 + $1.data.count }
                 let remainingBytes = max(0, AttachmentPolicy.maximumTotalBytes - usedBytes)
                 let candidate = try await Task.detached(priority: .userInitiated) {
                     try Self.readImportedFile(url, remainingBytes: remainingBytes)
                 }.value
-                try AttachmentPolicy.validate(attachments + imported + [candidate])
+                try AttachmentPolicy.validate(existingAttachments + imported + [candidate])
                 imported.append(candidate)
             }
-            attachments.append(contentsOf: imported)
+            if threadId == importingThread { attachments.append(contentsOf: imported) }
+            else { threadDrafts[importingThread, default: ComposerSnapshot()].attachments.append(contentsOf: imported) }
             Haptics.selection()
         } catch {
-            attachmentError = error.localizedDescription
+            if threadId == importingThread { attachmentError = error.localizedDescription }
+            else { threadDrafts[importingThread]?.error = error.localizedDescription }
         }
     }
 
@@ -880,6 +1010,24 @@ struct ChatView: View {
         return PendingMessageAttachment(
             id: UUID(), data: data, name: name, mime: mime, kind: kind
         )
+    }
+
+    /// A chip that opened a thread on this bot switches this screen in
+    /// place; one that opened a thread on a teammate pushes that chat.
+    private func openThread(_ ref: ThreadRef) {
+        cancelThreadOpen()
+        let shownBotId: String? = current.isBot ? current.id : nil
+        threadOpenTask = Task {
+            let openedThreadId = await session.openThread(ref, shownBotId: shownBotId)
+            guard !Task.isCancelled else { return }
+            threadOpenTask = nil
+            if let openedThreadId { selectedThreadId = openedThreadId }
+        }
+    }
+
+    private func cancelThreadOpen() {
+        threadOpenTask?.cancel()
+        threadOpenTask = nil
     }
 
     private func openLink(_ url: URL, from message: Message) -> OpenURLAction.Result {
@@ -951,9 +1099,36 @@ struct ChatView: View {
 
     // MARK: - Composer
 
+    /// Pull a held send back into the composer to tweak or extend it. The
+    /// computer drops it from the queue first; only a confirmed removal hands
+    /// the words back, so a send that already joined the turn is never resent.
+    private func editQueued(_ send: QueuedSend) {
+        let targetThread = threadId
+        let chat = current
+        Task {
+            guard await session.cancelQueued(send, threadId: targetThread, in: chat) else { return }
+            if threadId == targetThread {
+                draft = send.editDraft(keeping: draft)
+                composerFocused = true
+            } else {
+                // The person switched tasks while the cancel was in flight.
+                var snapshot = threadDrafts[targetThread] ?? ComposerSnapshot()
+                snapshot.text = send.editDraft(keeping: snapshot.text)
+                threadDrafts[targetThread] = snapshot
+            }
+        }
+    }
+
     /// A round + and a glass pill with dictation and send inside it.
     private var composer: some View {
         VStack(spacing: 6) {
+            if !heldSends.isEmpty {
+                QueuedSendList(sends: heldSends, edit: editQueued) { send in
+                    Task { await session.cancelQueued(send, threadId: threadId, in: current) }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             if preparingAttachments || sendingMessage {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -1053,7 +1228,7 @@ struct ChatView: View {
                     }
                     .padding(.horizontal, 2)
                 }
-                .scrollClipDisabled()
+                .scrollClipDisabledCompat()
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -1098,35 +1273,31 @@ struct ChatView: View {
 
                         TextField(
                             sendingMessage ? "Sending…" : dictation.isListening ? "Listening…" : "Ask \(current.name)",
-                            text: composerDraft,
+                            text: $draft,
                             axis: .vertical
                         )
                             .lineLimit(1...5)
                             .font(.system(size: 17))
                             .padding(.vertical, 11)
                             .focused($composerFocused)
-                            .submitLabel(.send)
+                            .accessibilityIdentifier("message-input")
                             // Partial transcripts rebuild from a frozen base;
                             // prevent competing edits without dimming the text.
                             .allowsHitTesting(
                                 !dictation.isListening && !dictation.isStarting
                                     && !preparingAttachments && !sendingMessage
                             )
-                            .onChange(of: draft) { _, value in
+                            .onValueChange(of: draft) { value in
                                 withAnimation(.easeInOut(duration: 0.15)) {
                                     showCommandHUD = value.hasPrefix("/")
                                 }
                             }
-                            .onKeyPress(.return, phases: .down) { press in
-                                if press.modifiers.contains(.shift) {
-                                    acceptsNextHardwareLineBreak = true
-                                    return .ignored
-                                }
-                                acceptsNextHardwareLineBreak = false
-                                submit()
-                                return .handled
-                            }
-                            .onSubmit { submit() }
+                            // The software keyboard's Return inserts a newline,
+                            // like Messages; only the arrow button sends. A
+                            // hardware Return still sends, Shift-Return breaks
+                            // the line. onKeyPress never sees the software
+                            // keyboard, so this cannot turn its Return into a send.
+                            .onHardwareReturn { submit() }
 
                         Button {
                             composerFocused = false
@@ -1143,7 +1314,7 @@ struct ChatView: View {
                                             : Color.secondary.opacity(0.12)
                                     )
                                 )
-                                .symbolEffect(.pulse, isActive: dictation.isListening)
+                                .pulseCompat(isActive: dictation.isListening)
                         }
                         .buttonStyle(.plain)
                         .disabled(preparingAttachments || sendingMessage)
@@ -1166,7 +1337,11 @@ struct ChatView: View {
                         .animation(.easeOut(duration: 0.15), value: canSend)
                     }
                     .frame(minHeight: 44)
-                    .glassCapsule(interactive: false)
+                    // A capsule at one line (44pt tall, 22pt corners) that
+                    // keeps those 22pt corners as the draft grows, the way
+                    // Messages does. A true Capsule would round to half the
+                    // height, and a five-line draft became a giant pill.
+                    .glassSheet(cornerRadius: 22)
                 }
             }
         }
@@ -1184,16 +1359,26 @@ struct MessageRow: View {
     /// Last bubble of a run from the same side: the one that gets the tail.
     var endsRun = true
     let openLink: (URL, Message) -> OpenURLAction.Result
+    /// Where an "Opened thread" chip goes; nil leaves the chip a receipt.
+    var openThread: ((ThreadRef) -> Void)? = nil
     @EnvironmentObject private var session: Session
     @State private var editingText = ""
     @State private var showingEdit = false
     /// The text being selected, and the sheet's presentation in one value.
     @State private var selecting: SelectableText?
+    /// A digest chip's parts, and its sheet's presentation.
+    @State private var digest: DigestSummary?
 
     private static let reactionChoices = ["👍", "❤️", "😂", "🎉", "👀"]
 
     private var versions: [Message] {
         session.state.versions(of: message, inThread: chat.threadId)
+    }
+
+    /// The stand-in for an edit the computer has not answered yet. It has no
+    /// server identity, so nothing may react to it or edit it again.
+    private var isPendingEdit: Bool {
+        session.state.pendingEdits[chat.threadId]?.placeholderId == message.id
     }
 
     /// Transport tags contain paths on the paired computer. They belong in
@@ -1247,13 +1432,15 @@ struct MessageRow: View {
             }
         }
         .contextMenu {
-            ForEach(Self.reactionChoices, id: \.self) { emoji in
-                Button(emoji) {
-                    Haptics.selection()
-                    Task { await session.react(to: message, in: chat.threadId, emoji: emoji) }
+            if !isPendingEdit {
+                ForEach(Self.reactionChoices, id: \.self) { emoji in
+                    Button(emoji) {
+                        Haptics.selection()
+                        Task { await session.react(to: message, in: chat.threadId, emoji: emoji) }
+                    }
                 }
             }
-            let visibleText = attachedContent.text
+            let visibleText = message.webhookContent?.task ?? attachedContent.text
             if !visibleText.isEmpty {
                 Divider()
                 Button("Copy", systemImage: "doc.on.doc") {
@@ -1272,14 +1459,16 @@ struct MessageRow: View {
             // sending its computer-local transport path back as prose.
             if message.role == .user,
                message.kind == .text,
+               message.webhookContent == nil,
                attachedContent.attachments.isEmpty,
+               !isPendingEdit,
                case let .bot(bot) = chat {
                 Divider()
                 Button("Edit and retry", systemImage: "pencil") {
                     editingText = message.text ?? ""
                     showingEdit = true
                 }
-                .disabled(bot.busy == true)
+                .disabled(bot.busy == true || session.state.pendingEdits[chat.threadId] != nil)
             }
         }
         .alert("Edit and retry", isPresented: $showingEdit) {
@@ -1296,6 +1485,9 @@ struct MessageRow: View {
             Text("This creates a new version and continues from there.")
         }
         .sheet(item: $selecting) { SelectableTextSheet(text: $0.text) }
+        .sheet(item: $digest) { DigestSheet(summary: $0) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("message-\(message.id)")
     }
 
     @ViewBuilder
@@ -1304,7 +1496,13 @@ struct MessageRow: View {
         case .text:
             TextBubble(message: message, chat: chat, tailed: endsRun, openLink: openLink)
         case .options:
-            CardView(chat: chat, message: message)
+            // A structured ask draws its own card: its answers are the
+            // model's questions, not an allow/deny a tap could stand for.
+            if message.card?.questions.isEmpty == false {
+                QuestionCardView(chat: chat, message: message)
+            } else {
+                CardView(chat: chat, message: message)
+            }
         case .secret:
             if let secret = message.secret {
                 CredentialRequestCardView(chat: chat, message: message, secret: secret)
@@ -1312,9 +1510,47 @@ struct MessageRow: View {
                 TextBubble(message: message, chat: chat, tailed: endsRun, openLink: openLink)
             }
         case .activity:
-            ActivityChip(tool: message.tool)
+            ActivityChip(
+                tool: message.tool, threadRef: message.threadRef, openThread: openThread,
+                outputIsProse: message.isTeammateReport
+            )
+            // A turn that failed because Claude Code is too old for the
+            // model: offer to run the updater for the engine this thread uses.
+            if message.tool?.claudeUpdate == true, case let .bot(bot) = chat {
+                ClaudeUpdateCard(
+                    instanceId: bot.currentTaskModelSelection.instanceId,
+                    tint: MausPalette.color(chat.color)
+                )
+            }
+        case .compaction:
+            ReceiptChip(icon: "square.3.layers.3d", label: message.compaction?.chipText ?? message.text ?? "") {
+                selecting = SelectableText(text: message.compaction?.summary ?? message.text ?? "")
+            }
         case .screen:
             ScreenShot(threadId: chat.threadId, message: message)
+        case .digest:
+            // Not a bubble: a chip saying the turn did something, opening
+            // onto what. `transcriptRows` already dropped the ones with
+            // nothing to say, and all of them when activity is hidden.
+            let summary = DigestSummary(text: message.text ?? "")
+            if !summary.isEmpty {
+                ReceiptChip(icon: "checklist", label: summary.chipLabel, hint: "Shows what this turn did") {
+                    digest = summary
+                }
+            }
+        case .routineRun:
+            if let card = message.routineRun {
+                RoutineRunCardView(
+                    card: card,
+                    at: message.date,
+                    tint: MausPalette.color(chat.color),
+                    openRun: routineRunOpener(card)
+                )
+            } else if let text = message.text, !text.isEmpty {
+                // A computer that sent the kind without its card: the text
+                // is written for exactly this reader.
+                TextBubble(message: message, chat: chat, tailed: endsRun, openLink: openLink)
+            }
         case .unknown:
             // A message kind from a newer computer. Almost everything the
             // harness sends carries `text`, so showing it is usually the
@@ -1325,6 +1561,15 @@ struct MessageRow: View {
                 TextBubble(message: message, chat: chat, tailed: endsRun, openLink: openLink)
             }
         }
+    }
+
+    /// A run thread is opened by the same route an "Opened thread" chip
+    /// takes, so it lands on screen without joining the thread list. No
+    /// route — the run was deleted, or the phone holds no bot owning it —
+    /// means no button.
+    private func routineRunOpener(_ card: RoutineRunCard) -> (() -> Void)? {
+        guard let openThread, let ref = session.state.routineExecutionRef(for: card) else { return nil }
+        return { openThread(ref) }
     }
 
     private func reactionGroups(_ reactions: [Reaction]) -> [(emoji: String, count: Int, mine: Bool)] {
@@ -1383,63 +1628,9 @@ struct TextBubble: View {
         return (filename, diff)
     }
 
-    private var parsedTable: (headers: [String], rows: [[String]])? {
-        guard message.role != .user, let source = message.text else { return nil }
-        let lines = source.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        guard lines.count >= 3, lines.allSatisfy({ $0.hasPrefix("|") && $0.hasSuffix("|") }) else {
-            return nil
-        }
-        let headers = Self.tableCells(lines[0])
-        let separators = Self.tableCells(lines[1])
-        guard !headers.isEmpty, separators.count == headers.count,
-              separators.allSatisfy(Self.isTableSeparator) else { return nil }
-        let rows = lines.dropFirst(2).map(Self.tableCells)
-        guard rows.allSatisfy({ $0.count == headers.count }) else { return nil }
-        return (headers, rows)
-    }
-
-    private static func tableCells(_ line: String) -> [String] {
-        var body = line
-        if body.first == "|" { body.removeFirst() }
-        if body.last == "|" { body.removeLast() }
-
-        var cells: [String] = []
-        var cell = ""
-        var escaped = false
-        for character in body {
-            if escaped {
-                if character == "|" {
-                    cell.append(character)
-                } else {
-                    cell.append("\\")
-                    cell.append(character)
-                }
-                escaped = false
-            } else if character == "\\" {
-                escaped = true
-            } else if character == "|" {
-                cells.append(cell.trimmingCharacters(in: .whitespaces))
-                cell = ""
-            } else {
-                cell.append(character)
-            }
-        }
-        if escaped { cell.append("\\") }
-        cells.append(cell.trimmingCharacters(in: .whitespaces))
-        return cells
-    }
-
-    private static func isTableSeparator(_ cell: String) -> Bool {
-        let compact = cell.replacingOccurrences(of: " ", with: "")
-        let core = compact.trimmingCharacters(in: CharacterSet(charactersIn: ":"))
-        return core.count >= 3 && core.allSatisfy { $0 == "-" }
-    }
-
     var body: some View {
         let mine = message.role == .user
-        let customCard = parsedDiff != nil || parsedTable != nil
+        let customCard = parsedDiff != nil
         // rooms attribute each line to the member who said it
         let speaker = message.from
         // No face beside the bubble: the bot's face is in the header, and in
@@ -1453,13 +1644,22 @@ struct TextBubble: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(MausPalette.color(speaker.color))
                 }
+                ForEach(message.voiceNotes) { note in
+                    VoiceNoteBubble(note: note, tint: MausPalette.color(chat.color))
+                }
+                ForEach(message.generatedImages, id: \.path) { attachment in
+                    TranscriptAttachmentView(
+                        attachment: attachment, threadId: chat.threadId,
+                        messageId: message.id, foreground: mine ? BubbleColor.mineText : .primary
+                    )
+                }
                 // Bots get markdown, you do not — the same split the desktop
                 // makes. Markdown you did not intend is worse than markdown
                 // you did: a message about `**` should show the asterisks.
                 if let diff = parsedDiff {
                     GitPRDiffCardView(filename: diff.filename, diffText: diff.diff)
-                } else if let table = parsedTable {
-                    SQLResultTableView(columns: table.headers, rows: table.rows)
+                } else if let webhook = message.webhookContent {
+                    WebhookMessageBody(content: webhook)
                 } else if mine {
                     let shared = attachedContent
                     ForEach(Array(shared.attachments.enumerated()), id: \.offset) { _, attachment in
@@ -1477,7 +1677,10 @@ struct TextBubble: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    MarkdownText(source: message.text ?? "") { url in
+                    MarkdownText(
+                        source: message.text ?? "",
+                        scrollIdentifier: "message-\(message.id)-scroll"
+                    ) { url in
                         openLink(url, message)
                     }
                         .foregroundStyle(Color.primary)
@@ -1507,14 +1710,96 @@ struct TextBubble: View {
 /// transcript and they are context, not content.
 struct ActivityChip: View {
     let tool: ToolActivity?
+    /// The thread this chip opened, when it opened one.
+    var threadRef: ThreadRef? = nil
+    var openThread: ((ThreadRef) -> Void)? = nil
+    /// The output is a teammate's report, not a tool log.
+    var outputIsProse = false
 
     var body: some View {
         if let tool {
-            SkillExecutionReceiptView(
+            // Only a teammate's report expands. Ordinary tool chips also
+            // carry raw output, and that log stays on the computer's side.
+            let output = outputIsProse ? tool.expandableOutput : nil
+            let receipt = SkillExecutionReceiptView(
                 skillName: tool.name,
-                status: tool.ok.map { $0 ? "success" : "error" } ?? "running"
+                status: tool.ok.map { $0 ? "success" : "error" } ?? "running",
+                output: output ?? "",
+                outputIsProse: outputIsProse
             )
             .padding(.leading, 2)
+
+            if output != nil, let threadRef, let openThread {
+                // The receipt's own button expands the report now, so the
+                // thread gets a link of its own beneath it rather than
+                // taking over the whole chip.
+                VStack(alignment: .leading, spacing: 4) {
+                    receipt
+                    Button {
+                        Haptics.selection()
+                        openThread(threadRef)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Open thread")
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 8)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open thread \(threadRef.title)")
+                }
+            } else if let threadRef, let openThread {
+                // The receipt's own button has nothing to expand here, so the
+                // whole chip is the link to the thread it names.
+                Button {
+                    Haptics.selection()
+                    openThread(threadRef)
+                } label: {
+                    receipt.allowsHitTesting(false)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tool.name)
+                .accessibilityHint("Opens the thread")
+            } else {
+                receipt
+            }
+        }
+    }
+}
+
+/// A quiet capsule under a reply for the harness's receipts (the work
+/// digest, a compaction record): one line, and the full text on tap.
+struct ReceiptChip: View {
+    let icon: String
+    let label: String
+    var hint = "Shows the full text"
+    var open: (() -> Void)? = nil
+
+    var body: some View {
+        if !label.isEmpty {
+            Button {
+                Haptics.selection()
+                open?()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .medium))
+                    Text(label)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().strokeBorder(.quaternary))
+                .padding(.leading, 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(label)
+            .accessibilityHint(hint)
         }
     }
 }
@@ -1550,15 +1835,17 @@ struct CredentialRequestCardView: View {
     private var tint: Color { MausPalette.color(message.from?.color ?? chat.color) }
     private var requester: String { message.from?.name ?? chat.name }
     private var label: String { visible(secret.label) ?? "API credential" }
-    private var accessibilityStatus: String {
+    private var accessibilityStatus: Text {
         if secret.provided == true {
-            return secret.resumed == true ? "Saved securely. The task resumed." : "Saved securely on your computer."
+            return secret.resumed == true
+            ? Text("Saved securely. The task resumed.")
+            : Text("Saved securely on your computer.")
         }
-        if secret.dismissed == true { return "Not provided." }
-        if submitted { return "Encrypted and sent to your computer." }
-        if canEnterOnPhone { return "Enter it securely on this phone." }
-        if !hasSecurePairing { return "Pair again by QR code, or finish on your computer." }
-        return "Use secure phone access or Tailscale, or finish on your computer."
+        if secret.dismissed == true { return Text("Not provided.") }
+        if submitted { return Text("Encrypted and sent to your computer.") }
+        if canEnterOnPhone { return Text("Enter it securely on this phone.") }
+        if !hasSecurePairing { return Text("Pair again by QR code, or finish on your computer.") }
+        return Text("Use secure phone access or Tailscale, or finish on your computer.")
     }
 
     private func visible(_ value: String?) -> String? {
@@ -1806,7 +2093,7 @@ struct CredentialRequestCardView: View {
                 secret: secret
             )
         }
-        .onChange(of: requestIdentity) { _, _ in
+        .onValueChange(of: requestIdentity) { _ in
             resetSensitiveState(clearPrepared: true)
             preparedSubmission = session.preparedCredential(
                 chat: chat,
@@ -1815,13 +2102,13 @@ struct CredentialRequestCardView: View {
             )
             submitted = false
         }
-        .onChange(of: session.credentialEntryResetGeneration) { _, _ in
+        .onValueChange(of: session.credentialEntryResetGeneration) { _ in
             suspendSensitiveEntry()
         }
-        .onChange(of: session.status) { _, status in
+        .onValueChange(of: session.status) { status in
             if status != .live { suspendSensitiveEntry() }
         }
-        .onChange(of: scenePhase) { _, phase in
+        .onValueChange(of: scenePhase) { phase in
             // Password AutoFill and its Face ID sheet temporarily make the
             // scene inactive. Removing the SecureField at that point breaks
             // the very fill operation the user requested. A true background
@@ -1988,7 +2275,7 @@ struct CardView: View {
                                     .font(.system(size: 10, design: .monospaced))
                                     .foregroundStyle(Color.secondary)
                             }
-                            Text("Source: \(skill.source ?? "Unknown")")
+                            Text(skill.source.map { LocalizedStringKey("Source: \($0)") } ?? "Source: unknown")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Color.secondary)
                                 .textSelection(.enabled)
@@ -2155,7 +2442,7 @@ struct StreamingBubble: View {
             VStack(alignment: .leading, spacing: 4) {
                 if let reasoning, !reasoning.isEmpty, text?.isEmpty != false {
                     AgentThoughtChamberView(
-                        reasoning: String(reasoning.suffix(2_000)),
+                        reasoning: reasoning,
                         botName: "Bot",
                         mascotColor: MausPalette.color(color),
                         isStreaming: true
@@ -2182,5 +2469,69 @@ struct StreamingBubble: View {
         // No `.textSelection` on purpose: selecting text that is still growing
         // fights the reader, and the settled bubble a frame later is
         // selectable anyway.
+    }
+}
+
+/// The held sends for one thread, as the desktop's composer shows them: one
+/// line each, editable and deletable, with a note when the harness held them
+/// for thread capacity rather than because a turn is running.
+private struct QueuedSendList: View {
+    let sends: [QueuedSend]
+    let edit: (QueuedSend) -> Void
+    let cancel: (QueuedSend) -> Void
+
+    private var showsCapacityNote: Bool {
+        sends.contains { $0.reason == "capacity" }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if showsCapacityNote {
+                Text("Queued — starts when this bot has a free thread slot.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.secondary)
+            }
+            ForEach(Array(sends.enumerated()), id: \.element.queueId) { index, send in
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.secondary)
+                    Text(send.text)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        edit(send)
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 30, height: 30)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Edit queued message \(index + 1) of \(sends.count)")
+                    Button {
+                        cancel(send)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 30, height: 30)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete queued message \(index + 1) of \(sends.count)")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(sends.count == 1 ? "1 queued message" : "\(sends.count) queued messages")
     }
 }
