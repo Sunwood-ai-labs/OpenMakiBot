@@ -326,14 +326,18 @@ describe("message-linked files", () => {
     await expect(openMessageFile(large, [workspace])).rejects.toMatchObject({ status: 413 });
   });
 
-  it("refuses traversal and a symlink that resolves outside the allowed root", async () => {
+  it("refuses traversal and a filesystem link that resolves outside the allowed root", async () => {
     const secret = join(outside, "secret.md");
     writeFileSync(secret, "not for this conversation");
-    symlinkSync(secret, join(workspace, "escape.md"));
+    // A directory junction exercises the same realpath boundary on Windows
+    // without requiring administrator or Developer Mode file-symlink rights.
+    const escape = process.platform === "win32" ? join("escape", "secret.md") : "escape.md";
+    if (process.platform === "win32") symlinkSync(outside, join(workspace, "escape"), "junction");
+    else symlinkSync(secret, join(workspace, escape));
 
     await expect(openMessageFile("../outside/secret.md", [workspace]))
       .rejects.toMatchObject({ status: 403 });
-    await expect(openMessageFile("escape.md", [workspace]))
+    await expect(openMessageFile(escape, [workspace]))
       .rejects.toMatchObject({ status: 403 });
   });
 
