@@ -5,7 +5,7 @@
 //
 // See scripts/patch-appimage-updater.mjs for the reasoning.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import childProcess, { spawn, spawnSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import {
   existsSync,
@@ -13,12 +13,13 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +28,23 @@ import { acquireDataDirLease } from "./data-dir-lease.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bundle = readFileSync(join(root, "electron/vendor/electron-updater.cjs"), "utf8");
+
+function appImageMoveFixture(t, workspace) {
+  if (process.platform !== "win32") return;
+  // The Linux installer invokes Unix mv. On Windows, perform the same real
+  // move within this test's disposable filesystem instead of requiring mv.
+  const execFileSync = childProcess.execFileSync;
+  t.mock.method(childProcess, "execFileSync", (command, args, options) => {
+    if (command !== "mv") return execFileSync(command, args, options);
+    assert.equal(args.length, 3);
+    assert.equal(args[0], "-f");
+    const ownedPrefix = `${resolve(workspace)}${sep}`;
+    assert.ok(resolve(args[1]).startsWith(ownedPrefix), "move source must stay in the fixture");
+    assert.ok(resolve(args[2]).startsWith(ownedPrefix), "move destination must stay in the fixture");
+    renameSync(args[1], args[2]);
+    return Buffer.alloc(0);
+  });
+}
 
 // Non-global on purpose: a shared /g regex carries lastIndex between .test()
 // calls and would report alternating results.
@@ -114,6 +132,7 @@ test("the shipped installer replaces the AppImage and queues its original path f
 
   const { AppImageUpdater } = createRequire(import.meta.url)("./vendor/electron-updater.cjs");
   const workspace = mkdtempSync(join(tmpdir(), "omb-appimage-install-"));
+  appImageMoveFixture(t, workspace);
   const lease = acquireDataDirLease(join(workspace, "data"));
   t.after(() => { lease.release(); rmSync(workspace, { recursive: true, force: true }); });
 
@@ -161,6 +180,7 @@ test("a rejected AppImage relaunch is reported without quitting the desktop", (t
   t.after(() => { Module._load = load; });
   const { AppImageUpdater, BaseUpdater } = createRequire(import.meta.url)("./vendor/electron-updater.cjs");
   const workspace = mkdtempSync(join(tmpdir(), "omb-appimage-relaunch-failed-"));
+  appImageMoveFixture(t, workspace);
   t.after(() => rmSync(workspace, { recursive: true, force: true }));
   const launched = join(workspace, "OpenMausBot.AppImage");
   const staged = join(workspace, "pending.AppImage");
@@ -204,6 +224,7 @@ test("the running AppImage is never removed before its replacement is in place",
 
   const { AppImageUpdater } = createRequire(import.meta.url)("./vendor/electron-updater.cjs");
   const workspace = mkdtempSync(join(tmpdir(), "omb-appimage-failed-"));
+  appImageMoveFixture(t, workspace);
   t.after(() => rmSync(workspace, { recursive: true, force: true }));
 
   const launched = join(workspace, "OpenMausBot-0.1.43-x86_64.AppImage");
