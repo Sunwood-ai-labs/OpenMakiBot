@@ -10,7 +10,7 @@ import { createServer, request, type Server } from "node:http";
 import { connect, type Socket } from "node:net";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -157,6 +157,7 @@ let fakeDockerFixture: string;
 let fakeVpsFixture: string;
 let fakeDockerLog: string;
 let stderr = "";
+let stdout = "";
 let connectorAccounts: Array<{ id: string; alias?: string; status: string; toolkit: { slug: string } }> = [];
 let connectorAccountsGate: DeferredGate | null = null;
 // What the stubbed marketplace catalog serves for project keys; empty means
@@ -1138,7 +1139,11 @@ beforeAll(async () => {
   child = spawn(process.execPath, ["--import", browserPrelude, join(SERVER_DIR, "index.ts")], {
     cwd: ROOT,
     env: {
-      ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+      // Grant Node and Windows' own where.exe/cmd.exe, while keeping this
+      // fixture's fake Docker first through OMB_EXTRA_PATH below.
+      PATH: [dirname(process.execPath), ...(process.platform === "win32"
+        ? [join(process.env.SystemRoot || "C:\\Windows", "System32")] : [])].join(delimiter),
+      OMB_TEST_SEALED_PATH: "1",
       ...(process.env.PATHEXT ? { PATHEXT: process.env.PATHEXT } : {}),
       ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
       HOME: home,
@@ -1175,6 +1180,7 @@ beforeAll(async () => {
     stdio: ["ignore", "pipe", "pipe"],
   });
   child.stderr!.on("data", (c) => (stderr += c));
+  child.stdout!.on("data", (c) => (stdout += c));
 
   const deadline = Date.now() + 20_000;
   for (;;) {
@@ -1184,8 +1190,8 @@ beforeAll(async () => {
     } catch {
       /* not up yet */
     }
-    if (Date.now() > deadline) throw new Error(`server never came up. stderr:\n${stderr}`);
-    if (child.exitCode !== null) throw new Error(`server exited ${child.exitCode}. stderr:\n${stderr}`);
+    if (Date.now() > deadline) throw new Error(`server never came up. stdout:\n${stdout}\nstderr:\n${stderr}`);
+    if (child.exitCode !== null) throw new Error(`server exited ${child.exitCode}. stdout:\n${stdout}\nstderr:\n${stderr}`);
     await new Promise((r) => setTimeout(r, 150));
   }
 }, 30_000);
