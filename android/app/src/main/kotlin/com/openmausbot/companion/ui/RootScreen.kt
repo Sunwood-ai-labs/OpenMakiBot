@@ -76,6 +76,7 @@ fun CompanionRoot(
     val welcomeSeen by onboarding.welcomeSeen.collectAsState()
     val notificationPromptSeen by onboarding.notificationPromptSeen.collectAsState()
     val notificationPending by onboarding.notificationPending.collectAsState()
+    val appearanceSkin by environment.chatPreferences.appearanceSkin.collectAsState()
 
     // Settings, reachable from the unpaired home. iOS puts it in a toolbar
     // `NavigationLink`; there is no navigator in the unpaired world, so this is
@@ -192,7 +193,7 @@ fun CompanionRoot(
         tapCoordinator.onPending(session, target, onPendingTargetConsumed)
     }
 
-    CompanionTheme {
+    CompanionTheme(skin = appearanceSkin) {
         // One place for system insets: the app draws edge to edge, and every
         // screen wants the same answer — keep content clear of the status bar,
         // the gesture bar, and the keyboard.
@@ -380,15 +381,14 @@ private fun PairedScreen(
         is Destination.Conversation -> ChatScreen(
             destination = destination,
             onResolved = { target ->
-                (destination as? Destination.Thread)?.let {
-                    navigator.resolveThread(it.threadId, target)
-                }
+                navigator.selectTask(destination, target)
             },
             onBack = navigator::pop,
             onOpenComputer = { navigator.push(Destination.Computer(it)) },
             onOpenOverview = { navigator.push(Destination.Overview(it)) },
             // Push Computer keeps the chat under the top; pop to roster does not.
             retainsDraft = navigator::retainsChatDraft,
+            onOpenChat = navigator::open,
         )
         is Destination.Computer -> ComputerScreen(
             botId = destination.botId,

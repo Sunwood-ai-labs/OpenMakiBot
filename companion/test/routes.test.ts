@@ -7,7 +7,7 @@
 // and the one that quietly stopped being true once before.
 import { describe, expect, it } from "vitest";
 
-import { denyReason } from "../src/routes.ts";
+import { denyReason, isCloudDesktopAccess } from "../src/routes.ts";
 
 const ask = (method: string, path: string, authenticated = true) =>
   denyReason({ method, path, authenticated });
@@ -40,6 +40,8 @@ describe("what the app may do", () => {
     ["GET", "/api/config"],
     ["GET", "/api/events"],
     ["GET", "/api/instances"],
+    ["POST", "/api/instances/claude/claude-update"],
+    ["POST", "/api/instances/claude.work/claude-update"],
     ["GET", "/api/team-map"],
     ["GET", "/api/companion/endpoints"],
     ["GET", "/api/bots"],
@@ -55,6 +57,7 @@ describe("what the app may do", () => {
     ["POST", "/api/bots/bot_123/messages/msg_2/edit"],
     ["GET", "/api/bots/bot_123/overview"],
     ["POST", "/api/bots/bot_123/active-branch"],
+    ["POST", "/api/bots/bot_123/compact"],
     ["POST", "/api/bots/bot_123/tasks"],
     ["POST", "/api/bots/bot_123/tasks/th_1"],
     ["PATCH", "/api/bots/bot_123/tasks/th_1"],
@@ -67,6 +70,8 @@ describe("what the app may do", () => {
     ["POST", "/api/bots/bot_123/computer/control"],
     ["POST", "/api/bots/bot_123/computer/screenshot"],
     ["POST", "/api/bots/bot_123/computer/viewer-close"],
+    ["POST", "/api/bots/bot_123/local-computer/screenshot"],
+    ["POST", "/api/bots/bot_123/local-computer/join"],
     ["POST", "/api/groups/room-1/messages"],
     ["POST", "/api/groups/room-1/interrupt"],
     ["DELETE", "/api/groups/room-1/queue/queue_1"],
@@ -84,6 +89,7 @@ describe("what the app may do", () => {
     ["GET", "/api/search"],
     ["POST", "/api/attachments"],
     ["GET", "/api/attachments/avatar-123.webp"],
+    ["GET", "/api/attachments/voice-note-1.mp3"],
     ["POST", "/api/files"],
     ["GET", "/api/tts/voices"],
     ["POST", "/api/tts/prepare"],
@@ -99,6 +105,7 @@ describe("what the app may do", () => {
     ["GET", "/api/connectors/connected"],
     ["GET", "/api/connectors"],
     ["POST", "/api/connectors/slack/authorize"],
+    ["DELETE", "/api/connectors/slack/accounts/ca_123"],
     ["GET", "/api/bots/bot_123/connector-cards/msg_2/status"],
     ["POST", "/api/bots/bot_123/connector-cards/msg_2/authorize"],
     ["POST", "/api/bots/bot_123/connector-cards/msg_2/resume"],
@@ -185,6 +192,24 @@ describe("what it may not", () => {
     expect(allowed("POST", "/api/bots/bot_123/computer/exec")).toBe(false);
   });
 
+  it("previews a Local VM without reaching its lifecycle", () => {
+    expect(allowed("POST", "/api/bots/bot_123/local-computer/screenshot")).toBe(true);
+    expect(isCloudDesktopAccess("POST", "/api/bots/bot_123/local-computer/screenshot")).toBe(true);
+    expect(allowed("GET", "/api/bots/bot_123/local-computer/screenshot")).toBe(false);
+    expect(allowed("GET", "/api/bots/bot_123/local-computer")).toBe(false);
+    for (const action of ["run", "stop", "remove"]) {
+      expect(allowed("POST", `/api/bots/bot_123/local-computer/${action}`)).toBe(false);
+    }
+    expect(allowed("POST", "/api/local-computer/screenshot")).toBe(false);
+  });
+
+  it("joins a Local VM's live desktop only behind computer access", () => {
+    expect(allowed("POST", "/api/bots/bot_123/local-computer/join")).toBe(true);
+    expect(isCloudDesktopAccess("POST", "/api/bots/bot_123/local-computer/join")).toBe(true);
+    expect(allowed("GET", "/api/bots/bot_123/local-computer/join")).toBe(false);
+    expect(allowed("POST", "/api/local-computer/join")).toBe(false);
+  });
+
   it("allows only the exact encrypted credential submission verb", () => {
     expect(allowed("POST", "/api/bots/bot_123/secret-cards/message_1/provide")).toBe(true);
     expect(allowed("GET", "/api/bots/bot_123/secret-cards/message_1/provide")).toBe(false);
@@ -219,15 +244,28 @@ describe("what it may not", () => {
     expect(allowed("POST", "/api/routine-runs/run_1/retry")).toBe(false);
     expect(allowed("DELETE", "/api/connectors/slack")).toBe(false);
     expect(allowed("GET", "/api/connectors/connected/all")).toBe(false);
-    // revocation is a host-only affordance: a paired client can list and add
-    // accounts but the account DELETE route is deliberately not allowed
-    expect(allowed("DELETE", "/api/connectors/slack/accounts/ca_123")).toBe(false);
+    // per-account removal is allowed (the server proves ownership before
+    // revoking); removing the whole service binding stays host-only
+    expect(allowed("DELETE", "/api/connectors/slack/accounts/ca_123")).toBe(true);
+    expect(allowed("DELETE", "/api/connectors/slack/accounts/../gmail")).toBe(false);
     expect(allowed("POST", "/api/bots/bot_123/secret-cards/msg_2/provided")).toBe(false);
     expect(allowed("PATCH", "/api/groups/room-1")).toBe(false);
   });
 
   // Patterns are anchored, so a path that merely starts right is still a
   // path nobody allowed.
+  it("lets a phone update Claude Code and change nothing else about engines", () => {
+    for (const [method, path] of [
+      ["GET", "/api/instances/claude/claude-update"],
+      ["POST", "/api/instances/../claude-update"],
+      ["POST", "/api/instances/.../claude-update"],
+      ["POST", "/api/instances/%2e%2e/claude-update"],
+      ["PATCH", "/api/instances/claude"],
+    ] as Array<[string, string]>) {
+      expect(allowed(method, path), `${method} ${path}`).toBe(false);
+    }
+  });
+
   it("is not fooled by a prefix", () => {
     expect(allowed("GET", "/api/bots/bot_123/computer")).toBe(false);
     expect(allowed("GET", "/api/botsandthensome")).toBe(false);

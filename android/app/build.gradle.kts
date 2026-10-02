@@ -126,6 +126,15 @@ android {
     }
 
     buildTypes {
+        create("preview") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-threads-preview"
+            matchingFallbacks += "debug"
+            // Reuse Gradle's local debug key; this package installs alongside
+            // the separately signed release and keeps its own pairing/data.
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             // Null whenever no signing material was supplied — the unsigned
             // handover build — and the "release" config whenever it was.
@@ -182,6 +191,10 @@ android {
             // handful of tests that mount a composition ask for it; the rest of
             // the suite never loads Robolectric at all.
             isIncludeAndroidResources = true
+            // Composition tests render real frames, and the conversation screen
+            // in particular drives enough of them that the Gradle default heap
+            // runs out before the swipe being tested can land.
+            all { test -> test.maxHeapSize = "2g" }
         }
     }
 }

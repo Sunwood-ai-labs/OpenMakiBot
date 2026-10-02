@@ -18,7 +18,37 @@ function hasWrite(permissions) {
 function guarded(file, name, condition, expected = guard) {
   assert(typeof condition === 'string', `${file}/${name}: missing repository guard`);
   assert(condition === expected || condition.startsWith(`${expected} && `), `${file}/${name}: missing repository guard`);
-  assert(!condition.includes('||'), `${file}/${name}: guard must not be bypassed with OR`);
+  // An OR inside the right-hand conjunct is safe (release/CLA event filters),
+  // but an OR at the top level can bypass the repository restriction.
+  let depth = 0;
+  let quote = '';
+  for (let i = 0; i < condition.length; i++) {
+    const char = condition[i];
+    if (quote) {
+      if (char === quote) {
+        if (condition[i + 1] === quote) i++;
+        else quote = '';
+      }
+      continue;
+    }
+    if (char === "'" || char === '"') quote = char;
+    else if (char === '(') depth++;
+    else if (char === ')') {
+      depth--;
+      assert(depth >= 0, `${file}/${name}: unbalanced guard expression`);
+    } else if (condition.slice(i, i + 2) === '||') {
+      assert(depth > 0, `${file}/${name}: guard must not be bypassed with OR`);
+      i++;
+    }
+  }
+  assert(depth === 0 && !quote, `${file}/${name}: unbalanced guard expression`);
+}
+
+function usesExternalSecret(job) {
+  // GitHub permissions do not describe authority granted by external tokens.
+  // In particular, Wrangler can deploy with contents:read and a Cloudflare key.
+  const source = JSON.stringify(job).replaceAll(/secrets\.GITHUB_TOKEN\b/g, '');
+  return /\bsecrets\s*(?:\.|\[)/.test(source);
 }
 
 export function validateWorkflow(file, source) {
@@ -34,11 +64,29 @@ export function validateWorkflow(file, source) {
       guarded(file, name, job.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot'");
       assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'], 'upstream sync must remain manual');
       assert.deepEqual(job.permissions ?? workflow.permissions, { contents: 'write', 'pull-requests': 'write' });
-    } else if (privileged || upstreamOnly.includes(file) || (file === 'docker.yml' && name === 'publish')) {
+    } else if (privileged || usesExternalSecret(job) || upstreamOnly.includes(file) || (file === 'docker.yml' && name === 'publish')) {
       guarded(file, name, job.if);
     }
   }
   return workflow;
+}
+
+export function validateForkCi(workflow) {
+  const platforms = ['macos-latest', 'ubuntu-latest', 'windows-latest'];
+  const legacy = workflow.jobs['legacy-platform-checks'];
+  assert(legacy, 'ci.yml: protected platform checks missing');
+  assert.equal(legacy.name, 'typecheck + test (${{ matrix.os }})', 'ci.yml: protected platform check names changed');
+  assert.deepEqual(legacy.strategy?.matrix?.os, platforms, 'ci.yml: protected platform checks missing');
+  assert.equal(legacy.needs, 'gate', 'ci.yml: protected platform checks must depend on CI');
+  assert.equal(legacy.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot' && !cancelled()", 'ci.yml: platform checks must report failures');
+  assert.equal(legacy.steps[0]?.env?.CI_RESULT, '${{ needs.gate.result }}', 'ci.yml: platform checks must read the CI result');
+  assert.equal(workflow.jobs.static.outputs.vitest_os, '${{ steps.fork-scope.outputs.vitest_os || steps.scope.outputs.vitest_os }}', 'ci.yml: fork platform coverage missing');
+  const scope = workflow.jobs.static.steps.find((step) => step.id === 'fork-scope');
+  assert.equal(scope?.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot'", 'ci.yml: fork platform coverage guard missing');
+  assert(scope.run.includes(JSON.stringify(platforms)), 'ci.yml: every protected platform must actually run');
+  for (const [job, expected] of [['control-plane', 'control-plane check + workerd tests + dry run'], ['package-linux', 'package + smoke (Ubuntu 24.04 x64)'], ['android', 'Kotlin tests + Android build'], ['ios', 'Swift tests + iOS build']]) {
+    assert.equal(workflow.jobs[job]?.name, expected, `ci.yml: protected ${job} check name changed`);
+  }
 }
 
 export function checkRepository(root) {
@@ -55,6 +103,7 @@ export function checkRepository(root) {
     assert(triggers?.push?.branches?.includes('main') && triggers.push.branches.includes('develop'), `${file}: main/develop coverage required`);
     assert(Object.hasOwn(triggers, 'workflow_dispatch'), `${file}: manual sync CI dispatch required`);
   }
+  validateForkCi(workflows.get('ci.yml'));
   assert(read('README.md').startsWith('# OpenMakiBot\n'), 'README must identify the fork');
   for (const term of ['fork/main', 'fork/develop', 'origin/main', 'codex/pr/', 'codex/sync/', 'docs/verification/README.md']) {
     assert(read('AGENTS.md').includes(term), `AGENTS.md: missing ${term}`);

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ApprovalCard } from "./ApprovalCard";
-import { PendingApprovalPanel, spokenApprovalPrompt, type Pending } from "./PendingApproval";
+import { pendingApprovals, PendingApprovalPanel, spokenApprovalPrompt, type Pending } from "./PendingApproval";
 import type { Bot, Message } from "@/state/store";
 import { skillRequestBehavior } from "../../shared/skill-request";
 
@@ -352,5 +352,98 @@ describe("ApprovalCard learned skills", () => {
     message.card!.skillRequest!.action = "update";
     expect(renderToStaticMarkup(createElement(ApprovalCard, { message })))
       .toContain("propose the update again");
+  });
+});
+
+describe("ApprovalCard tool-call kinds", () => {
+  const kindMessage = (tool?: string): Message => ({
+    id: "kind-card",
+    role: "bot",
+    kind: "options",
+    at: 1,
+    card: {
+      title: "Approval needed",
+      subtitle: "rg \"wants to\" src/components",
+      options: ["Allow", "Deny"],
+      requestId: "req-kind",
+      tool,
+    },
+  });
+
+  const bot = { id: "bot-1", name: "Scout" } as never as Bot;
+
+  it("speaks a verb phrase when the driver only knows the ACP kind", () => {
+    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message: kindMessage("other") }));
+    expect(html).toContain("Scout wants to take an action");
+    expect(html).not.toContain("wants to other");
+  });
+
+  it("maps every kind an ACP driver can send, and still humanizes tool names", () => {
+    const cases: Array<[string, string]> = [
+      ["shell", "run a command"],
+      ["edit", "edit a file"],
+      ["read", "read a file"],
+      ["fetch", "fetch a web page"],
+      ["delete", "delete a file"],
+      ["think", "think"],
+      ["other", "take an action"],
+      ["tool", "use a tool"],
+      ["mcp__ogb__computer_batch", "computer batch"],
+    ];
+    for (const [tool, phrase] of cases) {
+      const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message: kindMessage(tool) }));
+      expect(html).toContain(`Scout wants to ${phrase}`);
+    }
+  });
+
+  it("reads grammatically when no tool is known", () => {
+    const html = renderToStaticMarkup(createElement(ApprovalCard, { message: kindMessage(undefined) }));
+    expect(html).toContain("Wants to take an action");
+    expect(html).not.toContain("Wants to an action");
+  });
+
+  it("speaks a verb phrase in the voice prompt too", () => {
+    const message = kindMessage("other");
+    const spoken = spokenApprovalPrompt(
+      { message, requestId: "req-kind", tool: "other", detail: message.card!.subtitle },
+      "Mochi",
+    );
+    expect(spoken).toContain("Mochi wants to take an action");
+    expect(spoken).not.toContain("wants to other");
+  });
+});
+
+describe("ApprovalCard expired proposals", () => {
+  const expiredMessage = (): Message => ({
+    id: "profile-expired-card",
+    role: "bot",
+    kind: "options",
+    at: 1,
+    card: {
+      title: "Set up Scout?",
+      subtitle: 'Name: "Scout" → "Kiwi"',
+      options: ["Confirm", "Cancel"],
+      requestId: "req-expired",
+      tool: "update_profile",
+      expired: true,
+      profileRequest: {
+        version: 1, requestId: "req-expired", botId: "bot-1", threadId: "thread-1", targetBotId: "bot-1", targetName: "Scout",
+        createdAt: 1, reason: "you asked", changes: { name: "Kiwi" }, before: { name: "Scout" }, expectedRevision: "r",
+      },
+    },
+  });
+  const bot = { id: "bot-1", name: "Scout" } as never as Bot;
+
+  it("marks a dead proposal as expired instead of waiting for an answer", () => {
+    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message: expiredMessage() }));
+    expect(html).toContain("Expired — ask for a fresh proposal");
+    expect(html).not.toContain("Waiting for your confirmation below");
+    expect(html).not.toContain("data-tour=\"approval\"");
+  });
+
+  it("keeps an expired proposal out of the composer's decision queue", () => {
+    const live = expiredMessage();
+    live.card!.expired = undefined;
+    expect(pendingApprovals([live, expiredMessage()]).map((pending) => pending.requestId)).toEqual(["req-expired"]);
   });
 });

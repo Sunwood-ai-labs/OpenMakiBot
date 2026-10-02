@@ -7,6 +7,9 @@ OpenMakiBot is an independently maintained fork of [OpenMausBot](https://github.
 本家の更新を継続的に取り込み、独自機能を自分たちのタイミングで採用します。
 汎用的な改善は本家へ PR し、そのマージを待たずに独自版の開発を進めます。
 
+本家 0.1.93（2026-10-03 取得、`033fd71f`）の更新を同期しています。
+チーム共有、決定モデル、ブラウザー操作、モバイル連携などの最新機能と、独自の資料プレビューを統合します。
+
 ## 🌿 開発とリリース
 
 | 系列 | 役割 |
@@ -58,3 +61,4 @@ OpenMakiBot 独自のインストーラーと自動更新フィードはまだ�
 
 [OpenMausBot](https://github.com/milind-soni/OpenMausBot) と、その作者・貢献者に感謝します。
 OpenMakiBot は独立した派生プロジェクトです。元の著作権表示と [Apache-2.0 LICENSE](LICENSE) を維持します。
+`enterprise/` などのライセンス区分は [LICENSING.md](LICENSING.md) を参照してください。

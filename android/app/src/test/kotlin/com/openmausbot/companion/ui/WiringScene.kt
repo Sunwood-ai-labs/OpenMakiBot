@@ -3,6 +3,7 @@ package com.openmausbot.companion.ui
 import android.app.Application
 import android.content.Context
 import com.openmausbot.companion.audio.VoicePreviewPlayer
+import com.openmausbot.companion.audio.VoiceNotePlayer
 import com.openmausbot.companion.avatar.AvatarImageStore
 import com.openmausbot.companion.core.APIError
 import com.openmausbot.companion.core.Connection
@@ -25,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
@@ -54,6 +56,10 @@ import org.robolectric.RuntimeEnvironment
 internal class WiringScene(
     connection: Connection? = null,
     token: String? = "device-token",
+    /** An isolated fleet for conversation fixtures; older wiring scenes stay empty. */
+    fleet: Fleet = Fleet(emptyList(), emptyList()),
+    /** The transcript voice-note player; null builds a real one, tests inject a fake. */
+    voiceNotes: VoiceNotePlayer? = null,
     /** The body of the nth stream (1-based). Hangs by default, like a live SSE. */
     private val events: (Int) -> Flow<StreamFrame> = { flow { awaitCancellation() } },
 ) {
@@ -80,7 +86,7 @@ internal class WiringScene(
         onboardingStore = onboarding,
         deviceNameProvider = { "Pixel" },
         eventsFn = { _, _, _ -> flow { emitAll(events(streamStarts.incrementAndGet())) } },
-        hydrateFn = { _, _ -> Fleet(emptyList(), emptyList()) },
+        hydrateFn = { _, _ -> fleet },
         metadataFn = { throw APIError.Status(404) },
     )
 
@@ -102,6 +108,7 @@ internal class WiringScene(
         ),
         avatars = AvatarImageStore(fetch = { null }),
         voicePreview = VoicePreviewPlayer(context),
+        voiceNotes = voiceNotes ?: VoiceNotePlayer(context),
         dictation = SpeechDictation(
             context = context,
             hasRecordAudio = { false },
@@ -114,6 +121,8 @@ internal class WiringScene(
         shareTranscript = { _, _ -> null },
         openCloudDesktop = { null },
         shareInbox = ShareInbox(),
+        alwaysOnEnabled = MutableStateFlow(false),
+        onToggleAlwaysOn = {},
     )
 
     private object SilentDiscovery : CompanionDiscovery {

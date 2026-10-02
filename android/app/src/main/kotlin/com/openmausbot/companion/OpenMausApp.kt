@@ -3,15 +3,19 @@ package com.openmausbot.companion
 import android.app.Application
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.openmausbot.companion.audio.VoicePreviewPlayer
+import com.openmausbot.companion.audio.VoiceNotePlayer
 import com.openmausbot.companion.avatar.AvatarImageStore
 import com.openmausbot.companion.core.Session
 import com.openmausbot.companion.discovery.NsdDiscovery
+import com.openmausbot.companion.lifecycle.AlwaysOnConnectionService
+import com.openmausbot.companion.lifecycle.AlwaysOnConnectionState
 import com.openmausbot.companion.lifecycle.ServiceProcessAnchor
 import com.openmausbot.companion.lifecycle.SessionLingerController
 import com.openmausbot.companion.lifecycle.installSessionLinger
 import com.openmausbot.companion.notifications.LocalNotificationPoster
 import com.openmausbot.companion.permissions.CompanionPermissions
 import com.openmausbot.companion.sharing.ShareInbox
+import com.openmausbot.companion.storage.AlwaysOnPreferences
 import com.openmausbot.companion.storage.DataStoreConnectionStore
 import com.openmausbot.companion.storage.OnboardingPreferences
 import com.openmausbot.companion.storage.KeystoreTokenStore
@@ -51,9 +55,13 @@ class OpenMausApp : Application() {
         private set
     lateinit var voicePreview: VoicePreviewPlayer
         private set
+    lateinit var voiceNotes: VoiceNotePlayer
+        private set
     lateinit var linger: SessionLingerController
         private set
     lateinit var shareInbox: ShareInbox
+        private set
+    lateinit var alwaysOn: AlwaysOnPreferences
         private set
 
     override fun onCreate() {
@@ -82,6 +90,7 @@ class OpenMausApp : Application() {
         )
         avatars = AvatarImageStore(fetch = session::avatarData)
         voicePreview = VoicePreviewPlayer(this)
+        voiceNotes = VoiceNotePlayer(this)
 
         // iOS resets the avatar cache inside signOut. Observe Unpaired here so
         // the platform cache cannot outlive the pairing that minted its URLs.
@@ -103,6 +112,17 @@ class OpenMausApp : Application() {
             session = session,
             scope = appScope,
             anchor = ServiceProcessAnchor(this),
+            alwaysOn = { AlwaysOnConnectionState.active },
         )
+
+        alwaysOn = AlwaysOnPreferences(this)
+        // Covers the case where the process was relaunched (not booted) while
+        // the setting was on — e.g. the OS killed the whole app under memory
+        // pressure and the user (or a notification tap) reopened it. A device
+        // reboot is covered separately by AlwaysOnBootReceiver, which can run
+        // before anything ever constructs this Application's Activity.
+        if (alwaysOn.enabled.value) {
+            AlwaysOnConnectionService.start(this)
+        }
     }
 }
