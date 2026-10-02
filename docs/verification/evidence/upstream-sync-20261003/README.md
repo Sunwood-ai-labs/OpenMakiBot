@@ -5,6 +5,10 @@ integration of upstream `033fd71f` (OpenMausBot 0.1.93). Each side uses a
 disposable verification home, fake agent replies and generated sample files.
 These checks do not exercise live providers or the user's application data.
 
+The final synchronization also includes upstream `607bb5b9`, a server-only
+Chief of Staff approval-level update. It does not change the renderer shown
+in these screenshots.
+
 ## Reproduce
 
 ```sh
