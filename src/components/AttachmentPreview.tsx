@@ -760,16 +760,18 @@ export function MarkdownImagePreview({
   );
 }
 
-export function AttachedFileChip({ file, message, linked = false, className }: {
+export function AttachedFileChip({ file, message, linked = false, allowPreview = true, className }: {
   file: TranscriptFileAttachment;
   message?: MessageAttachmentContext;
   /** A rendered bot-authored Markdown link, still checked by the server on click. */
   linked?: boolean;
+  /** Media tiles already own their preview; their footer remains a save action. */
+  allowPreview?: boolean;
   className?: string;
 }) {
   const save = useLocalFileSave(file.path, file.name, message);
   const failed = save.state === "failed";
-  if (message && (file.private || linked) && filePreviewKind(file.path)) {
+  if (allowPreview && message && (file.private || linked) && filePreviewKind(file.path)) {
     return <PreviewableFile path={file.path} name={file.name} message={message} />;
   }
   if (!message || (!file.private && !linked)) {

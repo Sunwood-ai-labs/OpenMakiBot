@@ -229,7 +229,7 @@ function VideoAttachment({ file, message }: { file: GalleryFile; message: Messag
         {!preview && !loading && <Film size={13} className="pointer-events-none absolute left-2 top-2 text-ink-secondary/50" />}
       </div>
       {error && <p role="alert" className="px-3 py-2 text-[11px] text-danger">{error}</p>}
-      <AttachedFileChip file={file} linked={file.linked} message={message} className="max-w-none rounded-none border-0 border-t border-hairline/30 bg-transparent" />
+      <AttachedFileChip file={file} linked={file.linked} message={message} allowPreview={false} className="max-w-none rounded-none border-0 border-t border-hairline/30 bg-transparent" />
     </div>
   );
 }
@@ -377,7 +377,7 @@ export function AttachmentGallery({ images = [], files = [], message, eager = fa
         </div>
       )}
       {documents.length > 0 && (
-        <div className="flex flex-col items-start gap-1.5">
+        <div className="flex flex-wrap items-start gap-2">
           {documents.map((item) => item.kind === "audio" && message
             ? <AudioAttachment key={`${message.threadId}:${message.messageId}:${item.key}`} file={item.file} message={message} />
             : item.kind === "file" && <AttachedFileChip key={item.key} file={item.file} linked={item.file.linked} message={message} className="max-w-none rounded-xl border-hairline/25 bg-transparent" />)}

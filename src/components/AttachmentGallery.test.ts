@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FILE_MAX_BYTES } from "@/lib/composer-attachments";
 import { AttachmentGallery, collectMessageFiles, isAudioAttachment, isVideoAttachment, loadMessageAudio, loadMessageVideo, MessageAttachmentGallery, splitMessageAttachments } from "./AttachmentGallery";
+import { ChatMarkdown } from "./ChatMarkdown";
 
 const message = { threadId: "thread/one", messageId: "message two" };
 const file = { path: "/workspace/demo.mp4", name: "demo.mp4", linked: true };
@@ -143,10 +144,22 @@ describe("message gallery", () => {
     expect(markup).toContain("Overview.png");
     expect(markup).toContain("Load video");
     expect(markup).toContain("Save a copy of demo.mp4");
-    expect(markup).toContain("Save a copy of report.pdf");
+    expect(markup).toContain("Preview report.pdf");
     expect(markup).toContain("loading=\"lazy\"");
     expect(markup).not.toContain("<video");
     expect(markup).not.toContain("src=\"/workspace/");
+  });
+
+  it("shows a document thumbnail once while preserving its Markdown caption preview", () => {
+    const text = "Read [project notes](/workspace/report.pdf).";
+    const markup = renderToStaticMarkup(createElement("div", null,
+      createElement(AttachmentGallery, { files: collectMessageFiles(text), message }),
+      createElement(ChatMarkdown, { text, message }),
+    ));
+    expect(markup.match(/class="group\/file /g)).toHaveLength(1);
+    expect(markup).toContain("project notes");
+    expect(markup).toContain("Preview report.pdf");
+    expect(markup).not.toContain('src="/workspace/');
   });
 
   it("collapses large collections and deduplicates paths", () => {

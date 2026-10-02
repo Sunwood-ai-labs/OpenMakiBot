@@ -6,6 +6,7 @@ import { setLocale } from "@/lib/i18n";
 beforeEach(() => setLocale('en'));
 
 import {
+  AttachedFileChip,
   AttachedFileChips,
   AttachedImageGallery,
   MarkdownImagePreview,
@@ -163,6 +164,18 @@ describe("attachment preview surfaces", () => {
     }));
     expect(html).toContain("Preview Final report.pdf");
     expect(html).toContain("type=\"button\"");
+  });
+
+  it("keeps an existing video preview's footer as a save action", () => {
+    const html = renderToStaticMarkup(createElement(AttachedFileChip, {
+      file: { path: "Project motion.mp4", name: "Project motion.mp4" },
+      linked: true,
+      allowPreview: false,
+      message: { threadId: "thread-1", messageId: "message-1" },
+    }));
+    expect(html).toContain('aria-label="Save a copy of Project motion.mp4"');
+    expect(html).not.toContain('group/file');
+    expect(html).not.toContain('<video');
   });
 });
 

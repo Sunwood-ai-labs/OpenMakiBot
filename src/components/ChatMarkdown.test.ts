@@ -510,7 +510,7 @@ describe("ChatMarkdown attachments", () => {
     expect(html).not.toContain("type=\"button\"");
   });
 
-  it("opens a message-authorized PDF link in a preview", () => {
+  it("opens a message-authorized PDF caption without duplicating its gallery thumbnail", () => {
     const html = renderToStaticMarkup(createElement(ChatMarkdown, {
       text: "[Download the report](/workspace/final-report.pdf)",
       message: { threadId: "thread-1", messageId: "message-1" },
@@ -518,6 +518,8 @@ describe("ChatMarkdown attachments", () => {
     expect(html).toContain('aria-label="Preview final-report.pdf"');
     expect(html).not.toContain("/workspace/final-report.pdf");
     expect(html).toContain("type=\"button\"");
+    expect(html).toContain("Download the report");
+    expect(html).not.toContain("group/file");
   });
 
   it("does not nest a preview button in an anchor or block in a paragraph", () => {
