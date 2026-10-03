@@ -1,0 +1,91 @@
+{
+  "url": "http://127.0.0.1:19630",
+  "a": {
+    "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+    "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "codex",
+      "model": "gpt-6-astra",
+      "effort": "low"
+    },
+    "createdAt": 1789270370694,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+        "title": "New task",
+        "createdAt": 1789270370694
+      }
+    ],
+    "messages": [
+      {
+        "id": "fb5832ba-eef6-498c-8cc1-cedae3638748",
+        "at": 1789270370706,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "fb5832ba-eef6-498c-8cc1-cedae3638748"
+  },
+  "b": {
+    "id": "40013199-60d7-4525-b71d-32f3e9f1887b",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "codex",
+      "model": "gpt-6-astra",
+      "effort": "low"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "168e30f2-1c04-4b0c-ae53-77f7d18bccc2",
+    "tasks": [
+      {
+        "taskId": "168e30f2-1c04-4b0c-ae53-77f7d18bccc2",
+        "title": "New task",
+        "createdAt": 1789270371260,
+        "active": true
+      }
+    ]
+  },
+  "room": {
+    "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+    "name": "API・MCP会議実験",
+    "memberIds": [
+      "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+      "40013199-60d7-4525-b71d-32f3e9f1887b"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+    "tasks": [
+      {
+        "taskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "title": "New task",
+        "createdAt": 1789270371286,
+        "active": true
+      }
+    ],
+    "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5"
+  }
+}

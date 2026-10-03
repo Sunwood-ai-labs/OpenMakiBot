@@ -1,0 +1,89 @@
+{
+  "url": "http://127.0.0.1:19862",
+  "a": {
+    "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+    "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "Isolated scripted fixture; not a live model.",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "createdAt": 1789270155425,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+        "title": "New task",
+        "createdAt": 1789270155425
+      }
+    ],
+    "messages": [
+      {
+        "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+        "at": 1789270155443,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "a8e189bc-2f7d-4d11-983c-b6b66399d582"
+  },
+  "b": {
+    "id": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "Isolated scripted fixture; not a live model.",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "5dc40a7c-aa62-4870-ae15-fa58d429b8b6",
+    "tasks": [
+      {
+        "taskId": "5dc40a7c-aa62-4870-ae15-fa58d429b8b6",
+        "title": "New task",
+        "createdAt": 1789270156008,
+        "active": true
+      }
+    ]
+  },
+  "room": {
+    "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+    "name": "API・MCP会議実験",
+    "memberIds": [
+      "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+      "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+    "tasks": [
+      {
+        "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+        "title": "New task",
+        "createdAt": 1789270156037,
+        "active": true
+      }
+    ],
+    "threadId": "0f4c2039-6751-4517-ac19-b68aafebab3c"
+  }
+}

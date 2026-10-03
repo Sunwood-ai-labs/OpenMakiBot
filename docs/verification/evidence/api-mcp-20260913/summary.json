@@ -1,0 +1,406 @@
+{
+  "passed": true,
+  "model": "scripted fake Claude",
+  "a": {
+    "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+    "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "Isolated scripted fixture; not a live model.",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "createdAt": 1789270155425,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+        "title": "New task",
+        "createdAt": 1789270155425
+      }
+    ],
+    "messages": [
+      {
+        "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+        "at": 1789270155443,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "a8e189bc-2f7d-4d11-983c-b6b66399d582"
+  },
+  "b": {
+    "id": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "Isolated scripted fixture; not a live model.",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "claude",
+      "model": "claude-sonnet-5"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "5dc40a7c-aa62-4870-ae15-fa58d429b8b6",
+    "tasks": [
+      {
+        "taskId": "5dc40a7c-aa62-4870-ae15-fa58d429b8b6",
+        "title": "New task",
+        "createdAt": 1789270156008,
+        "active": true
+      }
+    ]
+  },
+  "room": {
+    "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+    "name": "API・MCP会議実験",
+    "memberIds": [
+      "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+      "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+    "tasks": [
+      {
+        "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+        "title": "New task",
+        "createdAt": 1789270156037,
+        "active": true
+      }
+    ],
+    "threadId": "0f4c2039-6751-4517-ac19-b68aafebab3c"
+  },
+  "dm": {
+    "bot": {
+      "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+      "name": "API検証Bot",
+      "title": "",
+      "description": "Isolated scripted fixture; not a live model.",
+      "section": null,
+      "chiefOfStaff": false,
+      "modelSelection": {
+        "instanceId": "claude",
+        "model": "claude-sonnet-5"
+      },
+      "busy": false,
+      "activity": "idle",
+      "unread": true,
+      "activeTaskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+      "tasks": [
+        {
+          "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+          "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+          "createdAt": 1789270155425,
+          "active": true,
+          "usage": {
+            "input": 48,
+            "output": 20,
+            "cachedInput": 8,
+            "costUsd": 0.04,
+            "turns": 4
+          }
+        }
+      ]
+    },
+    "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+    "messages": [
+      {
+        "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+        "at": 1789270155443,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      },
+      {
+        "id": "7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3",
+        "at": 1789270156066,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      },
+      {
+        "id": "52151755-68a0-4dbd-ab80-7da63f5eddd3",
+        "at": 1789270156381,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude"
+      },
+      {
+        "id": "2f11bd3a-aaec-4613-a0eb-75e52b4a2b45",
+        "at": 1789270156385,
+        "role": "bot",
+        "kind": "activity",
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      },
+      {
+        "id": "4ea8a917-b70d-4f69-b737-5f38c253816a",
+        "at": 1789270156671,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+      },
+      {
+        "id": "66acf8fe-8484-4cb7-b0fb-36253ca07aea",
+        "at": 1789270156950,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude"
+      },
+      {
+        "id": "b55b1b53-1c0d-4391-9fb5-ab15e04e207d",
+        "at": 1789270156954,
+        "role": "bot",
+        "kind": "activity",
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      },
+      {
+        "id": "7a93a231-3bf4-4bac-9532-3657195969cc",
+        "at": 1789270204160,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      },
+      {
+        "id": "154cf65e-7624-4083-9d78-8c5ca5d1a405",
+        "at": 1789270204524,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude"
+      },
+      {
+        "id": "dc9886e9-cf24-401e-bc62-1a7939c1d6d0",
+        "at": 1789270204526,
+        "role": "bot",
+        "kind": "activity",
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      },
+      {
+        "id": "e32320e9-a3be-4e19-8392-a53167a95335",
+        "at": 1789270204848,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+      },
+      {
+        "id": "519d6632-3667-4fb9-b0eb-35621083126d",
+        "at": 1789270205122,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude"
+      },
+      {
+        "id": "10a390a7-e8e2-4470-9c0a-3afe7240bdfd",
+        "at": 1789270205125,
+        "role": "bot",
+        "kind": "activity",
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      }
+    ],
+    "hasMore": false
+  },
+  "group": {
+    "channel": {
+      "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+      "name": "API・MCP会議実験",
+      "memberIds": [
+        "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+        "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+      ],
+      "bulletin": "",
+      "defaultResponder": {
+        "kind": "member",
+        "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+      },
+      "section": null,
+      "directMessage": false,
+      "working": false,
+      "busyBotId": null,
+      "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+      "tasks": [
+        {
+          "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+          "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+          "createdAt": 1789270156037,
+          "active": true
+        }
+      ]
+    },
+    "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+    "messages": [
+      {
+        "id": "4925583f-c999-43da-8b72-cf1564d9380a",
+        "at": 1789270157262,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+      },
+      {
+        "id": "7cd3fea0-21d9-4d19-b286-d8f26ba91244",
+        "at": 1789270157554,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude",
+        "from": {
+          "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "5696c851-3ea9-47f4-9558-5f8094015e03",
+        "at": 1789270157557,
+        "role": "bot",
+        "kind": "activity",
+        "from": {
+          "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "name": "API検証Bot",
+          "color": "blue"
+        },
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      },
+      {
+        "id": "04b038f7-638e-48c2-8195-289c57d1d25f",
+        "at": 1789270157848,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+      },
+      {
+        "id": "346aca4e-48d1-4058-a331-02331cbe89b1",
+        "at": 1789270158172,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude",
+        "from": {
+          "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+          "name": "MCP検証Bot",
+          "color": "red"
+        }
+      },
+      {
+        "id": "5f1bd94c-dafe-46e5-b6b2-d7d58fa5c3be",
+        "at": 1789270158173,
+        "role": "bot",
+        "kind": "activity",
+        "from": {
+          "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+          "name": "MCP検証Bot",
+          "color": "red"
+        },
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      },
+      {
+        "id": "b57d307d-8ce6-4085-8ebb-c5de27f29f51",
+        "at": 1789270205435,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+      },
+      {
+        "id": "7b25bdad-d889-4129-841f-78d483830500",
+        "at": 1789270205742,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude",
+        "from": {
+          "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "d9d3dcb5-1c73-4b84-ad84-c8df5ba1679d",
+        "at": 1789270205744,
+        "role": "bot",
+        "kind": "activity",
+        "from": {
+          "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "name": "API検証Bot",
+          "color": "blue"
+        },
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      },
+      {
+        "id": "cda3a625-208f-44bc-b55f-4be8a70bce3b",
+        "at": 1789270206016,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+      },
+      {
+        "id": "22f1936a-4d67-4856-835d-19e44b6820ee",
+        "at": 1789270206305,
+        "role": "bot",
+        "kind": "text",
+        "text": "hello from fake claude",
+        "from": {
+          "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+          "name": "MCP検証Bot",
+          "color": "red"
+        }
+      },
+      {
+        "id": "e8553809-5e2a-45c0-b90b-d7fa5b980360",
+        "at": 1789270206307,
+        "role": "bot",
+        "kind": "activity",
+        "from": {
+          "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+          "name": "MCP検証Bot",
+          "color": "red"
+        },
+        "tool": {
+          "name": "Bash",
+          "ok": true,
+          "spoken": "running a command"
+        }
+      }
+    ],
+    "hasMore": false
+  }
+}

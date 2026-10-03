@@ -1,0 +1,12 @@
+openmausbot webhook receiver on http://127.0.0.1:19863
+openmausbot open-source edition (enterprise layer present but OMB_LICENSE_KEY is not set)
+brand: default
+openmausbot server on http://127.0.0.1:19862
+[omb-turn] bot=42a0ae3b-0c71-4711-bafa-36f7fc396922 text="[API-DM-01] APIからの個別会話です。受信確認をお願いします。" images=0 depth=0 card=false
+[omb-turn] bot=42a0ae3b-0c71-4711-bafa-36f7fc396922 text="[MCP-DM-02] 同じ会話へMCPから追記しました。" images=0 depth=0 card=false
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"
+[omb-turn] bot=42a0ae3b-0c71-4711-bafa-36f7fc396922 text="[API-DM-01] APIからの個別会話です。受信確認をお願いします。" images=0 depth=0 card=false
+[omb-turn] bot=42a0ae3b-0c71-4711-bafa-36f7fc396922 text="[MCP-DM-02] 同じ会話へMCPから追記しました。" images=0 depth=0 card=false
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"

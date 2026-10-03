@@ -1,0 +1,15 @@
+openmausbot webhook receiver on http://127.0.0.1:21358
+openmausbot open-source edition (enterprise layer present but OMB_LICENSE_KEY is not set)
+brand: default
+openmausbot server on http://127.0.0.1:21357
+openmausbot webhook receiver on http://127.0.0.1:21358
+openmausbot open-source edition (enterprise layer present but OMB_LICENSE_KEY is not set)
+brand: default
+openmausbot server on http://127.0.0.1:21357
+[omb-turn] bot=e37ccce8-4922-4876-9aa0-49be5e6a86ea text="[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。" images=0 depth=0 card=false
+[omb-turn] bot=e37ccce8-4922-4876-9aa0-49be5e6a86ea text="[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。" images=0 depth=0 card=false
+permission broker: \\.\pipe\openmausbot-perm-36764-eebd8bd7 is still held — bound fallback \\.\pipe\openmausbot-perm-36764-eebd8bd7-a80860
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"
+permission broker: \\.\pipe\openmausbot-perm-36764-122957c7 is still held — bound fallback \\.\pipe\openmausbot-perm-36764-122957c7-ff25f3
+room message from 127.0.0.1 through the local API (no session, no browser origin) into "API・MCP会議実験"

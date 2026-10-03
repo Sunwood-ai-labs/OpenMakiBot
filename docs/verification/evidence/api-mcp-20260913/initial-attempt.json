@@ -1,0 +1,2079 @@
+[
+  {
+    "transport": "HTTP",
+    "path": "/api/instances",
+    "status": 200,
+    "result": {
+      "instances": [
+        {
+          "instanceId": "claude",
+          "driverKind": "claudeAgent",
+          "displayName": "Verification fixture",
+          "snapshot": {
+            "state": "available",
+            "version": "2.1.232 (Claude Code)",
+            "authenticated": true,
+            "billing": "subscription"
+          },
+          "models": {
+            "default": "claude-sonnet-5",
+            "options": [
+              {
+                "id": "claude-fable-5-1",
+                "label": "Claude Fable 5.1"
+              },
+              {
+                "id": "claude-fable-5",
+                "label": "Claude Fable 5"
+              },
+              {
+                "id": "claude-opus-5",
+                "label": "Claude Opus 5"
+              },
+              {
+                "id": "claude-sonnet-5",
+                "label": "Claude Sonnet 5"
+              },
+              {
+                "id": "claude-haiku-4-5",
+                "label": "Claude Haiku 4.5"
+              },
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": true,
+            "browserMcp": true,
+            "images": true,
+            "effortLevels": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "queueing": true,
+            "localComputerMcp": true,
+            "approvalReview": true
+          },
+          "access": "subscription",
+          "install": {
+            "command": {
+              "darwin": "npm install -g @anthropic-ai/claude-code",
+              "linux": "npm install -g @anthropic-ai/claude-code",
+              "win32": "npm install -g @anthropic-ai/claude-code"
+            },
+            "needsNode": true,
+            "docsUrl": "https://claude.com/claude-code",
+            "signInCommand": "claude"
+          },
+          "cli": "C:\\Prj\\OpenMakiBot-api-mcp-evidence\\server\\testing\\fake-claude-cli.ts",
+          "cliDefault": "claude",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "cursor",
+          "driverKind": "cursorAgent",
+          "displayName": "Cursor",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`cursor-agent` CLI not found"
+          },
+          "models": {
+            "default": "auto",
+            "options": [
+              {
+                "id": "auto",
+                "label": "Auto"
+              },
+              {
+                "id": "composer-2.5",
+                "label": "Composer 2.5"
+              },
+              {
+                "id": "composer-2.5-fast",
+                "label": "Composer 2.5 Fast"
+              },
+              {
+                "id": "gpt-5.3-codex",
+                "label": "Codex 5.3"
+              },
+              {
+                "id": "claude-sonnet-5-thinking-high",
+                "label": "Claude Sonnet 5 1M Thinking"
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "subscription",
+          "install": {
+            "command": {
+              "darwin": "curl https://cursor.com/install -fsS | bash",
+              "linux": "curl https://cursor.com/install -fsS | bash",
+              "win32": "irm 'https://cursor.com/install?win32=true' | iex"
+            },
+            "docsUrl": "https://cursor.com/docs/cli/installation",
+            "signInCommand": "cursor-agent login"
+          },
+          "cliDefault": "cursor-agent",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "openaiCompat",
+          "driverKind": "openai-compat",
+          "displayName": "OpenAI-compatible (OpenRouter / Groq)",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "no API key — set OPENAI_COMPAT_API_KEY or add it to the instance config"
+          },
+          "models": {
+            "default": "meta-llama/llama-3.3-70b-instruct",
+            "options": [
+              {
+                "id": "meta-llama/llama-3.3-70b-instruct",
+                "label": "Llama 3.3 70B (OpenRouter)",
+                "custom": true
+              },
+              {
+                "id": "llama-3.3-70b-versatile",
+                "label": "Llama 3.3 70B (Groq)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": false,
+            "agentsMcp": false,
+            "composioMcp": false,
+            "phoneMcp": false,
+            "browserMcp": false,
+            "images": false,
+            "queueing": false,
+            "localComputerMcp": false,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "docsUrl": "https://openrouter.ai/keys",
+            "signInCommand": "add {\"openaiCompat\":{\"key\":\"sk-or-v1-…\"}} to ~/.openmausbot/config.json (or set OPENAI_COMPAT_API_KEY)",
+            "command": {
+              "darwin": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+              "linux": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+              "win32": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to %USERPROFILE%\\.openmausbot\\config.json under openaiCompat.key"
+            }
+          },
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "qwen",
+          "driverKind": "qwenAgent",
+          "displayName": "Qwen",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`qwen` CLI not found"
+          },
+          "models": {
+            "default": "ollama::gemma4e2b-q8-local:latest",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+              "linux": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+              "win32": "irm https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1 | iex"
+            },
+            "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/overview/"
+          },
+          "cliDefault": "qwen",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "hermes",
+          "driverKind": "hermesAgent",
+          "displayName": "Hermes",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`hermes` CLI not found"
+          },
+          "models": {
+            "default": "ollama::gemma4e2b-q8-local:latest",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+              "linux": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+              "win32": "iex (irm https://hermes-agent.nousresearch.com/install.ps1)"
+            },
+            "docsUrl": "https://hermes-agent.nousresearch.com/docs/getting-started/quickstart",
+            "signInCommand": "hermes setup"
+          },
+          "cliDefault": "hermes",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "pi",
+          "driverKind": "piAgent",
+          "displayName": "pi",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`pi` CLI not found"
+          },
+          "models": {
+            "default": "",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": true,
+            "browserMcp": false,
+            "images": true,
+            "effortLevels": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "npm install -g @earendil-works/pi-coding-agent",
+              "linux": "npm install -g @earendil-works/pi-coding-agent",
+              "win32": "npm install -g @earendil-works/pi-coding-agent"
+            },
+            "needsNode": true,
+            "docsUrl": "https://pi.dev"
+          },
+          "cliDefault": "pi",
+          "cliCandidates": []
+        }
+      ]
+    }
+  },
+  {
+    "transport": "MCP stderr",
+    "text": "[openmausbot-mcp] OpenMausBot MCP server running on stdio\n"
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "api-mcp-evidence",
+          "version": "1.0"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+          "tools": {}
+        },
+        "serverInfo": {
+          "name": "openmausbot-mcp",
+          "version": "1.1.0"
+        },
+        "instructions": "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deletion, and computer lifecycle are intentionally unavailable."
+      }
+    }
+  },
+  {
+    "transport": "MCP stderr",
+    "text": "[openmausbot-mcp] MCP client initialized session\n"
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "tools": [
+          {
+            "name": "get_system_health",
+            "description": "Check whether the OpenMausBot server is reachable.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_bots",
+            "description": "List bots, their current status, active task, and available tasks without loading transcripts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_bot_messages",
+            "description": "Retrieve a bounded page of recent messages from one bot task. Images are never returned inline.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the bot's active task."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "description": "Messages to retrieve (default: 30, max: 200)."
+                }
+              },
+              "required": [
+                "bot_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "send_bot_message",
+            "description": "Send an instruction to a bot's active task. Optionally name the expected task to prevent cross-task races. This may cause the bot to use external tools.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot to message."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional expected active task/thread ID."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The message content/instruction to send."
+                }
+              },
+              "required": [
+                "bot_id",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": false,
+              "openWorldHint": true
+            }
+          },
+          {
+            "name": "create_bot",
+            "description": "Create a new bot and optionally configure its profile, section, and exact model selection.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Bot display name."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional short role title."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Optional persona or responsibility description."
+                },
+                "section": {
+                  "type": "string",
+                  "description": "Optional sidebar section."
+                },
+                "instance_id": {
+                  "type": "string",
+                  "description": "Optional provider instance ID; model is required with it."
+                },
+                "model": {
+                  "type": "string",
+                  "description": "Optional exact model ID; instance_id is required with it."
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "update_bot_profile",
+            "description": "Update safe bot profile fields. This cannot alter permissions, computer access, or approval settings.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Optional bot display name."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional short role title."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Optional persona or responsibility description."
+                },
+                "section": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Optional sidebar section. Null clears it."
+                }
+              },
+              "required": [
+                "bot_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_channels",
+            "description": "List multi-agent channels, their members, active task, and available tasks without loading transcripts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_channel_messages",
+            "description": "Retrieve a bounded page of recent messages from one channel task. Images are never returned inline.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the channel's active task."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "description": "Messages to retrieve (default: 30, max: 200)."
+                }
+              },
+              "required": [
+                "channel_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "send_channel_message",
+            "description": "Send an instruction to a channel's active task. Optionally name the expected task to prevent cross-task races. This may cause one or more bots to use external tools.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional expected active task/thread ID."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The message content to post."
+                }
+              },
+              "required": [
+                "channel_id",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": false,
+              "openWorldHint": true
+            }
+          },
+          {
+            "name": "create_channel",
+            "description": "Create a multi-agent channel from existing bots.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Channel name."
+                },
+                "member_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "section": {
+                  "type": "string",
+                  "description": "Optional sidebar section."
+                },
+                "bulletin": {
+                  "type": "string",
+                  "description": "Optional shared instructions for channel members."
+                },
+                "default_responder": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "everyone"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "mentions"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "member"
+                        },
+                        "bot_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "bot_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "member_ids"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "update_channel",
+            "description": "Update a channel's name, members, section, bulletin, or default responder.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "member_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "section": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Null clears the section."
+                },
+                "bulletin": {
+                  "type": "string"
+                },
+                "default_responder": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "everyone"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "mentions"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "member"
+                        },
+                        "bot_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "bot_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "channel_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "create_task",
+            "description": "Create and activate a fresh conversation task for a bot or user-created channel.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional task title."
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "switch_task",
+            "description": "Switch a bot or channel to an existing task. Running or approval-blocked conversations are refused.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id",
+                "task_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "rename_task",
+            "description": "Rename an existing bot or channel task.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id",
+                "task_id",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "search_messages",
+            "description": "Search local transcripts, optionally within one task/thread. Returns at most 100 compact hits.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "description": "Maximum hits (default: 40)."
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "wait_for_conversation",
+            "description": "Wait for a bot or channel task to finish, stall, fail, or require user input.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the active task."
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120,
+                  "description": "Maximum wait (default: 30 seconds)."
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "set_bot_model",
+            "description": "Change an idle bot to an exact configured provider instance and model.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "instance_id": {
+                  "type": "string",
+                  "description": "The configured provider instance ID."
+                },
+                "model": {
+                  "type": "string",
+                  "description": "The exact model ID exposed by that instance."
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                }
+              },
+              "required": [
+                "bot_id",
+                "instance_id",
+                "model"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_available_models",
+            "description": "List configured model instances and capabilities without exposing local executable paths.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "interrupt_conversation",
+            "description": "Interrupt the active turn in a bot or channel conversation.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/bots",
+    "body": {
+      "name": "API検証Bot",
+      "description": "Isolated scripted fixture; not a live model."
+    },
+    "status": 201,
+    "result": {
+      "bot": {
+        "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+        "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+        "name": "API検証Bot",
+        "title": "",
+        "description": "Isolated scripted fixture; not a live model.",
+        "soul": "",
+        "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "notifications": true,
+        "color": "blue",
+        "unread": false,
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "claude-sonnet-5"
+        },
+        "createdAt": 1789270155425,
+        "avatarUrl": null,
+        "tasks": [
+          {
+            "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+            "title": "New task",
+            "createdAt": 1789270155425
+          }
+        ],
+        "messages": [
+          {
+            "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+            "at": 1789270155443,
+            "parentId": null,
+            "role": "bot",
+            "kind": "text",
+            "text": "Hi, I'm API検証Bot. What would you like me to do?"
+          }
+        ],
+        "activeLeafId": "a8e189bc-2f7d-4d11-983c-b6b66399d582"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "create_bot",
+        "arguments": {
+          "name": "MCP検証Bot",
+          "description": "Isolated scripted fixture; not a live model."
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"bot\": {\n    \"id\": \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\",\n    \"name\": \"MCP検証Bot\",\n    \"title\": \"\",\n    \"description\": \"Isolated scripted fixture; not a live model.\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"claude-sonnet-5\"\n    },\n    \"busy\": false,\n    \"unread\": false,\n    \"activeTaskId\": \"5dc40a7c-aa62-4870-ae15-fa58d429b8b6\",\n    \"tasks\": [\n      {\n        \"taskId\": \"5dc40a7c-aa62-4870-ae15-fa58d429b8b6\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789270156008,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "bot": {
+            "id": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+            "name": "MCP検証Bot",
+            "title": "",
+            "description": "Isolated scripted fixture; not a live model.",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "claude-sonnet-5"
+            },
+            "busy": false,
+            "unread": false,
+            "activeTaskId": "5dc40a7c-aa62-4870-ae15-fa58d429b8b6",
+            "tasks": [
+              {
+                "taskId": "5dc40a7c-aa62-4870-ae15-fa58d429b8b6",
+                "title": "New task",
+                "createdAt": 1789270156008,
+                "active": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "create_channel",
+        "arguments": {
+          "name": "API・MCP会議実験",
+          "member_ids": [
+            "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+            "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+          ]
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"channel\": {\n    \"id\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n      \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n    \"tasks\": [\n      {\n        \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789270156037,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "channel": {
+            "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+              "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+            "tasks": [
+              {
+                "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+                "title": "New task",
+                "createdAt": 1789270156037,
+                "active": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/bots/42a0ae3b-0c71-4711-bafa-36f7fc396922/messages",
+    "body": {
+      "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+      "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb"
+    },
+    "status": 202,
+    "result": {
+      "ok": true,
+      "threadId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+      "message": {
+        "id": "7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3",
+        "at": 1789270156066,
+        "parentId": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "bot",
+          "target_id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"bot\",\n  \"targetId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n  \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n  \"target\": {\n    \"id\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"Isolated scripted fixture; not a live model.\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"claude-sonnet-5\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n    \"tasks\": [\n      {\n        \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n        \"title\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\",\n        \"createdAt\": 1789270155425,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 12,\n          \"output\": 5,\n          \"cachedInput\": 2,\n          \"costUsd\": 0.01,\n          \"turns\": 1\n        }\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"a8e189bc-2f7d-4d11-983c-b6b66399d582\",\n      \"at\": 1789270155443,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3\",\n      \"at\": 1789270156066,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\"\n    },\n    {\n      \"id\": \"52151755-68a0-4dbd-ab80-7da63f5eddd3\",\n      \"at\": 1789270156381,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\"\n    },\n    {\n      \"id\": \"2f11bd3a-aaec-4613-a0eb-75e52b4a2b45\",\n      \"at\": 1789270156385,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "bot",
+          "targetId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+          "target": {
+            "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "Isolated scripted fixture; not a live model.",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "claude-sonnet-5"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+            "tasks": [
+              {
+                "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+                "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+                "createdAt": 1789270155425,
+                "active": true,
+                "usage": {
+                  "input": 12,
+                  "output": 5,
+                  "cachedInput": 2,
+                  "costUsd": 0.01,
+                  "turns": 1
+                }
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+              "at": 1789270155443,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3",
+              "at": 1789270156066,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+            },
+            {
+              "id": "52151755-68a0-4dbd-ab80-7da63f5eddd3",
+              "at": 1789270156381,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude"
+            },
+            {
+              "id": "2f11bd3a-aaec-4613-a0eb-75e52b4a2b45",
+              "at": 1789270156385,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "send_bot_message",
+        "arguments": {
+          "bot_id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "task_id": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+          "text": "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n  \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\"\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb"
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "bot",
+          "target_id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"bot\",\n  \"targetId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n  \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n  \"target\": {\n    \"id\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"Isolated scripted fixture; not a live model.\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"claude-sonnet-5\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n    \"tasks\": [\n      {\n        \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n        \"title\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\",\n        \"createdAt\": 1789270155425,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 24,\n          \"output\": 10,\n          \"cachedInput\": 4,\n          \"costUsd\": 0.02,\n          \"turns\": 2\n        }\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"a8e189bc-2f7d-4d11-983c-b6b66399d582\",\n      \"at\": 1789270155443,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3\",\n      \"at\": 1789270156066,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\"\n    },\n    {\n      \"id\": \"52151755-68a0-4dbd-ab80-7da63f5eddd3\",\n      \"at\": 1789270156381,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\"\n    },\n    {\n      \"id\": \"2f11bd3a-aaec-4613-a0eb-75e52b4a2b45\",\n      \"at\": 1789270156385,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    },\n    {\n      \"id\": \"4ea8a917-b70d-4f69-b737-5f38c253816a\",\n      \"at\": 1789270156671,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-DM-02] 同じ会話へMCPから追記しました。\"\n    },\n    {\n      \"id\": \"66acf8fe-8484-4cb7-b0fb-36253ca07aea\",\n      \"at\": 1789270156950,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\"\n    },\n    {\n      \"id\": \"b55b1b53-1c0d-4391-9fb5-ab15e04e207d\",\n      \"at\": 1789270156954,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "bot",
+          "targetId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+          "target": {
+            "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "Isolated scripted fixture; not a live model.",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "claude-sonnet-5"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+            "tasks": [
+              {
+                "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+                "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+                "createdAt": 1789270155425,
+                "active": true,
+                "usage": {
+                  "input": 24,
+                  "output": 10,
+                  "cachedInput": 4,
+                  "costUsd": 0.02,
+                  "turns": 2
+                }
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+              "at": 1789270155443,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3",
+              "at": 1789270156066,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+            },
+            {
+              "id": "52151755-68a0-4dbd-ab80-7da63f5eddd3",
+              "at": 1789270156381,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude"
+            },
+            {
+              "id": "2f11bd3a-aaec-4613-a0eb-75e52b4a2b45",
+              "at": 1789270156385,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            },
+            {
+              "id": "4ea8a917-b70d-4f69-b737-5f38c253816a",
+              "at": 1789270156671,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+            },
+            {
+              "id": "66acf8fe-8484-4cb7-b0fb-36253ca07aea",
+              "at": 1789270156950,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude"
+            },
+            {
+              "id": "b55b1b53-1c0d-4391-9fb5-ab15e04e207d",
+              "at": 1789270156954,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "get_bot_messages",
+        "arguments": {
+          "bot_id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+          "limit": 20
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"bot\": {\n    \"id\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"Isolated scripted fixture; not a live model.\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"claude-sonnet-5\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n    \"tasks\": [\n      {\n        \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n        \"title\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\",\n        \"createdAt\": 1789270155425,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 24,\n          \"output\": 10,\n          \"cachedInput\": 4,\n          \"costUsd\": 0.02,\n          \"turns\": 2\n        }\n      }\n    ]\n  },\n  \"taskId\": \"9d233d5a-f70f-4a44-bd65-e18e399917fb\",\n  \"messages\": [\n    {\n      \"id\": \"a8e189bc-2f7d-4d11-983c-b6b66399d582\",\n      \"at\": 1789270155443,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3\",\n      \"at\": 1789270156066,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\"\n    },\n    {\n      \"id\": \"52151755-68a0-4dbd-ab80-7da63f5eddd3\",\n      \"at\": 1789270156381,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\"\n    },\n    {\n      \"id\": \"2f11bd3a-aaec-4613-a0eb-75e52b4a2b45\",\n      \"at\": 1789270156385,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    },\n    {\n      \"id\": \"4ea8a917-b70d-4f69-b737-5f38c253816a\",\n      \"at\": 1789270156671,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-DM-02] 同じ会話へMCPから追記しました。\"\n    },\n    {\n      \"id\": \"66acf8fe-8484-4cb7-b0fb-36253ca07aea\",\n      \"at\": 1789270156950,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\"\n    },\n    {\n      \"id\": \"b55b1b53-1c0d-4391-9fb5-ab15e04e207d\",\n      \"at\": 1789270156954,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "bot": {
+            "id": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "Isolated scripted fixture; not a live model.",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "claude-sonnet-5"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+            "tasks": [
+              {
+                "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+                "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+                "createdAt": 1789270155425,
+                "active": true,
+                "usage": {
+                  "input": 24,
+                  "output": 10,
+                  "cachedInput": 4,
+                  "costUsd": 0.02,
+                  "turns": 2
+                }
+              }
+            ]
+          },
+          "taskId": "9d233d5a-f70f-4a44-bd65-e18e399917fb",
+          "messages": [
+            {
+              "id": "a8e189bc-2f7d-4d11-983c-b6b66399d582",
+              "at": 1789270155443,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "7b07fb25-7f14-4e7e-829a-0e8bf8a5ecc3",
+              "at": 1789270156066,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+            },
+            {
+              "id": "52151755-68a0-4dbd-ab80-7da63f5eddd3",
+              "at": 1789270156381,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude"
+            },
+            {
+              "id": "2f11bd3a-aaec-4613-a0eb-75e52b4a2b45",
+              "at": 1789270156385,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            },
+            {
+              "id": "4ea8a917-b70d-4f69-b737-5f38c253816a",
+              "at": 1789270156671,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+            },
+            {
+              "id": "66acf8fe-8484-4cb7-b0fb-36253ca07aea",
+              "at": 1789270156950,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude"
+            },
+            {
+              "id": "b55b1b53-1c0d-4391-9fb5-ab15e04e207d",
+              "at": 1789270156954,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/groups/fe0bc57a-ca60-499a-9e4a-66f50ff69b7d/messages",
+    "body": {
+      "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+    },
+    "status": 202,
+    "result": {
+      "ok": true,
+      "threadId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+      "message": {
+        "id": "4925583f-c999-43da-8b72-cf1564d9380a",
+        "at": 1789270157262,
+        "parentId": null,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+        "channelMode": "chat",
+        "via": "api"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "channel",
+          "target_id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"channel\",\n  \"targetId\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n  \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n  \"target\": {\n    \"id\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n      \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n    \"tasks\": [\n      {\n        \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n        \"title\": \"[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。\",\n        \"createdAt\": 1789270156037,\n        \"active\": true\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"4925583f-c999-43da-8b72-cf1564d9380a\",\n      \"at\": 1789270157262,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。\"\n    },\n    {\n      \"id\": \"7cd3fea0-21d9-4d19-b286-d8f26ba91244\",\n      \"at\": 1789270157554,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\",\n      \"from\": {\n        \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      }\n    },\n    {\n      \"id\": \"5696c851-3ea9-47f4-9558-5f8094015e03\",\n      \"at\": 1789270157557,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"from\": {\n        \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      },\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "channel",
+          "targetId": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+          "target": {
+            "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+              "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+            "tasks": [
+              {
+                "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+                "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+                "createdAt": 1789270156037,
+                "active": true
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "4925583f-c999-43da-8b72-cf1564d9380a",
+              "at": 1789270157262,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+            },
+            {
+              "id": "7cd3fea0-21d9-4d19-b286-d8f26ba91244",
+              "at": 1789270157554,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude",
+              "from": {
+                "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+                "name": "API検証Bot",
+                "color": "blue"
+              }
+            },
+            {
+              "id": "5696c851-3ea9-47f4-9558-5f8094015e03",
+              "at": 1789270157557,
+              "role": "bot",
+              "kind": "activity",
+              "from": {
+                "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+                "name": "API検証Bot",
+                "color": "blue"
+              },
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "send_channel_message",
+        "arguments": {
+          "channel_id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"channelId\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n  \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\"\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "channelId": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c"
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "channel",
+          "target_id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"channel\",\n  \"targetId\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n  \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n  \"target\": {\n    \"id\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n      \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n    \"tasks\": [\n      {\n        \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n        \"title\": \"[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。\",\n        \"createdAt\": 1789270156037,\n        \"active\": true\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"4925583f-c999-43da-8b72-cf1564d9380a\",\n      \"at\": 1789270157262,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。\"\n    },\n    {\n      \"id\": \"7cd3fea0-21d9-4d19-b286-d8f26ba91244\",\n      \"at\": 1789270157554,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\",\n      \"from\": {\n        \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      }\n    },\n    {\n      \"id\": \"5696c851-3ea9-47f4-9558-5f8094015e03\",\n      \"at\": 1789270157557,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"from\": {\n        \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      },\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    },\n    {\n      \"id\": \"04b038f7-638e-48c2-8195-289c57d1d25f\",\n      \"at\": 1789270157848,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。\"\n    },\n    {\n      \"id\": \"346aca4e-48d1-4058-a331-02331cbe89b1\",\n      \"at\": 1789270158172,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\",\n      \"from\": {\n        \"botId\": \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\",\n        \"name\": \"MCP検証Bot\",\n        \"color\": \"red\"\n      }\n    },\n    {\n      \"id\": \"5f1bd94c-dafe-46e5-b6b2-d7d58fa5c3be\",\n      \"at\": 1789270158173,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"from\": {\n        \"botId\": \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\",\n        \"name\": \"MCP検証Bot\",\n        \"color\": \"red\"\n      },\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "channel",
+          "targetId": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+          "target": {
+            "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+              "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+            "tasks": [
+              {
+                "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+                "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+                "createdAt": 1789270156037,
+                "active": true
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "4925583f-c999-43da-8b72-cf1564d9380a",
+              "at": 1789270157262,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+            },
+            {
+              "id": "7cd3fea0-21d9-4d19-b286-d8f26ba91244",
+              "at": 1789270157554,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude",
+              "from": {
+                "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+                "name": "API検証Bot",
+                "color": "blue"
+              }
+            },
+            {
+              "id": "5696c851-3ea9-47f4-9558-5f8094015e03",
+              "at": 1789270157557,
+              "role": "bot",
+              "kind": "activity",
+              "from": {
+                "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+                "name": "API検証Bot",
+                "color": "blue"
+              },
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            },
+            {
+              "id": "04b038f7-638e-48c2-8195-289c57d1d25f",
+              "at": 1789270157848,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+            },
+            {
+              "id": "346aca4e-48d1-4058-a331-02331cbe89b1",
+              "at": 1789270158172,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude",
+              "from": {
+                "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+                "name": "MCP検証Bot",
+                "color": "red"
+              }
+            },
+            {
+              "id": "5f1bd94c-dafe-46e5-b6b2-d7d58fa5c3be",
+              "at": 1789270158173,
+              "role": "bot",
+              "kind": "activity",
+              "from": {
+                "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+                "name": "MCP検証Bot",
+                "color": "red"
+              },
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "tools/call",
+      "params": {
+        "name": "get_channel_messages",
+        "arguments": {
+          "channel_id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+          "limit": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"channel\": {\n    \"id\": \"fe0bc57a-ca60-499a-9e4a-66f50ff69b7d\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n      \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n    \"tasks\": [\n      {\n        \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n        \"title\": \"[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。\",\n        \"createdAt\": 1789270156037,\n        \"active\": true\n      }\n    ]\n  },\n  \"taskId\": \"0f4c2039-6751-4517-ac19-b68aafebab3c\",\n  \"messages\": [\n    {\n      \"id\": \"4925583f-c999-43da-8b72-cf1564d9380a\",\n      \"at\": 1789270157262,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。\"\n    },\n    {\n      \"id\": \"7cd3fea0-21d9-4d19-b286-d8f26ba91244\",\n      \"at\": 1789270157554,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\",\n      \"from\": {\n        \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      }\n    },\n    {\n      \"id\": \"5696c851-3ea9-47f4-9558-5f8094015e03\",\n      \"at\": 1789270157557,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"from\": {\n        \"botId\": \"42a0ae3b-0c71-4711-bafa-36f7fc396922\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      },\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    },\n    {\n      \"id\": \"04b038f7-638e-48c2-8195-289c57d1d25f\",\n      \"at\": 1789270157848,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。\"\n    },\n    {\n      \"id\": \"346aca4e-48d1-4058-a331-02331cbe89b1\",\n      \"at\": 1789270158172,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"hello from fake claude\",\n      \"from\": {\n        \"botId\": \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\",\n        \"name\": \"MCP検証Bot\",\n        \"color\": \"red\"\n      }\n    },\n    {\n      \"id\": \"5f1bd94c-dafe-46e5-b6b2-d7d58fa5c3be\",\n      \"at\": 1789270158173,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"from\": {\n        \"botId\": \"1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331\",\n        \"name\": \"MCP検証Bot\",\n        \"color\": \"red\"\n      },\n      \"tool\": {\n        \"name\": \"Bash\",\n        \"ok\": true,\n        \"spoken\": \"running a command\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "channel": {
+            "id": "fe0bc57a-ca60-499a-9e4a-66f50ff69b7d",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+              "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+            "tasks": [
+              {
+                "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+                "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+                "createdAt": 1789270156037,
+                "active": true
+              }
+            ]
+          },
+          "taskId": "0f4c2039-6751-4517-ac19-b68aafebab3c",
+          "messages": [
+            {
+              "id": "4925583f-c999-43da-8b72-cf1564d9380a",
+              "at": 1789270157262,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+            },
+            {
+              "id": "7cd3fea0-21d9-4d19-b286-d8f26ba91244",
+              "at": 1789270157554,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude",
+              "from": {
+                "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+                "name": "API検証Bot",
+                "color": "blue"
+              }
+            },
+            {
+              "id": "5696c851-3ea9-47f4-9558-5f8094015e03",
+              "at": 1789270157557,
+              "role": "bot",
+              "kind": "activity",
+              "from": {
+                "botId": "42a0ae3b-0c71-4711-bafa-36f7fc396922",
+                "name": "API検証Bot",
+                "color": "blue"
+              },
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            },
+            {
+              "id": "04b038f7-638e-48c2-8195-289c57d1d25f",
+              "at": 1789270157848,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+            },
+            {
+              "id": "346aca4e-48d1-4058-a331-02331cbe89b1",
+              "at": 1789270158172,
+              "role": "bot",
+              "kind": "text",
+              "text": "hello from fake claude",
+              "from": {
+                "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+                "name": "MCP検証Bot",
+                "color": "red"
+              }
+            },
+            {
+              "id": "5f1bd94c-dafe-46e5-b6b2-d7d58fa5c3be",
+              "at": 1789270158173,
+              "role": "bot",
+              "kind": "activity",
+              "from": {
+                "botId": "1fa9d1ab-b98a-48f8-a2ad-25f5b8a3f331",
+                "name": "MCP検証Bot",
+                "color": "red"
+              },
+              "tool": {
+                "name": "Bash",
+                "ok": true,
+                "spoken": "running a command"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/threads/undefined/messages?limit=30",
+    "status": 404,
+    "result": {
+      "error": "no such conversation"
+    }
+  }
+]

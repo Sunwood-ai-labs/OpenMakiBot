@@ -1,0 +1,18 @@
+[
+  {
+    "pid": 36172,
+    "parentPid": 36764,
+    "executable": "C:\\Users\\makim\\.local\\bin\\claude.exe",
+    "model": "glm-5.3",
+    "hasPrint": false,
+    "hasStreamJson": true
+  },
+  {
+    "pid": 40400,
+    "parentPid": 36764,
+    "executable": "C:\\Users\\makim\\.local\\bin\\claude.exe",
+    "model": "glm-5.3",
+    "hasPrint": false,
+    "hasStreamJson": true
+  }
+]

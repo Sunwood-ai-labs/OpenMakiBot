@@ -1,0 +1,7 @@
+{
+  "fakeDataExists": true,
+  "liveDataExists": true,
+  "credentialCopyExists": false,
+  "remainingListeners": 0,
+  "note": "Recursive fixture-directory cleanup rejected by policy; exact owned processes stopped and individual credential copy removed."
+}

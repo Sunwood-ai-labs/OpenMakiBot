@@ -1,0 +1,98 @@
+- complementary "Bots and navigation":
+  - button "Collapse sidebar to avatars":
+  - button "Choose sidebar density"
+  - button "New or share":
+  - textbox "Search bots and messages":
+    - /placeholder: Search
+  - button "Channels" [expanded]:
+    - generic: Channels
+  - 'button "API検証Bot MCP検証Bot API・MCP会議実験 13:46 API検証Bot: 一人3,750円です（15000÷4）。" [active]':
+    - img "API検証Bot"
+    - img "MCP検証Bot"
+    - generic: API・MCP会議実験
+    - generic: 13:46
+    - generic: "API検証Bot: 一人3,750円です（15000÷4）。"
+  - button "Bots" [expanded]:
+    - generic: Bots
+  - button "MCP検証Bot Rename MCP検証Bot Hi, I'm MCP検証Bot. What would you like me to do?":
+    - img "MCP検証Bot"
+    - button "Rename MCP検証Bot": MCP検証Bot
+    - generic: Hi, I'm MCP検証Bot. What would you like me to do?
+  - button "Archive MCP検証Bot":
+  - button "API検証Bot Rename API検証Bot 846です。":
+    - img "API検証Bot"
+    - button "Rename API検証Bot": API検証Bot
+    - generic: 846です。
+  - button "Archive API検証Bot":
+  - button "Poppy Rename Poppy Hi, I'm Poppy. What would you like me to do?":
+    - img "Poppy"
+    - button "Rename Poppy": Poppy
+    - generic: Hi, I'm Poppy. What would you like me to do?
+  - button "Archive Poppy":
+  - paragraph
+  - button "Tools":
+    - generic: Tools
+  - button "You":
+    - generic: "?"
+    - generic: You
+- main:
+  - generic: API・MCP会議実験
+  - button "Task":
+    - generic: Task
+  - button "Find in conversation":
+  - button "Calls currently need the macOS desktop app":
+  - button "Channel working folder":
+  - generic "Plain messages go to API検証Bot; @mentions override this":
+    - combobox "Default responder":
+      - 'option "Lead: API検証Bot" [selected]'
+      - 'option "Lead: MCP検証Bot"'
+      - option "Everyone responds"
+      - option "Only when mentioned"
+  - button "Manage members — 2 bots in this channel":
+    - generic "API検証Bot":
+    - generic "MCP検証Bot":
+  - button "Add channel instructions…":
+    - generic: Add channel instructions…
+  - log "Room API・MCP会議実験":
+    - generic: Today 13:45
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 13:45:26":
+      - text: "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。"
+      - generic: Sent through the API, not typed here
+    - generic: 13:45
+    - generic: API検証Bot
+    - generic "2026/9/13 13:45:32":
+      - paragraph: 一人4,000円です（12000÷3）。
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 13:45
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 13:45:32":
+      - text: "[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。"
+      - generic: Sent through the API, not typed here
+    - generic: 13:45
+    - generic: MCP検証Bot
+    - generic "2026/9/13 13:45:40":
+      - paragraph: 一人5,000円です（15000÷3）。
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 13:45
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 13:46:29":
+      - text: "[API-SSE-03] ユーザーから追加の変更です。参加人数を4人に変更します。予算はさっきの変更後のままです。一人いくらになりますか？"
+      - generic: Sent through the API, not typed here
+    - generic: 13:46
+    - generic: API検証Bot
+    - generic "2026/9/13 13:46:37":
+      - paragraph: 一人3,750円です（15000÷4）。
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 13:46
+  - button "Attach a file":
+  - button "Finish together":
+    - text: Goal
+  - textbox "Message API・MCP会議実験":
+    - /placeholder: Message API・MCP会議実験 — API検証Bot responds

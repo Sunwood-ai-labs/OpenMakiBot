@@ -1,0 +1,1360 @@
+[
+  {
+    "transport": "HTTP",
+    "path": "/api/instances",
+    "status": 200,
+    "result": {
+      "instances": [
+        {
+          "instanceId": "codex",
+          "driverKind": "codex",
+          "displayName": "Live Codex verification",
+          "snapshot": {
+            "state": "available",
+            "version": "codex-cli 0.130.0",
+            "authenticated": true,
+            "update": {
+              "title": "Update Codex for GPT-6 Astra",
+              "message": "This Codex version predates Astra support. Update it, then refresh models. Astra must also be available to your signed-in ChatGPT account.",
+              "command": "& 'C:/Users/makim/AppData/Roaming/npm/node_modules/@openai/codex/bin/codex.js' update"
+            },
+            "billing": "subscription"
+          },
+          "models": {
+            "default": "gpt-5.6-sol",
+            "options": [
+              {
+                "id": "gpt-5.6-sol",
+                "label": "GPT-5.6 Sol"
+              },
+              {
+                "id": "gpt-5.6-terra",
+                "label": "GPT-5.6 Terra"
+              },
+              {
+                "id": "gpt-5.6-luna",
+                "label": "GPT-5.6 Luna"
+              },
+              {
+                "id": "gpt-5.5",
+                "label": "GPT-5.5"
+              },
+              {
+                "id": "gpt-5.4",
+                "label": "GPT-5.4"
+              },
+              {
+                "id": "gpt-5.4-mini",
+                "label": "GPT-5.4 Mini"
+              },
+              {
+                "id": "gpt-5.3-codex-spark",
+                "label": "GPT-5.3 Codex Spark"
+              },
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": true,
+            "browserMcp": true,
+            "images": true,
+            "effortLevels": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "subscription",
+          "install": {
+            "command": {
+              "darwin": "npm install -g @openai/codex",
+              "linux": "npm install -g @openai/codex",
+              "win32": "npm install -g @openai/codex"
+            },
+            "needsNode": true,
+            "docsUrl": "https://github.com/openai/codex",
+            "signInCommand": "codex login"
+          },
+          "cli": "C:/Users/makim/AppData/Roaming/npm/node_modules/@openai/codex/bin/codex.js",
+          "cliDefault": "codex",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "cursor",
+          "driverKind": "cursorAgent",
+          "displayName": "Cursor",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`cursor-agent` CLI not found"
+          },
+          "models": {
+            "default": "auto",
+            "options": [
+              {
+                "id": "auto",
+                "label": "Auto"
+              },
+              {
+                "id": "composer-2.5",
+                "label": "Composer 2.5"
+              },
+              {
+                "id": "composer-2.5-fast",
+                "label": "Composer 2.5 Fast"
+              },
+              {
+                "id": "gpt-5.3-codex",
+                "label": "Codex 5.3"
+              },
+              {
+                "id": "claude-sonnet-5-thinking-high",
+                "label": "Claude Sonnet 5 1M Thinking"
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "subscription",
+          "install": {
+            "command": {
+              "darwin": "curl https://cursor.com/install -fsS | bash",
+              "linux": "curl https://cursor.com/install -fsS | bash",
+              "win32": "irm 'https://cursor.com/install?win32=true' | iex"
+            },
+            "docsUrl": "https://cursor.com/docs/cli/installation",
+            "signInCommand": "cursor-agent login"
+          },
+          "cliDefault": "cursor-agent",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "openaiCompat",
+          "driverKind": "openai-compat",
+          "displayName": "OpenAI-compatible (OpenRouter / Groq)",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "no API key — set OPENAI_COMPAT_API_KEY or add it to the instance config"
+          },
+          "models": {
+            "default": "meta-llama/llama-3.3-70b-instruct",
+            "options": [
+              {
+                "id": "meta-llama/llama-3.3-70b-instruct",
+                "label": "Llama 3.3 70B (OpenRouter)",
+                "custom": true
+              },
+              {
+                "id": "llama-3.3-70b-versatile",
+                "label": "Llama 3.3 70B (Groq)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": false,
+            "agentsMcp": false,
+            "composioMcp": false,
+            "phoneMcp": false,
+            "browserMcp": false,
+            "images": false,
+            "queueing": false,
+            "localComputerMcp": false,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "docsUrl": "https://openrouter.ai/keys",
+            "signInCommand": "add {\"openaiCompat\":{\"key\":\"sk-or-v1-…\"}} to ~/.openmausbot/config.json (or set OPENAI_COMPAT_API_KEY)",
+            "command": {
+              "darwin": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+              "linux": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+              "win32": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to %USERPROFILE%\\.openmausbot\\config.json under openaiCompat.key"
+            }
+          },
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "qwen",
+          "driverKind": "qwenAgent",
+          "displayName": "Qwen",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`qwen` CLI not found"
+          },
+          "models": {
+            "default": "ollama::gemma4e2b-q8-local:latest",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+              "linux": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+              "win32": "irm https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1 | iex"
+            },
+            "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/overview/"
+          },
+          "cliDefault": "qwen",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "hermes",
+          "driverKind": "hermesAgent",
+          "displayName": "Hermes",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`hermes` CLI not found"
+          },
+          "models": {
+            "default": "ollama::gemma4e2b-q8-local:latest",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+              "linux": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+              "win32": "iex (irm https://hermes-agent.nousresearch.com/install.ps1)"
+            },
+            "docsUrl": "https://hermes-agent.nousresearch.com/docs/getting-started/quickstart",
+            "signInCommand": "hermes setup"
+          },
+          "cliDefault": "hermes",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "pi",
+          "driverKind": "piAgent",
+          "displayName": "pi",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`pi` CLI not found"
+          },
+          "models": {
+            "default": "",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": true,
+            "browserMcp": false,
+            "images": true,
+            "effortLevels": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "npm install -g @earendil-works/pi-coding-agent",
+              "linux": "npm install -g @earendil-works/pi-coding-agent",
+              "win32": "npm install -g @earendil-works/pi-coding-agent"
+            },
+            "needsNode": true,
+            "docsUrl": "https://pi.dev"
+          },
+          "cliDefault": "pi",
+          "cliCandidates": []
+        }
+      ]
+    }
+  },
+  {
+    "transport": "MCP stderr",
+    "text": "[openmausbot-mcp] OpenMausBot MCP server running on stdio\n"
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "api-mcp-evidence",
+          "version": "1.0"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+          "tools": {}
+        },
+        "serverInfo": {
+          "name": "openmausbot-mcp",
+          "version": "1.1.0"
+        },
+        "instructions": "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deletion, and computer lifecycle are intentionally unavailable."
+      }
+    }
+  },
+  {
+    "transport": "MCP stderr",
+    "text": "[openmausbot-mcp] MCP client initialized session\n"
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "tools": [
+          {
+            "name": "get_system_health",
+            "description": "Check whether the OpenMausBot server is reachable.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_bots",
+            "description": "List bots, their current status, active task, and available tasks without loading transcripts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_bot_messages",
+            "description": "Retrieve a bounded page of recent messages from one bot task. Images are never returned inline.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the bot's active task."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "description": "Messages to retrieve (default: 30, max: 200)."
+                }
+              },
+              "required": [
+                "bot_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "send_bot_message",
+            "description": "Send an instruction to a bot's active task. Optionally name the expected task to prevent cross-task races. This may cause the bot to use external tools.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot to message."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional expected active task/thread ID."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The message content/instruction to send."
+                }
+              },
+              "required": [
+                "bot_id",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": false,
+              "openWorldHint": true
+            }
+          },
+          {
+            "name": "create_bot",
+            "description": "Create a new bot and optionally configure its profile, section, and exact model selection.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Bot display name."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional short role title."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Optional persona or responsibility description."
+                },
+                "section": {
+                  "type": "string",
+                  "description": "Optional sidebar section."
+                },
+                "instance_id": {
+                  "type": "string",
+                  "description": "Optional provider instance ID; model is required with it."
+                },
+                "model": {
+                  "type": "string",
+                  "description": "Optional exact model ID; instance_id is required with it."
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "update_bot_profile",
+            "description": "Update safe bot profile fields. This cannot alter permissions, computer access, or approval settings.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Optional bot display name."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional short role title."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Optional persona or responsibility description."
+                },
+                "section": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Optional sidebar section. Null clears it."
+                }
+              },
+              "required": [
+                "bot_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_channels",
+            "description": "List multi-agent channels, their members, active task, and available tasks without loading transcripts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_channel_messages",
+            "description": "Retrieve a bounded page of recent messages from one channel task. Images are never returned inline.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the channel's active task."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "description": "Messages to retrieve (default: 30, max: 200)."
+                }
+              },
+              "required": [
+                "channel_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "send_channel_message",
+            "description": "Send an instruction to a channel's active task. Optionally name the expected task to prevent cross-task races. This may cause one or more bots to use external tools.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional expected active task/thread ID."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The message content to post."
+                }
+              },
+              "required": [
+                "channel_id",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": false,
+              "openWorldHint": true
+            }
+          },
+          {
+            "name": "create_channel",
+            "description": "Create a multi-agent channel from existing bots.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Channel name."
+                },
+                "member_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "section": {
+                  "type": "string",
+                  "description": "Optional sidebar section."
+                },
+                "bulletin": {
+                  "type": "string",
+                  "description": "Optional shared instructions for channel members."
+                },
+                "default_responder": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "everyone"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "mentions"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "member"
+                        },
+                        "bot_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "bot_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "member_ids"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "update_channel",
+            "description": "Update a channel's name, members, section, bulletin, or default responder.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "member_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "section": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Null clears the section."
+                },
+                "bulletin": {
+                  "type": "string"
+                },
+                "default_responder": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "everyone"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "mentions"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "member"
+                        },
+                        "bot_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "bot_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "channel_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "create_task",
+            "description": "Create and activate a fresh conversation task for a bot or user-created channel.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional task title."
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "switch_task",
+            "description": "Switch a bot or channel to an existing task. Running or approval-blocked conversations are refused.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id",
+                "task_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "rename_task",
+            "description": "Rename an existing bot or channel task.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id",
+                "task_id",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "search_messages",
+            "description": "Search local transcripts, optionally within one task/thread. Returns at most 100 compact hits.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "description": "Maximum hits (default: 40)."
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "wait_for_conversation",
+            "description": "Wait for a bot or channel task to finish, stall, fail, or require user input.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the active task."
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120,
+                  "description": "Maximum wait (default: 30 seconds)."
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "set_bot_model",
+            "description": "Change an idle bot to an exact configured provider instance and model.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "instance_id": {
+                  "type": "string",
+                  "description": "The configured provider instance ID."
+                },
+                "model": {
+                  "type": "string",
+                  "description": "The exact model ID exposed by that instance."
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                }
+              },
+              "required": [
+                "bot_id",
+                "instance_id",
+                "model"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_available_models",
+            "description": "List configured model instances and capabilities without exposing local executable paths.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "interrupt_conversation",
+            "description": "Interrupt the active turn in a bot or channel conversation.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "set_bot_model",
+        "arguments": {
+          "bot_id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "instance_id": "codex",
+          "model": "gpt-5.4",
+          "effort": "low"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"bot\": {\n    \"id\": \"e401a9a4-b35d-4419-80c0-116d6c8f178d\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"codex\",\n      \"model\": \"gpt-5.4\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"76a06aa6-1e5a-4403-8cea-af1a5efde689\",\n    \"tasks\": [\n      {\n        \"taskId\": \"76a06aa6-1e5a-4403-8cea-af1a5efde689\",\n        \"title\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\",\n        \"createdAt\": 1789270370694,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 0,\n          \"output\": 0,\n          \"costUsd\": null,\n          \"turns\": 1\n        }\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "bot": {
+            "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "codex",
+              "model": "gpt-5.4",
+              "effort": "low"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+            "tasks": [
+              {
+                "taskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+                "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+                "createdAt": 1789270370694,
+                "active": true,
+                "usage": {
+                  "input": 0,
+                  "output": 0,
+                  "costUsd": null,
+                  "turns": 1
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "set_bot_model",
+        "arguments": {
+          "bot_id": "40013199-60d7-4525-b71d-32f3e9f1887b",
+          "instance_id": "codex",
+          "model": "gpt-5.4",
+          "effort": "low"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"bot\": {\n    \"id\": \"40013199-60d7-4525-b71d-32f3e9f1887b\",\n    \"name\": \"MCP検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"codex\",\n      \"model\": \"gpt-5.4\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"unread\": false,\n    \"activeTaskId\": \"168e30f2-1c04-4b0c-ae53-77f7d18bccc2\",\n    \"tasks\": [\n      {\n        \"taskId\": \"168e30f2-1c04-4b0c-ae53-77f7d18bccc2\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789270371260,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "bot": {
+            "id": "40013199-60d7-4525-b71d-32f3e9f1887b",
+            "name": "MCP検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "codex",
+              "model": "gpt-5.4",
+              "effort": "low"
+            },
+            "busy": false,
+            "unread": false,
+            "activeTaskId": "168e30f2-1c04-4b0c-ae53-77f7d18bccc2",
+            "tasks": [
+              {
+                "taskId": "168e30f2-1c04-4b0c-ae53-77f7d18bccc2",
+                "title": "New task",
+                "createdAt": 1789270371260,
+                "active": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/bots/e401a9a4-b35d-4419-80c0-116d6c8f178d/messages",
+    "body": {
+      "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+      "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689"
+    },
+    "status": 202,
+    "result": {
+      "ok": true,
+      "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+      "message": {
+        "id": "79583a32-d29d-4e3d-b2f5-5e7dd2ea56b7",
+        "at": 1789270396012,
+        "parentId": "c63025de-2301-4238-8aff-07ec37fa976a",
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "bot",
+          "target_id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"failed\",\n  \"targetType\": \"bot\",\n  \"targetId\": \"e401a9a4-b35d-4419-80c0-116d6c8f178d\",\n  \"taskId\": \"76a06aa6-1e5a-4403-8cea-af1a5efde689\",\n  \"target\": {\n    \"id\": \"e401a9a4-b35d-4419-80c0-116d6c8f178d\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"codex\",\n      \"model\": \"gpt-5.4\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"76a06aa6-1e5a-4403-8cea-af1a5efde689\",\n    \"tasks\": [\n      {\n        \"taskId\": \"76a06aa6-1e5a-4403-8cea-af1a5efde689\",\n        \"title\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\",\n        \"createdAt\": 1789270370694,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 0,\n          \"output\": 0,\n          \"costUsd\": null,\n          \"turns\": 2\n        }\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"fb5832ba-eef6-498c-8cc1-cedae3638748\",\n      \"at\": 1789270370706,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"a63c982d-d67d-4add-9ff6-0eff05d63b51\",\n      \"at\": 1789270371317,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\"\n    },\n    {\n      \"id\": \"c63025de-2301-4238-8aff-07ec37fa976a\",\n      \"at\": 1789270376270,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"error: {\\\"type\\\":\\\"error\\\",\\\"status\\\":400,\\\"error\\\":{\\\"type\\\":\\\"invalid_request_error\\\",\\\"message\\\":\\\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the\",\n        \"ok\": false\n      }\n    },\n    {\n      \"id\": \"79583a32-d29d-4e3d-b2f5-5e7dd2ea56b7\",\n      \"at\": 1789270396012,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] APIからの個別会話です。受信確認をお願いします。\"\n    },\n    {\n      \"id\": \"1f727d03-c9a9-4730-b30b-d859890eddb7\",\n      \"at\": 1789270400164,\n      \"role\": \"bot\",\n      \"kind\": \"activity\",\n      \"tool\": {\n        \"name\": \"error: {\\\"type\\\":\\\"error\\\",\\\"status\\\":400,\\\"error\\\":{\\\"type\\\":\\\"invalid_request_error\\\",\\\"message\\\":\\\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the\",\n        \"ok\": false\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "failed",
+          "targetType": "bot",
+          "targetId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "taskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+          "target": {
+            "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "codex",
+              "model": "gpt-5.4",
+              "effort": "low"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+            "tasks": [
+              {
+                "taskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+                "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+                "createdAt": 1789270370694,
+                "active": true,
+                "usage": {
+                  "input": 0,
+                  "output": 0,
+                  "costUsd": null,
+                  "turns": 2
+                }
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "fb5832ba-eef6-498c-8cc1-cedae3638748",
+              "at": 1789270370706,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "a63c982d-d67d-4add-9ff6-0eff05d63b51",
+              "at": 1789270371317,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+            },
+            {
+              "id": "c63025de-2301-4238-8aff-07ec37fa976a",
+              "at": 1789270376270,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "error: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the",
+                "ok": false
+              }
+            },
+            {
+              "id": "79583a32-d29d-4e3d-b2f5-5e7dd2ea56b7",
+              "at": 1789270396012,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+            },
+            {
+              "id": "1f727d03-c9a9-4730-b30b-d859890eddb7",
+              "at": 1789270400164,
+              "role": "bot",
+              "kind": "activity",
+              "tool": {
+                "name": "error: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the",
+                "ok": false
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  }
+]

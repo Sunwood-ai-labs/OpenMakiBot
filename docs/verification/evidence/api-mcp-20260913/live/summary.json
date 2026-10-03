@@ -1,0 +1,269 @@
+{
+  "passed": true,
+  "model": "live Codex",
+  "a": {
+    "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+    "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+    "name": "API検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "soul": "",
+    "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notifications": true,
+    "color": "blue",
+    "unread": false,
+    "modelSelection": {
+      "instanceId": "codex",
+      "model": "gpt-6-astra",
+      "effort": "low"
+    },
+    "createdAt": 1789270370694,
+    "avatarUrl": null,
+    "tasks": [
+      {
+        "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+        "title": "New task",
+        "createdAt": 1789270370694
+      }
+    ],
+    "messages": [
+      {
+        "id": "fb5832ba-eef6-498c-8cc1-cedae3638748",
+        "at": 1789270370706,
+        "parentId": null,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      }
+    ],
+    "activeLeafId": "fb5832ba-eef6-498c-8cc1-cedae3638748"
+  },
+  "b": {
+    "id": "40013199-60d7-4525-b71d-32f3e9f1887b",
+    "name": "MCP検証Bot",
+    "title": "",
+    "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+    "section": null,
+    "chiefOfStaff": false,
+    "modelSelection": {
+      "instanceId": "codex",
+      "model": "gpt-6-astra",
+      "effort": "low"
+    },
+    "busy": false,
+    "unread": false,
+    "activeTaskId": "168e30f2-1c04-4b0c-ae53-77f7d18bccc2",
+    "tasks": [
+      {
+        "taskId": "168e30f2-1c04-4b0c-ae53-77f7d18bccc2",
+        "title": "New task",
+        "createdAt": 1789270371260,
+        "active": true
+      }
+    ]
+  },
+  "room": {
+    "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+    "name": "API・MCP会議実験",
+    "memberIds": [
+      "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+      "40013199-60d7-4525-b71d-32f3e9f1887b"
+    ],
+    "bulletin": "",
+    "defaultResponder": {
+      "kind": "member",
+      "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+    },
+    "section": null,
+    "directMessage": false,
+    "working": false,
+    "busyBotId": null,
+    "activeTaskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+    "tasks": [
+      {
+        "taskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "title": "New task",
+        "createdAt": 1789270371286,
+        "active": true
+      }
+    ],
+    "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5"
+  },
+  "dm": {
+    "bot": {
+      "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+      "name": "API検証Bot",
+      "title": "",
+      "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+      "section": null,
+      "chiefOfStaff": false,
+      "modelSelection": {
+        "instanceId": "codex",
+        "model": "gpt-6-astra",
+        "effort": "low"
+      },
+      "busy": false,
+      "activity": "idle",
+      "unread": true,
+      "activeTaskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+      "tasks": [
+        {
+          "taskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+          "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+          "createdAt": 1789270370694,
+          "active": true,
+          "usage": {
+            "input": 43070,
+            "output": 50,
+            "cachedInput": 20864,
+            "costUsd": null,
+            "turns": 4
+          }
+        }
+      ]
+    },
+    "taskId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+    "messages": [
+      {
+        "id": "fb5832ba-eef6-498c-8cc1-cedae3638748",
+        "at": 1789270370706,
+        "role": "bot",
+        "kind": "text",
+        "text": "Hi, I'm API検証Bot. What would you like me to do?"
+      },
+      {
+        "id": "a63c982d-d67d-4add-9ff6-0eff05d63b51",
+        "at": 1789270371317,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      },
+      {
+        "id": "c63025de-2301-4238-8aff-07ec37fa976a",
+        "at": 1789270376270,
+        "role": "bot",
+        "kind": "activity",
+        "tool": {
+          "name": "error: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the",
+          "ok": false
+        }
+      },
+      {
+        "id": "79583a32-d29d-4e3d-b2f5-5e7dd2ea56b7",
+        "at": 1789270396012,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      },
+      {
+        "id": "1f727d03-c9a9-4730-b30b-d859890eddb7",
+        "at": 1789270400164,
+        "role": "bot",
+        "kind": "activity",
+        "tool": {
+          "name": "error: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the",
+          "ok": false
+        }
+      },
+      {
+        "id": "909f24b7-10ad-4454-be5d-2e30f4d1aa79",
+        "at": 1789270495746,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+      },
+      {
+        "id": "c1e19ee1-f185-4a02-ac95-54ef229616ab",
+        "at": 1789270501269,
+        "role": "bot",
+        "kind": "text",
+        "text": "受信しました。[API-DM-01] 個別会話を確認済みです。"
+      },
+      {
+        "id": "27a98f26-ebb3-4e57-860b-67f198d2bea2",
+        "at": 1789270501428,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+      },
+      {
+        "id": "c1830af6-11ad-4d35-a0de-d240e76959b2",
+        "at": 1789270512071,
+        "role": "bot",
+        "kind": "text",
+        "text": "受信しました。[MCP-DM-02] MCPからの追記を確認済みです。"
+      }
+    ],
+    "hasMore": false
+  },
+  "group": {
+    "channel": {
+      "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+      "name": "API・MCP会議実験",
+      "memberIds": [
+        "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+        "40013199-60d7-4525-b71d-32f3e9f1887b"
+      ],
+      "bulletin": "",
+      "defaultResponder": {
+        "kind": "member",
+        "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+      },
+      "section": null,
+      "directMessage": false,
+      "working": false,
+      "busyBotId": null,
+      "activeTaskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+      "tasks": [
+        {
+          "taskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+          "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+          "createdAt": 1789270371286,
+          "active": true
+        }
+      ]
+    },
+    "taskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+    "messages": [
+      {
+        "id": "ecfa1d8c-427d-44ab-99f2-fd0cae64f6bb",
+        "at": 1789270512438,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+      },
+      {
+        "id": "0b814d01-b2da-44c7-b40e-45a1d1dabaf5",
+        "at": 1789270522103,
+        "role": "bot",
+        "kind": "text",
+        "text": "API連携では、次の5点を確認しましょう。\n\n- 認証が成功するか\n- リクエストとレスポンスの形式が合うか\n- エラーやタイムアウトを適切に扱えるか\n- 再送時に二重処理されないか\n- ログに機密情報が残らないか",
+        "from": {
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "381659c3-32ab-4c3c-92b5-a3397ec970d2",
+        "at": 1789270522233,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+      },
+      {
+        "id": "ece6ec99-e3d4-422b-be69-b6c9cbe0ca4f",
+        "at": 1789270530274,
+        "role": "bot",
+        "kind": "text",
+        "text": "@MCP検証Bot として担当を引き継ぎます。API検証Botの確認事項を踏まえ、MCP経由のメッセージ受信・返信・メンション到達を確認します。",
+        "from": {
+          "botId": "40013199-60d7-4525-b71d-32f3e9f1887b",
+          "name": "MCP検証Bot",
+          "color": "red"
+        }
+      }
+    ],
+    "hasMore": false
+  }
+}

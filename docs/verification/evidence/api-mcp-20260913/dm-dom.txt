@@ -1,0 +1,123 @@
+- complementary "Bots and navigation":
+  - button "Collapse sidebar to avatars":
+  - button "Choose sidebar density"
+  - button "New or share":
+  - textbox "Search bots and messages":
+    - /placeholder: Search
+  - button "Channels" [expanded]:
+    - generic: Channels
+  - 'button "API検証Bot MCP検証Bot API・MCP会議実験 MCP検証Bot: Bash"':
+    - img "API検証Bot"
+    - img "MCP検証Bot"
+    - generic: API・MCP会議実験
+    - generic: "MCP検証Bot: Bash"
+  - button "Bots" [expanded]:
+    - generic: Bots
+  - button "MCP検証Bot Rename MCP検証Bot Hi, I'm MCP検証Bot. What would you like me to do?":
+    - img "MCP検証Bot"
+    - button "Rename MCP検証Bot": MCP検証Bot
+    - generic: Hi, I'm MCP検証Bot. What would you like me to do?
+  - button "Archive MCP検証Bot":
+  - button "API検証Bot Rename API検証Bot 12:30 Bash":
+    - img "API検証Bot"
+    - button "Rename API検証Bot" [active]: API検証Bot
+    - generic: 12:30
+    - generic: Bash
+  - button "Archive API検証Bot":
+  - button "Quill Rename Quill Hi, I'm Quill. What would you like me to do?":
+    - img "Quill"
+    - button "Rename Quill": Quill
+    - generic: Hi, I'm Quill. What would you like me to do?
+  - button "Archive Quill":
+  - paragraph
+  - button "Tools":
+    - generic: Tools
+  - button "You":
+    - generic: "?"
+    - generic: You
+- main:
+  - button "Open API検証Bot's profile":
+    - img "API検証Bot"
+  - button "Open API検証Bot's profile": API検証Bot
+  - button "Rename API検証Bot":
+  - button "Find in conversation":
+  - button "Task":
+    - generic: Task
+  - button "68 tok · $0.04"
+  - button "42a0ae3b-0c71-4711-bafa-36f7fc396922":
+    - generic: 42a0ae3b-0c71-4711-bafa-36f7fc396922
+  - button "Claude Sonnet 5":
+    - generic: Claude Sonnet 5
+  - button "Calls currently need the macOS desktop app":
+  - button "Bot's computer":
+  - button "Inspector":
+  - log "Conversation with API検証Bot":
+    - generic: Today 12:29
+    - generic "2026/9/13 12:29:15":
+      - paragraph: Hi, I'm API検証Bot. What would you like me to do?
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:29
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:29:16":
+      - generic: "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+    - generic: 12:29
+    - generic "2026/9/13 12:29:16":
+      - paragraph: hello from fake claude
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:29
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:29:16":
+      - generic: "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+    - generic: 12:29
+    - generic "2026/9/13 12:29:16":
+      - paragraph: hello from fake claude
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:29
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:30:04":
+      - generic: "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+    - generic: 12:30
+    - generic "2026/9/13 12:30:04":
+      - paragraph: hello from fake claude
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:30
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:30:04":
+      - generic: "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+    - generic: 12:30
+    - generic "2026/9/13 12:30:05":
+      - paragraph: hello from fake claude
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Regenerate response":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:30
+  - button "Attach a file":
+  - button "Ask for approval for Verification fixture":
+    - generic: Ask
+  - textbox "Message API検証Bot"

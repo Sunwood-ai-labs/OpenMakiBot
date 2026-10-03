@@ -1,0 +1,95 @@
+- complementary "Bots and navigation":
+  - button "Collapse sidebar to avatars":
+  - button "Choose sidebar density"
+  - button "New or share":
+  - textbox "Search bots and messages":
+    - /placeholder: Search
+  - button "Channels" [expanded]:
+    - generic: Channels
+  - 'button "API検証Bot MCP検証Bot API・MCP会議実験 API検証Bot: 一人3,750円です（15000÷4）。"':
+    - img "API検証Bot"
+    - img "MCP検証Bot"
+    - generic: API・MCP会議実験
+    - generic: "API検証Bot: 一人3,750円です（15000÷4）。"
+  - button "Bots" [expanded]:
+    - generic: Bots
+  - button "MCP検証Bot Rename MCP検証Bot Hi, I'm MCP検証Bot. What would you like me to do?":
+    - img "MCP検証Bot"
+    - button "Rename MCP検証Bot": MCP検証Bot
+    - generic: Hi, I'm MCP検証Bot. What would you like me to do?
+  - button "Archive MCP検証Bot":
+  - button "API検証Bot Rename API検証Bot 13:45 846です。":
+    - img "API検証Bot"
+    - button "Rename API検証Bot" [active]: API検証Bot
+    - generic: 13:45
+    - generic: 846です。
+  - button "Archive API検証Bot":
+  - button "Poppy Rename Poppy Hi, I'm Poppy. What would you like me to do?":
+    - img "Poppy"
+    - button "Rename Poppy": Poppy
+    - generic: Hi, I'm Poppy. What would you like me to do?
+  - button "Archive Poppy":
+  - paragraph
+  - button "Tools":
+    - generic: Tools
+  - button "You":
+    - generic: "?"
+    - generic: You
+- main:
+  - button "Open API検証Bot's profile":
+    - img "API検証Bot"
+  - button "Open API検証Bot's profile": API検証Bot
+  - button "Rename API検証Bot":
+  - button "Find in conversation":
+  - button "Task":
+    - generic: Task
+  - button "51.6k tok · $0.14"
+  - button "e37ccce8-4922-4876-9aa0-49be5e6a86ea":
+    - generic: e37ccce8-4922-4876-9aa0-49be5e6a86ea
+  - button "glm-5.3":
+    - generic: glm-5.3
+  - button "Calls currently need the macOS desktop app":
+  - button "Bot's computer":
+  - button "Inspector":
+  - log "Conversation with API検証Bot":
+    - generic: Today 13:45
+    - generic "2026/9/13 13:45:09":
+      - paragraph: Hi, I'm API検証Bot. What would you like me to do?
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 13:45
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 13:45:11":
+      - generic: "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。"
+    - generic: 13:45
+    - generic "2026/9/13 13:45:19":
+      - paragraph: 423です。
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 13:45
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 13:45:19":
+      - generic: "[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。"
+    - generic: 13:45
+    - generic "2026/9/13 13:45:26":
+      - paragraph: 846です。
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Regenerate response":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 13:45
+  - button "Attach a file":
+  - button "Ask for approval for CC GLM-5.3 isolated verification":
+    - generic: Ask
+  - textbox "Message API検証Bot"

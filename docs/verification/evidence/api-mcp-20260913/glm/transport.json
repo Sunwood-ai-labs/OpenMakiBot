@@ -1,0 +1,2121 @@
+[
+  {
+    "transport": "HTTP",
+    "path": "/api/instances",
+    "status": 200,
+    "result": {
+      "instances": [
+        {
+          "instanceId": "claude",
+          "driverKind": "claudeAgent",
+          "displayName": "CC GLM-5.3 isolated verification",
+          "snapshot": {
+            "state": "available",
+            "version": "2.1.251 (Claude Code)",
+            "authenticated": true,
+            "billing": "subscription"
+          },
+          "models": {
+            "default": "claude-sonnet-5",
+            "options": [
+              {
+                "id": "claude-fable-5-1",
+                "label": "Claude Fable 5.1"
+              },
+              {
+                "id": "claude-fable-5",
+                "label": "Claude Fable 5"
+              },
+              {
+                "id": "claude-opus-5",
+                "label": "Claude Opus 5"
+              },
+              {
+                "id": "claude-sonnet-5",
+                "label": "Claude Sonnet 5"
+              },
+              {
+                "id": "claude-haiku-4-5",
+                "label": "Claude Haiku 4.5"
+              },
+              {
+                "id": "glm-5.3",
+                "label": "glm-5.3",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": true,
+            "browserMcp": true,
+            "images": true,
+            "effortLevels": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "queueing": true,
+            "localComputerMcp": true,
+            "approvalReview": true
+          },
+          "access": "subscription",
+          "install": {
+            "command": {
+              "darwin": "npm install -g @anthropic-ai/claude-code",
+              "linux": "npm install -g @anthropic-ai/claude-code",
+              "win32": "npm install -g @anthropic-ai/claude-code"
+            },
+            "needsNode": true,
+            "docsUrl": "https://claude.com/claude-code",
+            "signInCommand": "claude"
+          },
+          "cli": "C:/Users/makim/.local/bin/claude.exe",
+          "cliDefault": "claude",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "cursor",
+          "driverKind": "cursorAgent",
+          "displayName": "Cursor",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`cursor-agent` CLI not found"
+          },
+          "models": {
+            "default": "auto",
+            "options": [
+              {
+                "id": "auto",
+                "label": "Auto"
+              },
+              {
+                "id": "composer-2.5",
+                "label": "Composer 2.5"
+              },
+              {
+                "id": "composer-2.5-fast",
+                "label": "Composer 2.5 Fast"
+              },
+              {
+                "id": "gpt-5.3-codex",
+                "label": "Codex 5.3"
+              },
+              {
+                "id": "claude-sonnet-5-thinking-high",
+                "label": "Claude Sonnet 5 1M Thinking"
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "subscription",
+          "install": {
+            "command": {
+              "darwin": "curl https://cursor.com/install -fsS | bash",
+              "linux": "curl https://cursor.com/install -fsS | bash",
+              "win32": "irm 'https://cursor.com/install?win32=true' | iex"
+            },
+            "docsUrl": "https://cursor.com/docs/cli/installation",
+            "signInCommand": "cursor-agent login"
+          },
+          "cliDefault": "cursor-agent",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "openaiCompat",
+          "driverKind": "openai-compat",
+          "displayName": "OpenAI-compatible (OpenRouter / Groq)",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "no API key — set OPENAI_COMPAT_API_KEY or add it to the instance config"
+          },
+          "models": {
+            "default": "meta-llama/llama-3.3-70b-instruct",
+            "options": [
+              {
+                "id": "meta-llama/llama-3.3-70b-instruct",
+                "label": "Llama 3.3 70B (OpenRouter)",
+                "custom": true
+              },
+              {
+                "id": "llama-3.3-70b-versatile",
+                "label": "Llama 3.3 70B (Groq)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": false,
+            "agentsMcp": false,
+            "composioMcp": false,
+            "phoneMcp": false,
+            "browserMcp": false,
+            "images": false,
+            "queueing": false,
+            "localComputerMcp": false,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "docsUrl": "https://openrouter.ai/keys",
+            "signInCommand": "add {\"openaiCompat\":{\"key\":\"sk-or-v1-…\"}} to ~/.openmausbot/config.json (or set OPENAI_COMPAT_API_KEY)",
+            "command": {
+              "darwin": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+              "linux": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to ~/.openmausbot/config.json under openaiCompat.key",
+              "win32": "Get a free key at https://openrouter.ai/keys (or https://console.groq.com) then add it to %USERPROFILE%\\.openmausbot\\config.json under openaiCompat.key"
+            }
+          },
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "qwen",
+          "driverKind": "qwenAgent",
+          "displayName": "Qwen",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`qwen` CLI not found"
+          },
+          "models": {
+            "default": "ollama::gemma4e2b-q8-local:latest",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+              "linux": "curl -fsSL https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.sh | bash",
+              "win32": "irm https://qwen-code-assets.oss-cn-hangzhou.aliyuncs.com/installation/install-qwen-standalone.ps1 | iex"
+            },
+            "docsUrl": "https://qwenlm.github.io/qwen-code-docs/en/users/overview/"
+          },
+          "cliDefault": "qwen",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "hermes",
+          "driverKind": "hermesAgent",
+          "displayName": "Hermes",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`hermes` CLI not found"
+          },
+          "models": {
+            "default": "ollama::gemma4e2b-q8-local:latest",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": false,
+            "browserMcp": true,
+            "images": true,
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+              "linux": "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+              "win32": "iex (irm https://hermes-agent.nousresearch.com/install.ps1)"
+            },
+            "docsUrl": "https://hermes-agent.nousresearch.com/docs/getting-started/quickstart",
+            "signInCommand": "hermes setup"
+          },
+          "cliDefault": "hermes",
+          "cliCandidates": []
+        },
+        {
+          "instanceId": "pi",
+          "driverKind": "piAgent",
+          "displayName": "pi",
+          "snapshot": {
+            "state": "unavailable",
+            "reason": "`pi` CLI not found"
+          },
+          "models": {
+            "default": "",
+            "options": [
+              {
+                "id": "ollama::gemma4e2b-q8-local:latest",
+                "label": "gemma4e2b-q8-local:latest (Ollama)",
+                "custom": true
+              },
+              {
+                "id": "ollama::gemma4:e2b-it-q4_K_M",
+                "label": "gemma4:e2b-it-q4_K_M (Ollama)",
+                "custom": true
+              }
+            ]
+          },
+          "capabilities": {
+            "computerMcp": true,
+            "agentsMcp": true,
+            "composioMcp": true,
+            "phoneMcp": true,
+            "browserMcp": false,
+            "images": true,
+            "effortLevels": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "queueing": false,
+            "localComputerMcp": true,
+            "approvalReview": false
+          },
+          "access": "custom",
+          "install": {
+            "command": {
+              "darwin": "npm install -g @earendil-works/pi-coding-agent",
+              "linux": "npm install -g @earendil-works/pi-coding-agent",
+              "win32": "npm install -g @earendil-works/pi-coding-agent"
+            },
+            "needsNode": true,
+            "docsUrl": "https://pi.dev"
+          },
+          "cliDefault": "pi",
+          "cliCandidates": []
+        }
+      ]
+    }
+  },
+  {
+    "transport": "MCP stderr",
+    "text": "[openmausbot-mcp] OpenMausBot MCP server running on stdio\n"
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "api-mcp-evidence",
+          "version": "1.0"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "result": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+          "tools": {}
+        },
+        "serverInfo": {
+          "name": "openmausbot-mcp",
+          "version": "1.1.0"
+        },
+        "instructions": "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deletion, and computer lifecycle are intentionally unavailable."
+      }
+    }
+  },
+  {
+    "transport": "MCP stderr",
+    "text": "[openmausbot-mcp] MCP client initialized session\n"
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "result": {
+        "tools": [
+          {
+            "name": "get_system_health",
+            "description": "Check whether the OpenMausBot server is reachable.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_bots",
+            "description": "List bots, their current status, active task, and available tasks without loading transcripts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_bot_messages",
+            "description": "Retrieve a bounded page of recent messages from one bot task. Images are never returned inline.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the bot's active task."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "description": "Messages to retrieve (default: 30, max: 200)."
+                }
+              },
+              "required": [
+                "bot_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "send_bot_message",
+            "description": "Send an instruction to a bot's active task. Optionally name the expected task to prevent cross-task races. This may cause the bot to use external tools.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot to message."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional expected active task/thread ID."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The message content/instruction to send."
+                }
+              },
+              "required": [
+                "bot_id",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": false,
+              "openWorldHint": true
+            }
+          },
+          {
+            "name": "create_bot",
+            "description": "Create a new bot and optionally configure its profile, section, and exact model selection.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Bot display name."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional short role title."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Optional persona or responsibility description."
+                },
+                "section": {
+                  "type": "string",
+                  "description": "Optional sidebar section."
+                },
+                "instance_id": {
+                  "type": "string",
+                  "description": "Optional provider instance ID; model is required with it."
+                },
+                "model": {
+                  "type": "string",
+                  "description": "Optional exact model ID; instance_id is required with it."
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "update_bot_profile",
+            "description": "Update safe bot profile fields. This cannot alter permissions, computer access, or approval settings.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Optional bot display name."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional short role title."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Optional persona or responsibility description."
+                },
+                "section": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Optional sidebar section. Null clears it."
+                }
+              },
+              "required": [
+                "bot_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_channels",
+            "description": "List multi-agent channels, their members, active task, and available tasks without loading transcripts.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "get_channel_messages",
+            "description": "Retrieve a bounded page of recent messages from one channel task. Images are never returned inline.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the channel's active task."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200,
+                  "description": "Messages to retrieve (default: 30, max: 200)."
+                }
+              },
+              "required": [
+                "channel_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "send_channel_message",
+            "description": "Send an instruction to a channel's active task. Optionally name the expected task to prevent cross-task races. This may cause one or more bots to use external tools.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional expected active task/thread ID."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The message content to post."
+                }
+              },
+              "required": [
+                "channel_id",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": false,
+              "openWorldHint": true
+            }
+          },
+          {
+            "name": "create_channel",
+            "description": "Create a multi-agent channel from existing bots.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Channel name."
+                },
+                "member_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "section": {
+                  "type": "string",
+                  "description": "Optional sidebar section."
+                },
+                "bulletin": {
+                  "type": "string",
+                  "description": "Optional shared instructions for channel members."
+                },
+                "default_responder": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "everyone"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "mentions"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "member"
+                        },
+                        "bot_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "bot_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "member_ids"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "update_channel",
+            "description": "Update a channel's name, members, section, bulletin, or default responder.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "channel_id": {
+                  "type": "string",
+                  "description": "The ID of the channel."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "member_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "section": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Null clears the section."
+                },
+                "bulletin": {
+                  "type": "string"
+                },
+                "default_responder": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "everyone"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "mentions"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "member"
+                        },
+                        "bot_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "bot_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "channel_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "create_task",
+            "description": "Create and activate a fresh conversation task for a bot or user-created channel.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Optional task title."
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "switch_task",
+            "description": "Switch a bot or channel to an existing task. Running or approval-blocked conversations are refused.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id",
+                "task_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "rename_task",
+            "description": "Rename an existing bot or channel task.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id",
+                "task_id",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "search_messages",
+            "description": "Search local transcripts, optionally within one task/thread. Returns at most 100 compact hits.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID."
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100,
+                  "description": "Maximum hits (default: 40)."
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "wait_for_conversation",
+            "description": "Wait for a bot or channel task to finish, stall, fail, or require user input.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                },
+                "task_id": {
+                  "type": "string",
+                  "description": "Optional task/thread ID. Defaults to the active task."
+                },
+                "timeout_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120,
+                  "description": "Maximum wait (default: 30 seconds)."
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "set_bot_model",
+            "description": "Change an idle bot to an exact configured provider instance and model.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "bot_id": {
+                  "type": "string",
+                  "description": "The ID of the bot."
+                },
+                "instance_id": {
+                  "type": "string",
+                  "description": "The configured provider instance ID."
+                },
+                "model": {
+                  "type": "string",
+                  "description": "The exact model ID exposed by that instance."
+                },
+                "effort": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                }
+              },
+              "required": [
+                "bot_id",
+                "instance_id",
+                "model"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": false,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "list_available_models",
+            "description": "List configured model instances and capabilities without exposing local executable paths.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": true,
+              "destructiveHint": false,
+              "openWorldHint": false
+            }
+          },
+          {
+            "name": "interrupt_conversation",
+            "description": "Interrupt the active turn in a bot or channel conversation.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "target_type": {
+                  "type": "string",
+                  "enum": [
+                    "bot",
+                    "channel"
+                  ]
+                },
+                "target_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_type",
+                "target_id"
+              ],
+              "additionalProperties": false
+            },
+            "annotations": {
+              "readOnlyHint": false,
+              "destructiveHint": true,
+              "idempotentHint": true,
+              "openWorldHint": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/bots",
+    "body": {
+      "name": "API検証Bot",
+      "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。"
+    },
+    "status": 201,
+    "result": {
+      "bot": {
+        "id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+        "threadId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+        "name": "API検証Bot",
+        "title": "",
+        "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+        "soul": "",
+        "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "notifications": true,
+        "color": "blue",
+        "unread": false,
+        "modelSelection": {
+          "instanceId": "claude",
+          "model": "glm-5.3",
+          "effort": "low"
+        },
+        "createdAt": 1789274709700,
+        "avatarUrl": null,
+        "tasks": [
+          {
+            "threadId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+            "title": "New task",
+            "createdAt": 1789274709700
+          }
+        ],
+        "messages": [
+          {
+            "id": "46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef",
+            "at": 1789274709714,
+            "parentId": null,
+            "role": "bot",
+            "kind": "text",
+            "text": "Hi, I'm API検証Bot. What would you like me to do?"
+          }
+        ],
+        "activeLeafId": "46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "create_bot",
+        "arguments": {
+          "name": "MCP検証Bot",
+          "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"bot\": {\n    \"id\": \"d72da131-32c4-4114-acef-ded876b49c53\",\n    \"name\": \"MCP検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"claude-sonnet-5\"\n    },\n    \"busy\": false,\n    \"unread\": false,\n    \"activeTaskId\": \"2fe38f23-f2b6-47a0-a07c-136436ae8c0e\",\n    \"tasks\": [\n      {\n        \"taskId\": \"2fe38f23-f2b6-47a0-a07c-136436ae8c0e\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789274710525,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "bot": {
+            "id": "d72da131-32c4-4114-acef-ded876b49c53",
+            "name": "MCP検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "glm-5.3",
+              "effort": "low"
+            },
+            "busy": false,
+            "unread": false,
+            "activeTaskId": "2fe38f23-f2b6-47a0-a07c-136436ae8c0e",
+            "tasks": [
+              {
+                "taskId": "2fe38f23-f2b6-47a0-a07c-136436ae8c0e",
+                "title": "New task",
+                "createdAt": 1789274710525,
+                "active": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "create_channel",
+        "arguments": {
+          "name": "API・MCP会議実験",
+          "member_ids": [
+            "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+            "d72da131-32c4-4114-acef-ded876b49c53"
+          ]
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"channel\": {\n    \"id\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n      \"d72da131-32c4-4114-acef-ded876b49c53\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n    \"tasks\": [\n      {\n        \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789274710544,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "channel": {
+            "id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+              "d72da131-32c4-4114-acef-ded876b49c53"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+            "tasks": [
+              {
+                "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+                "title": "New task",
+                "createdAt": 1789274710544,
+                "active": true
+              }
+            ],
+            "threadId": "122977b5-b05d-444f-aaef-04ad18baebf6"
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "set_bot_model",
+        "arguments": {
+          "bot_id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "instance_id": "claude",
+          "model": "glm-5.3",
+          "effort": "low"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"bot\": {\n    \"id\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"glm-5.3\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"unread\": false,\n    \"activeTaskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n    \"tasks\": [\n      {\n        \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789274709700,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "bot": {
+            "id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "glm-5.3",
+              "effort": "low"
+            },
+            "busy": false,
+            "unread": false,
+            "activeTaskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+            "tasks": [
+              {
+                "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+                "title": "New task",
+                "createdAt": 1789274709700,
+                "active": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "set_bot_model",
+        "arguments": {
+          "bot_id": "d72da131-32c4-4114-acef-ded876b49c53",
+          "instance_id": "claude",
+          "model": "glm-5.3",
+          "effort": "low"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"bot\": {\n    \"id\": \"d72da131-32c4-4114-acef-ded876b49c53\",\n    \"name\": \"MCP検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"glm-5.3\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"unread\": false,\n    \"activeTaskId\": \"2fe38f23-f2b6-47a0-a07c-136436ae8c0e\",\n    \"tasks\": [\n      {\n        \"taskId\": \"2fe38f23-f2b6-47a0-a07c-136436ae8c0e\",\n        \"title\": \"New task\",\n        \"createdAt\": 1789274710525,\n        \"active\": true\n      }\n    ]\n  }\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "bot": {
+            "id": "d72da131-32c4-4114-acef-ded876b49c53",
+            "name": "MCP検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "glm-5.3",
+              "effort": "low"
+            },
+            "busy": false,
+            "unread": false,
+            "activeTaskId": "2fe38f23-f2b6-47a0-a07c-136436ae8c0e",
+            "tasks": [
+              {
+                "taskId": "2fe38f23-f2b6-47a0-a07c-136436ae8c0e",
+                "title": "New task",
+                "createdAt": 1789274710525,
+                "active": true
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/bots/e37ccce8-4922-4876-9aa0-49be5e6a86ea/messages",
+    "body": {
+      "text": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。",
+      "threadId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1"
+    },
+    "status": 202,
+    "result": {
+      "ok": true,
+      "threadId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+      "message": {
+        "id": "77e5a0ae-36d3-4ae3-8656-e6066b808b03",
+        "at": 1789274711795,
+        "parentId": "46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef",
+        "role": "user",
+        "kind": "text",
+        "text": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "bot",
+          "target_id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"bot\",\n  \"targetId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n  \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n  \"target\": {\n    \"id\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"glm-5.3\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n    \"tasks\": [\n      {\n        \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n        \"title\": \"[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…\",\n        \"createdAt\": 1789274709700,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 25777,\n          \"output\": 6,\n          \"cachedInput\": 64,\n          \"costUsd\": 0.128747,\n          \"turns\": 1\n        }\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef\",\n      \"at\": 1789274709714,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"77e5a0ae-36d3-4ae3-8656-e6066b808b03\",\n      \"at\": 1789274711795,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。\"\n    },\n    {\n      \"id\": \"b3d6058d-f5a1-4f57-a6ce-c733a21c51be\",\n      \"at\": 1789274719291,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"423です。\"\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "bot",
+          "targetId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+          "target": {
+            "id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "glm-5.3",
+              "effort": "low"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+            "tasks": [
+              {
+                "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+                "title": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…",
+                "createdAt": 1789274709700,
+                "active": true,
+                "usage": {
+                  "input": 25777,
+                  "output": 6,
+                  "cachedInput": 64,
+                  "costUsd": 0.128747,
+                  "turns": 1
+                }
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef",
+              "at": 1789274709714,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "77e5a0ae-36d3-4ae3-8656-e6066b808b03",
+              "at": 1789274711795,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。"
+            },
+            {
+              "id": "b3d6058d-f5a1-4f57-a6ce-c733a21c51be",
+              "at": 1789274719291,
+              "role": "bot",
+              "kind": "text",
+              "text": "423です。"
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "send_bot_message",
+        "arguments": {
+          "bot_id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "task_id": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+          "text": "[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n  \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\"\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1"
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "bot",
+          "target_id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"bot\",\n  \"targetId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n  \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n  \"target\": {\n    \"id\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"glm-5.3\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n    \"tasks\": [\n      {\n        \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n        \"title\": \"[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…\",\n        \"createdAt\": 1789274709700,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 51611,\n          \"output\": 19,\n          \"cachedInput\": 25792,\n          \"costUsd\": 0.142466,\n          \"turns\": 2\n        }\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef\",\n      \"at\": 1789274709714,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"77e5a0ae-36d3-4ae3-8656-e6066b808b03\",\n      \"at\": 1789274711795,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。\"\n    },\n    {\n      \"id\": \"b3d6058d-f5a1-4f57-a6ce-c733a21c51be\",\n      \"at\": 1789274719291,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"423です。\"\n    },\n    {\n      \"id\": \"9d3d0946-10bd-4cf9-a455-78f090e454bc\",\n      \"at\": 1789274719563,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。\"\n    },\n    {\n      \"id\": \"c9ac8d41-9a71-4919-9d01-63293b4865d5\",\n      \"at\": 1789274726605,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"846です。\"\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "bot",
+          "targetId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+          "target": {
+            "id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "glm-5.3",
+              "effort": "low"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+            "tasks": [
+              {
+                "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+                "title": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…",
+                "createdAt": 1789274709700,
+                "active": true,
+                "usage": {
+                  "input": 51611,
+                  "output": 19,
+                  "cachedInput": 25792,
+                  "costUsd": 0.142466,
+                  "turns": 2
+                }
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef",
+              "at": 1789274709714,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "77e5a0ae-36d3-4ae3-8656-e6066b808b03",
+              "at": 1789274711795,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。"
+            },
+            {
+              "id": "b3d6058d-f5a1-4f57-a6ce-c733a21c51be",
+              "at": 1789274719291,
+              "role": "bot",
+              "kind": "text",
+              "text": "423です。"
+            },
+            {
+              "id": "9d3d0946-10bd-4cf9-a455-78f090e454bc",
+              "at": 1789274719563,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。"
+            },
+            {
+              "id": "c9ac8d41-9a71-4919-9d01-63293b4865d5",
+              "at": 1789274726605,
+              "role": "bot",
+              "kind": "text",
+              "text": "846です。"
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "get_bot_messages",
+        "arguments": {
+          "bot_id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+          "limit": 20
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"bot\": {\n    \"id\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n    \"name\": \"API検証Bot\",\n    \"title\": \"\",\n    \"description\": \"API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。\",\n    \"section\": null,\n    \"chiefOfStaff\": false,\n    \"modelSelection\": {\n      \"instanceId\": \"claude\",\n      \"model\": \"glm-5.3\",\n      \"effort\": \"low\"\n    },\n    \"busy\": false,\n    \"activity\": \"idle\",\n    \"unread\": true,\n    \"activeTaskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n    \"tasks\": [\n      {\n        \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n        \"title\": \"[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…\",\n        \"createdAt\": 1789274709700,\n        \"active\": true,\n        \"usage\": {\n          \"input\": 51611,\n          \"output\": 19,\n          \"cachedInput\": 25792,\n          \"costUsd\": 0.142466,\n          \"turns\": 2\n        }\n      }\n    ]\n  },\n  \"taskId\": \"eebdd73c-20c7-4984-a255-dc9d4bf716a1\",\n  \"messages\": [\n    {\n      \"id\": \"46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef\",\n      \"at\": 1789274709714,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"Hi, I'm API検証Bot. What would you like me to do?\"\n    },\n    {\n      \"id\": \"77e5a0ae-36d3-4ae3-8656-e6066b808b03\",\n      \"at\": 1789274711795,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。\"\n    },\n    {\n      \"id\": \"b3d6058d-f5a1-4f57-a6ce-c733a21c51be\",\n      \"at\": 1789274719291,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"423です。\"\n    },\n    {\n      \"id\": \"9d3d0946-10bd-4cf9-a455-78f090e454bc\",\n      \"at\": 1789274719563,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。\"\n    },\n    {\n      \"id\": \"c9ac8d41-9a71-4919-9d01-63293b4865d5\",\n      \"at\": 1789274726605,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"846です。\"\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "bot": {
+            "id": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+            "name": "API検証Bot",
+            "title": "",
+            "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+            "section": null,
+            "chiefOfStaff": false,
+            "modelSelection": {
+              "instanceId": "claude",
+              "model": "glm-5.3",
+              "effort": "low"
+            },
+            "busy": false,
+            "activity": "idle",
+            "unread": true,
+            "activeTaskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+            "tasks": [
+              {
+                "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+                "title": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答え…",
+                "createdAt": 1789274709700,
+                "active": true,
+                "usage": {
+                  "input": 51611,
+                  "output": 19,
+                  "cachedInput": 25792,
+                  "costUsd": 0.142466,
+                  "turns": 2
+                }
+              }
+            ]
+          },
+          "taskId": "eebdd73c-20c7-4984-a255-dc9d4bf716a1",
+          "messages": [
+            {
+              "id": "46fc3af7-e558-4d6e-b66a-8f9b72a3d9ef",
+              "at": 1789274709714,
+              "role": "bot",
+              "kind": "text",
+              "text": "Hi, I'm API検証Bot. What would you like me to do?"
+            },
+            {
+              "id": "77e5a0ae-36d3-4ae3-8656-e6066b808b03",
+              "at": 1789274711795,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-DM-01] ユーザーからの質問です。137+286はいくつですか？日本語で短く答えてください。"
+            },
+            {
+              "id": "b3d6058d-f5a1-4f57-a6ce-c733a21c51be",
+              "at": 1789274719291,
+              "role": "bot",
+              "kind": "text",
+              "text": "423です。"
+            },
+            {
+              "id": "9d3d0946-10bd-4cf9-a455-78f090e454bc",
+              "at": 1789274719563,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-DM-02] さっきの答えを2倍するといくつ？前の会話を踏まえて短く答えて。"
+            },
+            {
+              "id": "c9ac8d41-9a71-4919-9d01-63293b4865d5",
+              "at": 1789274726605,
+              "role": "bot",
+              "kind": "text",
+              "text": "846です。"
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/groups/7b9ed1e0-a02a-4e30-a0c0-5f3388242de8/messages",
+    "body": {
+      "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。",
+      "threadId": "122977b5-b05d-444f-aaef-04ad18baebf6"
+    },
+    "status": 202,
+    "result": {
+      "ok": true,
+      "threadId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+      "message": {
+        "id": "981564af-15fa-4385-a4aa-879edcdabfd3",
+        "at": 1789274726782,
+        "parentId": null,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。",
+        "channelMode": "chat",
+        "via": "api"
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "channel",
+          "target_id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"channel\",\n  \"targetId\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n  \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n  \"target\": {\n    \"id\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n      \"d72da131-32c4-4114-acef-ded876b49c53\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n    \"tasks\": [\n      {\n        \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n        \"title\": \"[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…\",\n        \"createdAt\": 1789274710544,\n        \"active\": true\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"981564af-15fa-4385-a4aa-879edcdabfd3\",\n      \"at\": 1789274726782,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。\"\n    },\n    {\n      \"id\": \"c897e6c2-a238-46cf-9366-07e17c7cf828\",\n      \"at\": 1789274732611,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"一人4,000円です（12000÷3）。\",\n      \"from\": {\n        \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "channel",
+          "targetId": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+          "target": {
+            "id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+              "d72da131-32c4-4114-acef-ded876b49c53"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+            "tasks": [
+              {
+                "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+                "title": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…",
+                "createdAt": 1789274710544,
+                "active": true
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "981564af-15fa-4385-a4aa-879edcdabfd3",
+              "at": 1789274726782,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。"
+            },
+            {
+              "id": "c897e6c2-a238-46cf-9366-07e17c7cf828",
+              "at": 1789274732611,
+              "role": "bot",
+              "kind": "text",
+              "text": "一人4,000円です（12000÷3）。",
+              "from": {
+                "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+                "name": "API検証Bot",
+                "color": "blue"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "tools/call",
+      "params": {
+        "name": "send_channel_message",
+        "arguments": {
+          "channel_id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "task_id": "122977b5-b05d-444f-aaef-04ad18baebf6",
+          "text": "[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。"
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"success\": true,\n  \"channelId\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n  \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\"\n}"
+          }
+        ],
+        "structuredContent": {
+          "success": true,
+          "channelId": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6"
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "tools/call",
+      "params": {
+        "name": "wait_for_conversation",
+        "arguments": {
+          "target_type": "channel",
+          "target_id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "timeout_seconds": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"status\": \"settled\",\n  \"targetType\": \"channel\",\n  \"targetId\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n  \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n  \"target\": {\n    \"id\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n      \"d72da131-32c4-4114-acef-ded876b49c53\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n    \"tasks\": [\n      {\n        \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n        \"title\": \"[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…\",\n        \"createdAt\": 1789274710544,\n        \"active\": true\n      }\n    ]\n  },\n  \"messages\": [\n    {\n      \"id\": \"981564af-15fa-4385-a4aa-879edcdabfd3\",\n      \"at\": 1789274726782,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。\"\n    },\n    {\n      \"id\": \"c897e6c2-a238-46cf-9366-07e17c7cf828\",\n      \"at\": 1789274732611,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"一人4,000円です（12000÷3）。\",\n      \"from\": {\n        \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      }\n    },\n    {\n      \"id\": \"209c55aa-1abb-4571-a10c-9f6ce84042fb\",\n      \"at\": 1789274732980,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。\"\n    },\n    {\n      \"id\": \"91b06edb-0e13-439e-9cb6-e7ebb20228bb\",\n      \"at\": 1789274740741,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"一人5,000円です（15000÷3）。\",\n      \"from\": {\n        \"botId\": \"d72da131-32c4-4114-acef-ded876b49c53\",\n        \"name\": \"MCP検証Bot\",\n        \"color\": \"red\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "status": "settled",
+          "targetType": "channel",
+          "targetId": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+          "target": {
+            "id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+              "d72da131-32c4-4114-acef-ded876b49c53"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+            "tasks": [
+              {
+                "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+                "title": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…",
+                "createdAt": 1789274710544,
+                "active": true
+              }
+            ]
+          },
+          "messages": [
+            {
+              "id": "981564af-15fa-4385-a4aa-879edcdabfd3",
+              "at": 1789274726782,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。"
+            },
+            {
+              "id": "c897e6c2-a238-46cf-9366-07e17c7cf828",
+              "at": 1789274732611,
+              "role": "bot",
+              "kind": "text",
+              "text": "一人4,000円です（12000÷3）。",
+              "from": {
+                "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+                "name": "API検証Bot",
+                "color": "blue"
+              }
+            },
+            {
+              "id": "209c55aa-1abb-4571-a10c-9f6ce84042fb",
+              "at": 1789274732980,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。"
+            },
+            {
+              "id": "91b06edb-0e13-439e-9cb6-e7ebb20228bb",
+              "at": 1789274740741,
+              "role": "bot",
+              "kind": "text",
+              "text": "一人5,000円です（15000÷3）。",
+              "from": {
+                "botId": "d72da131-32c4-4114-acef-ded876b49c53",
+                "name": "MCP検証Bot",
+                "color": "red"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "MCP stdio",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "tools/call",
+      "params": {
+        "name": "get_channel_messages",
+        "arguments": {
+          "channel_id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+          "limit": 30
+        }
+      }
+    },
+    "response": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"channel\": {\n    \"id\": \"7b9ed1e0-a02a-4e30-a0c0-5f3388242de8\",\n    \"name\": \"API・MCP会議実験\",\n    \"memberIds\": [\n      \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n      \"d72da131-32c4-4114-acef-ded876b49c53\"\n    ],\n    \"bulletin\": \"\",\n    \"defaultResponder\": {\n      \"kind\": \"member\",\n      \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\"\n    },\n    \"section\": null,\n    \"directMessage\": false,\n    \"working\": false,\n    \"busyBotId\": null,\n    \"activeTaskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n    \"tasks\": [\n      {\n        \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n        \"title\": \"[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…\",\n        \"createdAt\": 1789274710544,\n        \"active\": true\n      }\n    ]\n  },\n  \"taskId\": \"122977b5-b05d-444f-aaef-04ad18baebf6\",\n  \"messages\": [\n    {\n      \"id\": \"981564af-15fa-4385-a4aa-879edcdabfd3\",\n      \"at\": 1789274726782,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。\"\n    },\n    {\n      \"id\": \"c897e6c2-a238-46cf-9366-07e17c7cf828\",\n      \"at\": 1789274732611,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"一人4,000円です（12000÷3）。\",\n      \"from\": {\n        \"botId\": \"e37ccce8-4922-4876-9aa0-49be5e6a86ea\",\n        \"name\": \"API検証Bot\",\n        \"color\": \"blue\"\n      }\n    },\n    {\n      \"id\": \"209c55aa-1abb-4571-a10c-9f6ce84042fb\",\n      \"at\": 1789274732980,\n      \"role\": \"user\",\n      \"kind\": \"text\",\n      \"text\": \"[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。\"\n    },\n    {\n      \"id\": \"91b06edb-0e13-439e-9cb6-e7ebb20228bb\",\n      \"at\": 1789274740741,\n      \"role\": \"bot\",\n      \"kind\": \"text\",\n      \"text\": \"一人5,000円です（15000÷3）。\",\n      \"from\": {\n        \"botId\": \"d72da131-32c4-4114-acef-ded876b49c53\",\n        \"name\": \"MCP検証Bot\",\n        \"color\": \"red\"\n      }\n    }\n  ],\n  \"hasMore\": false\n}"
+          }
+        ],
+        "structuredContent": {
+          "channel": {
+            "id": "7b9ed1e0-a02a-4e30-a0c0-5f3388242de8",
+            "name": "API・MCP会議実験",
+            "memberIds": [
+              "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+              "d72da131-32c4-4114-acef-ded876b49c53"
+            ],
+            "bulletin": "",
+            "defaultResponder": {
+              "kind": "member",
+              "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea"
+            },
+            "section": null,
+            "directMessage": false,
+            "working": false,
+            "busyBotId": null,
+            "activeTaskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+            "tasks": [
+              {
+                "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+                "title": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いく…",
+                "createdAt": 1789274710544,
+                "active": true
+              }
+            ]
+          },
+          "taskId": "122977b5-b05d-444f-aaef-04ad18baebf6",
+          "messages": [
+            {
+              "id": "981564af-15fa-4385-a4aa-879edcdabfd3",
+              "at": 1789274726782,
+              "role": "user",
+              "kind": "text",
+              "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。"
+            },
+            {
+              "id": "c897e6c2-a238-46cf-9366-07e17c7cf828",
+              "at": 1789274732611,
+              "role": "bot",
+              "kind": "text",
+              "text": "一人4,000円です（12000÷3）。",
+              "from": {
+                "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+                "name": "API検証Bot",
+                "color": "blue"
+              }
+            },
+            {
+              "id": "209c55aa-1abb-4571-a10c-9f6ce84042fb",
+              "at": 1789274732980,
+              "role": "user",
+              "kind": "text",
+              "text": "[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。"
+            },
+            {
+              "id": "91b06edb-0e13-439e-9cb6-e7ebb20228bb",
+              "at": 1789274740741,
+              "role": "bot",
+              "kind": "text",
+              "text": "一人5,000円です（15000÷3）。",
+              "from": {
+                "botId": "d72da131-32c4-4114-acef-ded876b49c53",
+                "name": "MCP検証Bot",
+                "color": "red"
+              }
+            }
+          ],
+          "hasMore": false
+        }
+      }
+    }
+  },
+  {
+    "transport": "HTTP",
+    "path": "/api/threads/122977b5-b05d-444f-aaef-04ad18baebf6/messages?limit=30",
+    "status": 200,
+    "result": {
+      "messages": [
+        {
+          "id": "981564af-15fa-4385-a4aa-879edcdabfd3",
+          "at": 1789274726782,
+          "parentId": null,
+          "role": "user",
+          "kind": "text",
+          "text": "[API-ROOM-01] 打ち合わせです。予算12000円を3人で均等に負担します。一人いくらですか？簡潔に答えてください。",
+          "channelMode": "chat",
+          "via": "api"
+        },
+        {
+          "id": "c897e6c2-a238-46cf-9366-07e17c7cf828",
+          "at": 1789274732611,
+          "parentId": "981564af-15fa-4385-a4aa-879edcdabfd3",
+          "role": "bot",
+          "kind": "text",
+          "text": "一人4,000円です（12000÷3）。",
+          "turnId": "9e87e33c-020a-4d94-a1a3-8a6d7b04e8aa",
+          "from": {
+            "botId": "e37ccce8-4922-4876-9aa0-49be5e6a86ea",
+            "name": "API検証Bot",
+            "color": "blue"
+          },
+          "turnTerminal": true
+        },
+        {
+          "id": "209c55aa-1abb-4571-a10c-9f6ce84042fb",
+          "at": 1789274732980,
+          "parentId": "c897e6c2-a238-46cf-9366-07e17c7cf828",
+          "role": "user",
+          "kind": "text",
+          "text": "[MCP-ROOM-02] @MCP検証Bot 予算を15000円に変更します。人数はそのままです。会話を読んで一人あたりを再計算して。",
+          "channelMode": "chat",
+          "via": "api"
+        },
+        {
+          "id": "91b06edb-0e13-439e-9cb6-e7ebb20228bb",
+          "at": 1789274740741,
+          "parentId": "209c55aa-1abb-4571-a10c-9f6ce84042fb",
+          "role": "bot",
+          "kind": "text",
+          "text": "一人5,000円です（15000÷3）。",
+          "turnId": "143ee019-aa68-469f-8bab-1665b5159275",
+          "from": {
+            "botId": "d72da131-32c4-4114-acef-ded876b49c53",
+            "name": "MCP検証Bot",
+            "color": "red"
+          },
+          "turnTerminal": true
+        }
+      ],
+      "hasMore": false
+    }
+  }
+]

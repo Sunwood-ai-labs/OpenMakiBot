@@ -1,0 +1,727 @@
+{
+  "passed": true,
+  "body": {
+    "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+    "text": "[API-SSE-03] 方針を変更します。最初に確認する項目を「認証」に絞って、一文で答えてください。"
+  },
+  "status": 202,
+  "result": {
+    "status": "settled",
+    "targetType": "channel",
+    "targetId": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+    "taskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+    "target": {
+      "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+      "name": "API・MCP会議実験",
+      "memberIds": [
+        "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+        "40013199-60d7-4525-b71d-32f3e9f1887b"
+      ],
+      "bulletin": "",
+      "defaultResponder": {
+        "kind": "member",
+        "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+      },
+      "section": null,
+      "directMessage": false,
+      "working": false,
+      "busyBotId": null,
+      "activeTaskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+      "tasks": [
+        {
+          "taskId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+          "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+          "createdAt": 1789270371286,
+          "active": true
+        }
+      ]
+    },
+    "messages": [
+      {
+        "id": "ecfa1d8c-427d-44ab-99f2-fd0cae64f6bb",
+        "at": 1789270512438,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。"
+      },
+      {
+        "id": "0b814d01-b2da-44c7-b40e-45a1d1dabaf5",
+        "at": 1789270522103,
+        "role": "bot",
+        "kind": "text",
+        "text": "API連携では、次の5点を確認しましょう。\n\n- 認証が成功するか\n- リクエストとレスポンスの形式が合うか\n- エラーやタイムアウトを適切に扱えるか\n- 再送時に二重処理されないか\n- ログに機密情報が残らないか",
+        "from": {
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "381659c3-32ab-4c3c-92b5-a3397ec970d2",
+        "at": 1789270522233,
+        "role": "user",
+        "kind": "text",
+        "text": "[MCP-ROOM-02] @MCP検証Bot MCPから会議に参加しました。担当を引き継いでください。"
+      },
+      {
+        "id": "ece6ec99-e3d4-422b-be69-b6c9cbe0ca4f",
+        "at": 1789270530274,
+        "role": "bot",
+        "kind": "text",
+        "text": "@MCP検証Bot として担当を引き継ぎます。API検証Botの確認事項を踏まえ、MCP経由のメッセージ受信・返信・メンション到達を確認します。",
+        "from": {
+          "botId": "40013199-60d7-4525-b71d-32f3e9f1887b",
+          "name": "MCP検証Bot",
+          "color": "red"
+        }
+      },
+      {
+        "id": "f211bd20-d31f-4fcf-836f-8cb9f3fb0994",
+        "at": 1789270576046,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-SSE-03] 方針を変更します。最初に確認する項目を「認証」に絞って、一文で答えてください。"
+      },
+      {
+        "id": "4b6dfeeb-ced5-4bad-891d-f198b5f26fa2",
+        "at": 1789270581692,
+        "role": "bot",
+        "kind": "text",
+        "text": "最初に、API認証が正常に成功するかを確認します。",
+        "from": {
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      {
+        "id": "a58ec0d4-acf3-41be-bccc-afd8978fb11e",
+        "at": 1789270643515,
+        "role": "user",
+        "kind": "text",
+        "text": "[API-SSE-03] 方針を変更します。最初に確認する項目を「認証」に絞って、一文で答えてください。"
+      },
+      {
+        "id": "dd2f35fd-bf7c-4805-ba06-d69e5d72bc79",
+        "at": 1789270649852,
+        "role": "bot",
+        "kind": "text",
+        "text": "最初に、API認証が正常に成功するかを確認します。",
+        "from": {
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      }
+    ],
+    "hasMore": false
+  },
+  "events": [
+    {
+      "kind": "hello",
+      "cursor": "351a4896:314",
+      "resumed": false
+    },
+    {
+      "kind": "message",
+      "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+      "message": {
+        "id": "a58ec0d4-acf3-41be-bccc-afd8978fb11e",
+        "at": 1789270643515,
+        "parentId": "4b6dfeeb-ced5-4bad-891d-f198b5f26fa2",
+        "role": "user",
+        "kind": "text",
+        "text": "[API-SSE-03] 方針を変更します。最初に確認する項目を「認証」に絞って、一文で答えてください。",
+        "channelMode": "chat",
+        "via": "api"
+      },
+      "seq": 315
+    },
+    {
+      "kind": "group",
+      "group": {
+        "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "name": "API・MCP会議実験",
+        "memberIds": [
+          "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "40013199-60d7-4525-b71d-32f3e9f1887b"
+        ],
+        "defaultResponder": {
+          "kind": "member",
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+        },
+        "bulletin": "",
+        "unread": false,
+        "createdAt": 1789270371286,
+        "busyBotId": null,
+        "tasks": [
+          {
+            "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+            "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+            "createdAt": 1789270371286,
+            "pinnedCwd": null
+          }
+        ],
+        "setupCompletedAt": 1789270371286,
+        "setupSkippedAt": null,
+        "pinnedCwd": null,
+        "working": true
+      },
+      "seq": 316
+    },
+    {
+      "kind": "bot",
+      "bot": {
+        "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+        "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+        "name": "API検証Bot",
+        "title": "",
+        "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+        "soul": "",
+        "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "notifications": true,
+        "color": "blue",
+        "unread": true,
+        "modelSelection": {
+          "instanceId": "codex",
+          "model": "gpt-6-astra",
+          "effort": "low"
+        },
+        "createdAt": 1789270370694,
+        "activity": "working",
+        "busy": true,
+        "avatarUrl": null,
+        "tasks": [
+          {
+            "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+            "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+            "createdAt": 1789270370694,
+            "cwd": "C:\\Users\\makim\\AppData\\Local\\Temp\\openmausbot-verify-data-4HanLK\\workspaces\\e401a9a4-b35d-4419-80c0-116d6c8f178d",
+            "usage": {
+              "input": 43070,
+              "output": 50,
+              "cachedInput": 20864,
+              "costUsd": null,
+              "turns": 4
+            }
+          }
+        ]
+      },
+      "seq": 317
+    },
+    {
+      "kind": "group",
+      "group": {
+        "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "name": "API・MCP会議実験",
+        "memberIds": [
+          "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "40013199-60d7-4525-b71d-32f3e9f1887b"
+        ],
+        "defaultResponder": {
+          "kind": "member",
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+        },
+        "bulletin": "",
+        "unread": false,
+        "createdAt": 1789270371286,
+        "busyBotId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+        "tasks": [
+          {
+            "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+            "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+            "createdAt": 1789270371286,
+            "pinnedCwd": null
+          }
+        ],
+        "setupCompletedAt": 1789270371286,
+        "setupSkippedAt": null,
+        "pinnedCwd": null,
+        "working": true
+      },
+      "seq": 318
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jkh3-66",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:23.559Z",
+        "type": "turn.started",
+        "providerInstanceId": "codex"
+      },
+      "seq": 319
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jkxj-67",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:24.151Z",
+        "type": "session.started",
+        "sessionId": "01a098d7-551d-7f71-9e5d-5d0e570804b3",
+        "model": "gpt-6-astra",
+        "providerInstanceId": "codex"
+      },
+      "seq": 320
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jov8-68",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.252Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "最",
+        "providerInstanceId": "codex"
+      },
+      "seq": 321
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jov9-69",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.253Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "初",
+        "providerInstanceId": "codex"
+      },
+      "seq": 322
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jovp-6a",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.269Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "に",
+        "providerInstanceId": "codex"
+      },
+      "seq": 323
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jox4-6b",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.320Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "、",
+        "providerInstanceId": "codex"
+      },
+      "seq": 324
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9joy4-6c",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.356Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "API",
+        "providerInstanceId": "codex"
+      },
+      "seq": 325
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9joz0-6d",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.388Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "認",
+        "providerInstanceId": "codex"
+      },
+      "seq": 326
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9joz6-6e",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.394Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "証",
+        "providerInstanceId": "codex"
+      },
+      "seq": 327
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp06-6f",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.430Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "が",
+        "providerInstanceId": "codex"
+      },
+      "seq": 328
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp1t-6g",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.489Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "正常",
+        "providerInstanceId": "codex"
+      },
+      "seq": 329
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp1u-6h",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.490Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "に",
+        "providerInstanceId": "codex"
+      },
+      "seq": 330
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp3c-6i",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.544Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "成功",
+        "providerInstanceId": "codex"
+      },
+      "seq": 331
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp3j-6j",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.551Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "する",
+        "providerInstanceId": "codex"
+      },
+      "seq": 332
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp5o-6k",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.628Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "か",
+        "providerInstanceId": "codex"
+      },
+      "seq": 333
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp80-6l",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.712Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "を",
+        "providerInstanceId": "codex"
+      },
+      "seq": 334
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp82-6m",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.714Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "確認",
+        "providerInstanceId": "codex"
+      },
+      "seq": 335
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp83-6n",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.715Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "します",
+        "providerInstanceId": "codex"
+      },
+      "seq": 336
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jp8h-6o",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.729Z",
+        "type": "content.delta",
+        "streamKind": "assistant_text",
+        "delta": "。",
+        "providerInstanceId": "codex"
+      },
+      "seq": 337
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jpbv-6p",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.851Z",
+        "type": "item.completed",
+        "itemType": "assistant_text",
+        "text": "最初に、API認証が正常に成功するかを確認します。",
+        "providerInstanceId": "codex"
+      },
+      "seq": 338
+    },
+    {
+      "kind": "message",
+      "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+      "message": {
+        "id": "dd2f35fd-bf7c-4805-ba06-d69e5d72bc79",
+        "at": 1789270649852,
+        "parentId": "a58ec0d4-acf3-41be-bccc-afd8978fb11e",
+        "role": "bot",
+        "kind": "text",
+        "text": "最初に、API認証が正常に成功するかを確認します。",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "from": {
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "name": "API検証Bot",
+          "color": "blue"
+        }
+      },
+      "seq": 339
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jpd8-6q",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.900Z",
+        "type": "thread.token-usage.updated",
+        "input": 19122,
+        "output": 21,
+        "cachedInput": 12288,
+        "providerInstanceId": "codex"
+      },
+      "seq": 340
+    },
+    {
+      "kind": "runtime",
+      "event": {
+        "eventId": "ev-mtz9jpdj-6r",
+        "provider": "codex",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "createdAt": "2026-09-13T03:37:29.911Z",
+        "type": "turn.completed",
+        "ok": true,
+        "stopReason": null,
+        "cost": null,
+        "usage": {
+          "input": 19122,
+          "output": 21,
+          "cachedInput": 12288
+        },
+        "providerInstanceId": "codex"
+      },
+      "seq": 341
+    },
+    {
+      "kind": "message.patch",
+      "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+      "message": {
+        "id": "dd2f35fd-bf7c-4805-ba06-d69e5d72bc79",
+        "at": 1789270649852,
+        "parentId": "a58ec0d4-acf3-41be-bccc-afd8978fb11e",
+        "role": "bot",
+        "kind": "text",
+        "text": "最初に、API認証が正常に成功するかを確認します。",
+        "turnId": "afaef5b2-7080-492e-9cda-f2805189c1c3",
+        "from": {
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "name": "API検証Bot",
+          "color": "blue"
+        },
+        "turnTerminal": true
+      },
+      "seq": 342
+    },
+    {
+      "kind": "group",
+      "group": {
+        "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "name": "API・MCP会議実験",
+        "memberIds": [
+          "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "40013199-60d7-4525-b71d-32f3e9f1887b"
+        ],
+        "defaultResponder": {
+          "kind": "member",
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+        },
+        "bulletin": "",
+        "unread": true,
+        "createdAt": 1789270371286,
+        "busyBotId": null,
+        "tasks": [
+          {
+            "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+            "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+            "createdAt": 1789270371286,
+            "pinnedCwd": null
+          }
+        ],
+        "setupCompletedAt": 1789270371286,
+        "setupSkippedAt": null,
+        "pinnedCwd": null,
+        "working": true
+      },
+      "seq": 343
+    },
+    {
+      "kind": "bot",
+      "bot": {
+        "id": "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+        "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+        "name": "API検証Bot",
+        "title": "",
+        "description": "API・MCP検証用。日本語で短く答える。ツールは使わない。会議では直前のユーザーの問いだけに答える。",
+        "soul": "",
+        "soulHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "notifications": true,
+        "color": "blue",
+        "unread": true,
+        "modelSelection": {
+          "instanceId": "codex",
+          "model": "gpt-6-astra",
+          "effort": "low"
+        },
+        "createdAt": 1789270370694,
+        "activity": "idle",
+        "busy": false,
+        "avatarUrl": null,
+        "tasks": [
+          {
+            "threadId": "76a06aa6-1e5a-4403-8cea-af1a5efde689",
+            "title": "[API-DM-01] APIからの個別会話です。受信確認をお願いします。",
+            "createdAt": 1789270370694,
+            "cwd": "C:\\Users\\makim\\AppData\\Local\\Temp\\openmausbot-verify-data-4HanLK\\workspaces\\e401a9a4-b35d-4419-80c0-116d6c8f178d",
+            "usage": {
+              "input": 43070,
+              "output": 50,
+              "cachedInput": 20864,
+              "costUsd": null,
+              "turns": 4
+            }
+          }
+        ]
+      },
+      "seq": 344
+    },
+    {
+      "kind": "group",
+      "group": {
+        "id": "2ac531b1-a673-4029-80f2-05f723d0e7ec",
+        "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+        "name": "API・MCP会議実験",
+        "memberIds": [
+          "e401a9a4-b35d-4419-80c0-116d6c8f178d",
+          "40013199-60d7-4525-b71d-32f3e9f1887b"
+        ],
+        "defaultResponder": {
+          "kind": "member",
+          "botId": "e401a9a4-b35d-4419-80c0-116d6c8f178d"
+        },
+        "bulletin": "",
+        "unread": true,
+        "createdAt": 1789270371286,
+        "busyBotId": null,
+        "tasks": [
+          {
+            "threadId": "3697e404-2ec5-4a27-aab2-de1fbe8e19c5",
+            "title": "[API-ROOM-01] 会議を開始します。API連携の確認事項を共有してください。",
+            "createdAt": 1789270371286,
+            "pinnedCwd": null
+          }
+        ],
+        "setupCompletedAt": 1789270371286,
+        "setupSkippedAt": null,
+        "pinnedCwd": null,
+        "working": false
+      },
+      "seq": 345
+    }
+  ]
+}

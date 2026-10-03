@@ -1,0 +1,111 @@
+- complementary "Bots and navigation":
+  - button "Collapse sidebar to avatars":
+  - button "Choose sidebar density"
+  - button "New or share":
+  - textbox "Search bots and messages":
+    - /placeholder: Search
+  - button "Channels" [expanded]:
+    - generic: Channels
+  - 'button "API検証Bot MCP検証Bot API・MCP会議実験 API検証Bot: 最初に、API認証が正常に成功するかを確認します。"':
+    - img "API検証Bot"
+    - img "MCP検証Bot"
+    - generic: API・MCP会議実験
+    - generic: "API検証Bot: 最初に、API認証が正常に成功するかを確認します。"
+  - button "Bots" [expanded]:
+    - generic: Bots
+  - button "MCP検証Bot Rename MCP検証Bot Hi, I'm MCP検証Bot. What would you like me to do?":
+    - img "MCP検証Bot"
+    - button "Rename MCP検証Bot": MCP検証Bot
+    - generic: Hi, I'm MCP検証Bot. What would you like me to do?
+  - button "Archive MCP検証Bot":
+  - button "API検証Bot Rename API検証Bot 12:35 受信しました。[MCP-DM-02] MCPからの追記を確認済みです。":
+    - img "API検証Bot"
+    - button "Rename API検証Bot" [active]: API検証Bot
+    - generic: 12:35
+    - generic: 受信しました。[MCP-DM-02] MCPからの追記を確認済みです。
+  - button "Archive API検証Bot":
+  - button "Tuli Rename Tuli Hi, I'm Tuli. What would you like me to do?":
+    - img "Tuli"
+    - button "Rename Tuli": Tuli
+    - generic: Hi, I'm Tuli. What would you like me to do?
+  - button "Archive Tuli":
+  - paragraph
+  - button "Tools":
+    - generic: Tools
+  - button "You":
+    - generic: "?"
+    - generic: You
+- main:
+  - button "Open API検証Bot's profile":
+    - img "API検証Bot"
+  - button "Open API検証Bot's profile": API検証Bot
+  - button "Rename API検証Bot":
+  - button "Find in conversation":
+  - button "Task":
+    - generic: Task
+  - button "43.1k tok"
+  - button "e401a9a4-b35d-4419-80c0-116d6c8f178d":
+    - generic: e401a9a4-b35d-4419-80c0-116d6c8f178d
+  - button "gpt-6-astra":
+    - generic: gpt-6-astra
+  - button "Calls currently need the macOS desktop app":
+  - button "Bot's computer":
+  - button "Inspector":
+  - log "Conversation with API検証Bot":
+    - generic: Today 12:32
+    - generic "2026/9/13 12:32:50":
+      - paragraph: Hi, I'm API検証Bot. What would you like me to do?
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:32
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:32:51":
+      - generic: "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+    - generic: 12:32
+    - generic: "{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the"
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:33:16":
+      - generic: "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+    - generic: 12:33
+    - generic: "{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model requires a newer version of Codex. Please upgrade to the"
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:34:55":
+      - generic: "[API-DM-01] APIからの個別会話です。受信確認をお願いします。"
+    - generic: 12:34
+    - generic "2026/9/13 12:35:01":
+      - paragraph: 受信しました。[API-DM-01] 個別会話を確認済みです。
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:35
+    - button "Edit message":
+    - button "Copy message":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic "2026/9/13 12:35:01":
+      - generic: "[MCP-DM-02] 同じ会話へMCPから追記しました。"
+    - generic: 12:35
+    - generic "2026/9/13 12:35:12":
+      - paragraph: 受信しました。[MCP-DM-02] MCPからの追記を確認済みです。
+    - button "Copy message":
+    - button "Add an ElevenLabs key in an agent profile to read messages aloud" [disabled]:
+    - button "Regenerate response":
+    - button "Reply to message":
+    - button "Pin message":
+    - generic: 12:35
+  - button "Attach a file":
+  - button "Ask for approval for Live Codex verification":
+    - generic: Ask
+  - textbox "Message API検証Bot"
