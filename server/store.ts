@@ -658,9 +658,14 @@ export class Store {
         botsMigrated = true;
       }
       const legacyBody = legacyMascotBody(b.mascotProfile);
-      if (b.mascotBody !== legacyBody) botsMigrated = true;
-      // mascotBody is kept only as an in-memory/wire adapter for older clients.
-      b.mascotBody = legacyBody;
+      const omittedDefaultBody = b.mascotBody === undefined &&
+        b.mascotProfile?.shapes.length === 0 &&
+        b.mascotProfile?.selected.kind === "builtin" &&
+        b.mascotProfile.selected.bodyId === "cursor";
+      if (!omittedDefaultBody) {
+        if (b.mascotBody !== legacyBody) botsMigrated = true;
+        b.mascotBody = legacyBody;
+      }
       // transient state never survives a restart — and if a previous
       // process died mid-turn, bots.json still says busy/working; persist
       // the reset so the next load does not read it again
@@ -1032,7 +1037,7 @@ export class Store {
 
   private saveBots(bots: BotRecord[] = this.bots, registerSections = true) {
     if (registerSections) this.rememberSections([...this.bots, ...bots].map((bot) => bot.section));
-    writeFileAtomic(BOTS_FILE, JSON.stringify(bots.map(({ busy: _busy, activity: _activity, mascotBody: _legacyMascotBody, ...bot }) => ({
+    writeFileAtomic(BOTS_FILE, JSON.stringify(bots.map(({ busy: _busy, activity: _activity, ...bot }) => ({
       ...bot,
       tasks: bot.tasks?.map(({ busy: _taskBusy, activity: _taskActivity, turnStartedAt: _taskTurnStarted, ...task }) => persistedPin(task)),
     })), null, 2), { mode: 0o600 });
@@ -1768,7 +1773,9 @@ export class Store {
       color: profile.color ?? COLORS[this.bots.length % COLORS.length],
       ...(profile.mascotExpression ? { mascotExpression: profile.mascotExpression } : {}),
       mascotProfile,
-      mascotBody: legacyMascotBody(mascotProfile),
+      ...(profile.mascotProfile !== undefined || profile.mascotBody !== undefined
+        ? { mascotBody: legacyMascotBody(mascotProfile) }
+        : {}),
       // Restricted from its first frame: no one else is ever told it exists.
       ...(profile.visibility && profile.visibility !== "everyone" ? { visibility: structuredClone(profile.visibility) } : {}),
       ...(toolScope.scope ? { toolScope: toolScope.scope } : {}),
