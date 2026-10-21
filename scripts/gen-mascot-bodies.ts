@@ -29,8 +29,8 @@
  *
  * 2. One shared size. The smallest scale in the catalog is applied to every body, and
  *    each body's anchor is then re-solved at that fixed size. Roomier bodies get more
- *    margin rather than a bigger face, which is what makes the ten read as one character
- *    wearing different bodies instead of ten unrelated mascots.
+ *    margin rather than a bigger face, which is what makes the catalog read as one character
+ *    wearing different bodies instead of unrelated mascots.
  *
  * The run fails, loudly and with a non-zero exit, if any expression would clip at any
  * body's final anchor at any aim. That assertion is the feature's correctness guarantee:
@@ -284,7 +284,7 @@ function emit(bodies: Baked[]): string {
  *
  * Every body carries the same face at the same size: the generator clamps the whole
  * catalog to the smallest face any one body can hold, so the mascot reads as one
- * character in different bodies rather than ten different mascots. Roomier bodies simply
+ * character in different bodies rather than different mascots. Roomier bodies simply
  * end up with more margin around the face.
  *
  * The fields match \`CursorSilhouette\` exactly, so a body can be handed to the renderer
