@@ -1,10 +1,10 @@
 {
-  "reviewedAtUtc": "2026-10-21 12:19:05 UTC",
+  "reviewedAtUtc": "2026-10-21 13:02:42 UTC",
   "repo": "C:\\Prj\\OpenMakiBot-cat-avatar-20261021",
   "branch": "codex/feature/cat-avatar-preview",
-  "head": "e8d4c245f0b41935e41031bfe7791293a2d26546",
+  "head": "0e24c4cf5d301a402c5637c0e0c940fa0c627cf7",
   "base": "6b4d74983",
-  "note": "All source findings are closed. The reviewed team-manifest change is test-only: it makes the explicit builtin cursor expectation precise and verifies export/import preserve both the legacy projection and canonical selection. Production source hashes remain unchanged from the prior acceptance.",
+  "note": "Final source review accepted the four-file organization look-stamp change. Hashes bind the reviewed working-tree bytes; see finalAcceptance for behavior, verification, UI boundary, and the limited Store migration caveat.",
   "proofBlobComparison": {
     "src/lib/custom-mascot-svg.ts": {
       "proofBlobOid": "c880875b744222937a788e8085e67a63080c0ee2",
@@ -38,7 +38,6 @@
     "shared/cursor-face-data.ts": "6f8c6858763f11885e3157d7602e78626d22e53aa54de1c30bd718ff5105e23a",
     "server/package-export.ts": "1fa7358caa91ed9e9df8cd5054b87314b56c7b084094ba4657c213082288bbe8",
     "server/package-export.test.ts": "e72ee2672391825c164dbdb79e021084b99768a269cd95f1be86ed4a1e483e1d",
-    "server/package-import.ts": "2ad1a6b83e493786737c5733f8fa9d5a0d9ae3a3a866805c72ca6ff7dc87a7fc",
     "server/package-import.test.ts": "9681a1da6f154349a87a2fd5db9044113c0954355ad63b8e80796d91759d8a18",
     "shared/package-format.ts": "318496d2e76d0f7a156a3b96c8d6c60340e2be44f4d74d87618cfd095c784337",
     "server/team-manifest.ts": "a2419893aadeeff49a8a3e8e902fc7f03ef90be331309969785287e1009a05e0",
@@ -56,9 +55,13 @@
     "server/bot-profile.ts": "48d4a0f90d7370e0d0c6391b42e18a87464bc4baf0fc6cae904162d1b04b143c",
     "shared/new-bot-defaults.ts": "14587965e9fd3dd745e758c943351f6cbb902f10f1d9ccbfd7729d910bfe91fc",
     "shared/mascot-fixtures/bunny-outline.json": "3dccc918352998c277a7da1a6c064ce687e4874a6571824bb367c858d0d45213",
-    "src/lib/custom-mascot-svg.test.ts": "a66d7b360d64693e5fd0467dce4f8c9a3691f997b82cdb6ff0acf22baca69592"
+    "src/lib/custom-mascot-svg.test.ts": "a66d7b360d64693e5fd0467dce4f8c9a3691f997b82cdb6ff0acf22baca69592",
+    "server/package-parts.ts": "5574e3701aea4b4f3ab5031774a562c5e6ff8f2943bbeed32b733c96dc8fc80e",
+    "server/package-import.ts": "74071b7d6e27852cd18ec1fa2f43e0de20b64a13ae31a3330b77c4438d1a3b12",
+    "server/org-library.test.ts": "868daa4ef782da9afcae604a6d92247a4fa5907637806fa4c233bf7799e7459c",
+    "server/package-parts.test.ts": "da7a6e3fcb21096c931730a76dd2bd32d1a06caf7598f1854acd9de31e61b108"
   },
-  "finalAcceptance": {
+  "priorTeamManifestReacceptance": {
     "changedFile": "server/index.test.ts",
     "changedLines": "5504-5506, 5522-5531",
     "productionSourcesUnchanged": {
@@ -70,5 +73,26 @@
     "targetTestResult": "1 passed, 278 skipped by filter; test file passed",
     "diffCheck": "git diff --check -- server/index.test.ts passed",
     "conclusion": "The minimal test update expects mascotBody cursor in both exported appearances and asserts import returns legacy mascotBody cursor plus canonical selected builtin cursor. No production behavior changed; this protects round-trip selection."
+  },
+  "finalAcceptance": {
+    "reviewedHead": "0e24c4cf5d301a402c5637c0e0c940fa0c627cf7",
+    "reviewedTreeState": "Accepted four-file working-tree diff at this HEAD; sourceSha256 binds reviewed bytes.",
+    "changedFiles": {
+      "server/package-parts.ts": "5574e3701aea4b4f3ab5031774a562c5e6ff8f2943bbeed32b733c96dc8fc80e",
+      "server/package-import.ts": "74071b7d6e27852cd18ec1fa2f43e0de20b64a13ae31a3330b77c4438d1a3b12",
+      "server/org-library.test.ts": "868daa4ef782da9afcae604a6d92247a4fa5907637806fa4c233bf7799e7459c",
+      "server/package-parts.test.ts": "da7a6e3fcb21096c931730a76dd2bd32d1a06caf7598f1854acd9de31e61b108"
+    },
+    "activeBehaviorAccepted": "package-parts keeps historical mascotBody hash encodings: omitted release body hashes as null; explicit Cursor remains cursor. Release r and written w are independent snapshots and need not be equal; for an omitted release body, the Store may write canonical Cursor, so r=null and w=cursor is expected and stable per side.",
+    "customProfileSensitivity": "A fingerprint of mascotProfile is included only when the profile has saved shapes; changes to the shape catalog/profile affect the look part, while profiles without custom shapes retain the old hash shape.",
+    "independentReviewerValidation": {
+      "command": "pnpm exec vitest run --no-file-parallelism server/org-library.test.ts server/package-parts.test.ts",
+      "result": "31 passed across 2 files",
+      "diffCheck": "git diff --check passed"
+    },
+    "implementationOwnerValidation": "108 accepted tests reported by implementation owner; not independently rerun in this review.",
+    "uiFollowUp": "No UI/native-renderer/API-save source changed in this diff. Existing visual receipt is unchanged; this review makes no claim that its media exercised package-stamp hashing.",
+    "migrationCaveat": "Store startup intentionally migrates a bot lacking mascotProfile/body to canonical builtin Cursor and writes the legacy Cursor projection. A packageBase.w hash created before that migration may still encode an omitted body as null. No active packageBase update comparator was found in this checkout; this review does not claim every historical w hash equals its post-migration representation and adds no speculative comparator.",
+    "conclusion": "Accepted against active behavior; no new finding."
   }
 }

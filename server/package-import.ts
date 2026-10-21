@@ -22,7 +22,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mcpServerNameError, MAX_MCP_SERVERS, parseStoredMcpServer } from "./mcp-registry.ts";
 import {
   AGENT_PARTS, agentReleaseValues, connectionLocalValue, connectionReleaseValue, pair, pairs, playbookValues,
-  ROOM_PARTS, roomReleaseValues, ROUTINE_PARTS, routineReleaseValues, scheduleValue, sha256Hex, TEAM_PARTS,
+  mascotLookFields, ROOM_PARTS, roomReleaseValues, ROUTINE_PARTS, routineReleaseValues, scheduleValue, sha256Hex, TEAM_PARTS,
   type AgentPart, type PartPair, type TeamPart,
 } from "./package-parts.ts";
 import type { PresetRegistry } from "./presets.ts";
@@ -428,7 +428,7 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
           look: {
             color: written.color,
             mascotExpression: written.mascotExpression ?? null,
-            mascotBody: written.mascotBody ?? null,
+            ...mascotLookFields(written),
             avatar: avatarHash,
             crop: written.avatarCrop ?? null,
           },

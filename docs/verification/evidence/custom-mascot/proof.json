@@ -433,7 +433,7 @@
     "defaultFits": true,
     "saveStatus": 201,
     "savedShapeCount": 2,
-    "changeSinceMotionCapture": "Only trailing empty lines removed from SVG importer and its test; native renderer unchanged."
+    "changeSinceMotionCapture": "Captured creator, native renderer, and API-save sources remain unchanged. A later non-UI package look-stamp follow-up touched package import/hash code and tests only; the earlier UI media does not exercise that hash logic."
   },
   "automatedGates": {
     "typecheck": "passed",
@@ -451,7 +451,7 @@
       "failed": 0
     },
     "packagedServerSmoke": "passed",
-    "initialFullLocalTest": "in progress with reported failures; see test-triage.md",
+    "initialFullLocalTest": "Stopped by Ctrl-C through owned session 13295 after reported failures. The run crossed source changes and has no final Vitest summary; it is not a passing gate. Earlier cached custom-validator failure output is not current evidence; the current focused validator run passed 4 tests.",
     "apiFileBeforeExpectationUpdate": {
       "head": "e8d4c245f0b41935e41031bfe7791293a2d26546",
       "passed": 277,
@@ -464,11 +464,81 @@
       "failed": 0,
       "skipped": 278,
       "command": "pnpm exec vitest run server/index.test.ts -t \"exports every visible bot and imports the team without creating a room\""
+    },
+    "orgLibraryLookStampFollowUp": {
+      "recordedAtUtc": "2026-10-21T13:02:41Z",
+      "baseHead": "0e24c4cf5d301a402c5637c0e0c940fa0c627cf7",
+      "ciTriage": {
+        "ubuntuShard4": {
+          "failingCases": 1,
+          "case": "server/org-library.test.ts: adds a team with skills on, routines paused, and every record stamped",
+          "reason": "Test required look.w === look.r although release and written hashes intentionally represent different Cursor encodings",
+          "releaseLookHash": "9fb5a4a35d967a2dd3487a57cccf5e5c4180a417fa01cbfebd447145007c36c2",
+          "writtenLookHash": "e346e1a4c2bc3255359bb8cc22c362f2125be9dc9c7e5b423c157ddc34f4d00"
+        },
+        "macOSShard4": {
+          "failingCases": 1,
+          "case": "server/org-library.test.ts: adds a team with skills on, routines paused, and every record stamped",
+          "reason": "Same over-strict r/w equality assertion as Ubuntu",
+          "releaseLookHash": "9fb5a4a35d967a2dd3487a57cccf5e5c4180a417fa01cbfebd447145007c36c2",
+          "writtenLookHash": "e346e1a4c2bc3255359bb8cc22c362f2125be9dc9c7e5b423c157ddc34f4d00"
+        },
+        "interpretation": "Release r hashes the package omission as null; written w hashes the newly created bot profile projected as builtin Cursor. The test now checks each side against its own expected value and verifies the selected Cursor profile. The other seven CI failure statuses remain aggregate summaries and are not attributed here.",
+        "externalLogs": [
+          "C:/Users/makim/.codex/visualizations/2026/10/21/01a15c95-e6da-73c1-9c09-1f23f15c8408/custom-mascot/triage/ci-ubuntu-0e.log",
+          "C:/Users/makim/.codex/visualizations/2026/10/21/01a15c95-e6da-73c1-9c09-1f23f15c8408/custom-mascot/triage/ci-macos-0e.log"
+        ]
+      },
+      "focusedChecks": {
+        "command": "pnpm exec vitest run server/package-parts.test.ts server/org-library.test.ts server/package-import.test.ts server/package-export.test.ts server/team-manifest.test.ts",
+        "isolatedTemporaryCodexHome": true,
+        "passed": 108,
+        "failed": 0,
+        "typecheck": "passed",
+        "lint": "passed",
+        "diffCheck": "passed",
+        "currentFocusedMascotValidator": {
+          "passed": 4,
+          "failed": 0,
+          "receipt": "full-run-final-status.json"
+        }
+      },
+      "semanticChange": "Centralized release and written mascot look projection while preserving legacy omitted/null and explicit cursor encodings. Added a profile fingerprint only when saved custom shapes exist. r and w remain independent hashes; no updater behavior is claimed.",
+      "sourceDelta": {
+        "server/package-import.ts": {
+          "gitBlobOid": "a74781ec8ce7dc660fa0bd57d6d9557034eff521",
+          "runtimeFileSha256": "74071b7d6e27852cd18ec1fa2f43e0de20b64a13ae31a3330b77c4438d1a3b12",
+          "role": "Uses shared mascot look projection when hashing the just-written bot."
+        },
+        "server/package-parts.ts": {
+          "gitBlobOid": "e158aa7c0a6a7c757c2b9c27980732b6953cab67",
+          "runtimeFileSha256": "5574e3701aea4b4f3ab5031774a562c5e6ff8f2943bbeed32b733c96dc8fc80e",
+          "role": "Projects canonical profile selection and fingerprints nonempty custom-shape catalogs."
+        },
+        "server/org-library.test.ts": {
+          "gitBlobOid": "be8e00c6c28fbd475c5456c44463548da492b886",
+          "runtimeFileSha256": "868daa4ef782da9afcae604a6d92247a4fa5907637806fa4c233bf7799e7459c",
+          "role": "Asserts independent release/write hashes and selected builtin Cursor."
+        },
+        "server/package-parts.test.ts": {
+          "gitBlobOid": "29647e2e92f51367ee9f376a446eb24f895a5bb6",
+          "runtimeFileSha256": "da7a6e3fcb21096c931730a76dd2bd32d1a06caf7598f1854acd9de31e61b108",
+          "role": "Covers legacy body encodings, title-only look stability, and custom-profile/body hash changes."
+        }
+      },
+      "unchangedCapturedUiSources": {
+        "src/components/CustomMascotCreator.tsx": "e2af1432113cbdafcfc9f9a41c66bd75d4dd940eeeeefe43f60a4ac989a8f00d",
+        "src/components/CursorAvatar.tsx": "e683b56eac4eaf1a9d30e19fe39e5423351635f25559a39c632212c008912829",
+        "server/index.ts": "f7152fcfda67d02a9f01fb0207fdfc63586353384bd4c4d729e3c5b3937c925d"
+      },
+      "mediaBoundary": "Existing screenshots and recording remain bound to the original sourceSnapshot. They were not regenerated and do not claim to have executed the follow-up package hash logic.",
+      "hostRouteBoundary": "A later host Codex appserver route/home was not proven to be fixture-owned and was stopped; the visual proof remains the separate sealed fake-engine fixture."
     }
   },
   "subsequentChanges": {
-    "recordedAt": "2026-10-21T12:21:45.834727+00:00",
+    "recordedAt": "2026-10-21T13:02:41Z",
     "runtimeUnchangedSince": "e8d4c245f0b41935e41031bfe7791293a2d26546",
-    "change": "Only team-transfer test expectations/import assertions and verification receipts changed. Independent review accepted explicit Cursor serialization."
+    "change": "Non-UI package look-stamp follow-up plus focused tests and verification receipts. Creator, native renderer, API-save implementation, screenshots, and motion recording remain unchanged.",
+    "followUpEvidenceRecord": "automatedGates.orgLibraryLookStampFollowUp"
   }
 }

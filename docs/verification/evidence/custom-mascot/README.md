@@ -2,7 +2,9 @@
 
 Recorded on 2026-10-21 in Chromium against an isolated fake-engine fixture.
 The fixture used its own data directory, HOME, provider configuration, and ports.
-The user's running app and data were not changed.
+This record describes that sealed fixture only. A later host Codex appserver
+route and home could not be proven fixture-owned and were stopped; no evidence
+from that route is included here.
 
 ## Recorded workflow
 
@@ -60,9 +62,25 @@ This record covers the browser renderer and fake-engine persistence. Installed
 Electron and mobile runtime verification remain outside this record. Transfer,
 backup, validation, and legacy projection also have automated coverage.
 
-The initial local `pnpm test` run printed 206 failures in `server/index.test.ts`.
-A focused reproduction failed once with `ECONNRESET`, then passed on both the
-current source and baseline `6b4d749`. That comparison does not explain the full
-run; [test-triage.md](test-triage.md) records the unresolved result. The full run
-began before the final copy/default and rounded-anchor fixes. Final CI results
-are recorded in the pull request separately.
+After the media was captured, a non-UI follow-up changed package look-stamp
+projection in `server/package-import.ts` and `server/package-parts.ts`, with
+focused tests. The creator, native renderer, and API-save sources remain at the
+hashes recorded in `proof.json`; the existing screenshots and video remain
+bound to their captured source snapshot and do not claim to exercise the new
+package-hash logic.
+
+At HEAD `0e24c4c`, Ubuntu and macOS each reported one shard-4 failure: the shelf
+test required release hash `r` to equal written hash `w`. For an omitted body,
+the release hashes `null` while the installed bot hashes its selected builtin
+Cursor projection. Those are separate provenance values; the updated test now
+checks each expected hash and the selected profile. The other seven failure
+statuses were aggregates and are not attributed here. The focused package,
+manifest, and organization-library suites passed 108 tests; typecheck, lint,
+and diff check passed. See [test-triage.md](test-triage.md) for the recorded
+scope and limits.
+
+The initial local full-suite run showed 206 `server/index.test.ts` failures but
+was stopped after source changed during the run and has no final test summary.
+It is not a passing gate. A current focused custom-mascot validator run passed
+4 tests; the old mixed-source result, including cached failure output, is not
+current evidence.
