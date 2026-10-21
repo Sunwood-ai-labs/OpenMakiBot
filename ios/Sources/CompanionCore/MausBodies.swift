@@ -26,7 +26,7 @@ enum MausBodies {
     }
 
     /// Every selectable body id, in the order the picker shows them.
-    static let order: [String] = ["cursor", "cat", "blob", "circle", "squircle", "capsule", "drop", "shield", "hexagon", "diamond", "star"]
+    static let order: [String] = ["cursor", "kitten", "blob", "circle", "squircle", "capsule", "drop", "shield", "hexagon", "diamond", "star"]
 
     /// The shipped mascot, and the fallback for any unrecognised value.
     static let defaultID = "cursor"
@@ -86,8 +86,8 @@ enum MausBodies {
             fit: (scale: 0.593918, tx: 68.1612, ty: 9.8302),
             anchor: (x: 85.54, y: 106.35, scale: 0.791)
         ),
-        "cat": Body(
-            id: "cat",
+        "kitten": Body(
+            id: "kitten",
             name: "Cat",
             path:
                 """

@@ -302,7 +302,7 @@ const CURSOR_D = "M0 0 C1.12815992 0.94880479 2.25705591 1.89673511 3.38671875 2
 /** The outlines, in the order the catalog persists them. `cursor` is the default, so it leads. */
 export const BODY_DEFS: BodyDef[] = [
   { id: "cursor", name: "Cursor", d: CURSOR_D, viewBox: [0, 0, 512, 512] },
-  { id: "cat", name: "Cat", d: buildCat(), viewBox: [0, 0, 200, 200] },
+  { id: "kitten", name: "Cat", d: buildCat(), viewBox: [0, 0, 200, 200] },
   // The wobble pushes lobes past the nominal 200x200 stage — its radius factor peaks at
   // 1.042, so the outline reaches 4.2 units outside. Its box is padded to hold that: a
   // 200x200 viewBox here would let the scanline pass silently shave the top lobe flat.

@@ -298,7 +298,10 @@ export const MASCOT_BODY_IDS = [${ids}] as const;
 
 export type MascotBodyId = (typeof MASCOT_BODY_IDS)[number];
 
-export const mascotBodySchema = z.enum(MASCOT_BODY_IDS);
+export const mascotBodySchema = z.preprocess(
+  (value) => value === "cat" ? "kitten" : value,
+  z.enum(MASCOT_BODY_IDS),
+);
 
 export interface MascotBody {
   id: MascotBodyId;

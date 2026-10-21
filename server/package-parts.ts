@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 
 import { canonicalJson, decodeBase64 } from "../shared/package-format.ts";
 import { DEFAULT_MASCOT_BODY } from "../shared/mascot-bodies.ts";
-import type { MascotSelection } from "../shared/mascot-profile.ts";
+import type { PackageMascotProfile } from "../shared/mascot-profile.ts";
 import type {
   PackageAgent,
   PackageConnection,
@@ -52,7 +52,7 @@ export interface LookValue {
   crop: string | null;
 }
 
-type MascotProfileLook = { selected: MascotSelection; shapes: ReadonlyArray<unknown> };
+type MascotProfileLook = PackageMascotProfile;
 type LookAppearance = Omit<PackageAgent["appearance"], "mascotProfile"> & { mascotProfile?: MascotProfileLook };
 
 /**

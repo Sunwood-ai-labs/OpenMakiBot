@@ -6,6 +6,7 @@ import {
   addOrSelectCustomMascot,
   createMascotProfile,
   isSimpleClosedOutline,
+  mascotProfileSchema,
   selectBuiltinMascot,
   type CustomMascotPoint,
   type CustomMascotShape,
@@ -70,7 +71,7 @@ describe("custom mascot face fitting", () => {
 describe("bot-owned mascot profile transitions", () => {
   it("keeps saved shapes when returning to a built-in and deduplicates a copied snapshot", () => {
     const first = shape("a".repeat(64), "Bunny");
-    const profile = addOrSelectCustomMascot(createMascotProfile("cat"), first);
+    const profile = addOrSelectCustomMascot(createMascotProfile("kitten"), first);
     const copied = addOrSelectCustomMascot(profile, structuredClone(first));
 
     expect(copied.shapes).toHaveLength(1);
@@ -80,5 +81,20 @@ describe("bot-owned mascot profile transitions", () => {
       selected: { kind: "builtin", bodyId: "star" },
     });
     expect(() => addOrSelectCustomMascot(copied, { ...first, anchor: { ...first.anchor, x: 100 } })).toThrow(/different content/);
+  });
+
+  it("migrates the old Cat body ID before profile validation without dropping saved shapes", () => {
+    const savedShape = shape("a".repeat(64), "Bunny");
+    const legacy = {
+      version: 1,
+      shapes: [savedShape],
+      selected: { kind: "builtin", bodyId: "cat" },
+    };
+
+    expect(createMascotProfile("cat").selected).toEqual({ kind: "builtin", bodyId: "kitten" });
+    expect(mascotProfileSchema.parse(legacy)).toEqual({
+      ...legacy,
+      selected: { kind: "builtin", bodyId: "kitten" },
+    });
   });
 });

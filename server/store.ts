@@ -1984,7 +1984,9 @@ export class Store {
       if (!parsed.ok) throw new Error(parsed.error);
       patch = { ...patch, toolScope: parsed.scope };
     }
-    if (patch.mascotBody !== undefined) {
+    if (patch.mascotProfile !== undefined) {
+      patch = { ...patch, mascotBody: legacyMascotBody(patch.mascotProfile) };
+    } else if (patch.mascotBody !== undefined) {
       const mascotProfile = selectBuiltinMascot(bot.mascotProfile, patch.mascotBody ?? "cursor");
       patch = { ...patch, mascotProfile, mascotBody: legacyMascotBody(mascotProfile) };
     }

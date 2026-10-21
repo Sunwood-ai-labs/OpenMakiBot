@@ -8,6 +8,8 @@ import {
   generateAvatarImage,
   snapshotAvatarGenerationState,
 } from "./avatar-image.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile, selectBuiltinMascot, type CustomMascotPoint, type CustomMascotShape } from "../shared/mascot-profile.ts";
 
 const BOT = { name: "Scout", title: "Research agent", description: "Finds evidence quickly." };
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
@@ -41,7 +43,35 @@ describe("avatar image generation", () => {
     mutable.avatarUrl = "/api/attachments/new.webp";
 
     expect(avatarGenerationStateMatches(initial, mutable)).toBe(false);
-    expect(initial).toEqual({ avatarUrl: "/api/attachments/old.webp", avatarCrop: "circle" });
+    expect(initial).toEqual({ avatarUrl: "/api/attachments/old.webp", avatarCrop: "circle", mascotProfile: null });
+  });
+
+  it.each(["native", "custom"] as const)("detects a late %s mascot selection during avatar generation", (kind) => {
+    const outline: CustomMascotPoint[] = Array.from({ length: 32 }, (_, index) => {
+      const angle = (index / 32) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 90, FACE_BOX / 2 + Math.sin(angle) * 90];
+    });
+    const shape: CustomMascotShape = {
+      id: "a".repeat(64),
+      name: "Bunny",
+      outline,
+      anchor: { x: FACE_BOX / 2, y: FACE_BOX / 2, scale: 0.5 },
+    };
+    const initialProfile = createMascotProfile("kitten");
+    const changedProfile = kind === "native"
+      ? selectBuiltinMascot(initialProfile, "star")
+      : addOrSelectCustomMascot(initialProfile, shape);
+    const initial = snapshotAvatarGenerationState({
+      avatarUrl: "/api/attachments/old.webp",
+      avatarCrop: "mascot",
+      mascotProfile: initialProfile,
+    });
+
+    expect(avatarGenerationStateMatches(initial, {
+      avatarUrl: "/api/attachments/old.webp",
+      avatarCrop: "mascot",
+      mascotProfile: changedProfile,
+    })).toBe(false);
   });
 
   it("uses one low-quality square GPT Image 2 request and decodes WebP bytes", async () => {

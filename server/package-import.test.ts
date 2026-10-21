@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
+import { createBotPackageExport } from "./package-export.ts";
 import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
 import { FACE_BOX } from "../shared/cursor-face-data.ts";
 import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
@@ -100,6 +101,33 @@ describe("importing a whole team", () => {
     const imported = result.bots.find((bot) => bot.installedPackage?.agentKey === "lead")!;
     expect(imported.mascotProfile).toEqual(mascotProfile);
     expect(imported.mascotBody).toBe("cursor");
+  });
+
+  it("migrates the old package Cat ID and re-exports the canonical body with saved shapes", async () => {
+    const app = await installation();
+    const input = fixture("full-team.v2.json");
+    delete input.package.agents[0].appearance.avatar;
+    input.package.agents[0].appearance.mascotBody = "cat";
+    const savedProfile = customMascotProfile();
+    input.package.agents[0].appearance.mascotProfile = {
+      ...savedProfile,
+      selected: { kind: "builtin", bodyId: "cat" },
+    };
+    const document: PackageDocument = app.parsePackageDocument(input);
+
+    const result = app.importer.importPackageDocument(document, { trust: "file", mode: "add" }, app.deps);
+    if (result.alreadyAdded) throw new Error("unexpected");
+    const imported = result.bots.find((bot) => bot.installedPackage?.agentKey === "lead")!;
+    expect(imported).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: savedProfile.shapes },
+    });
+
+    const reexported = createBotPackageExport({ name: "Migrated Cat", bots: [imported], groups: [], routines: [] });
+    expect(reexported.package.agents[0]!.appearance).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: savedProfile.shapes },
+    });
   });
 
   it("adds every part from a file: persona, picture, brief, Chief, rooms, paused routines, skills off, valueless connections, notes", async () => {

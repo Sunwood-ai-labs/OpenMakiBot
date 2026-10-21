@@ -1680,6 +1680,63 @@ describe("custom mascot profile persistence", () => {
     expect(migrated[0]).not.toHaveProperty("mascotBody");
     expect(migrated[0]).toHaveProperty("mascotProfile");
   });
+
+  it("preserves an explicit custom profile when a nullable legacy body is also patched", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Custom profile precedence" });
+    const outline: CustomMascotPoint[] = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108];
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    const selected = store.addOrSelectMascotShape(bot.id, shape)!;
+    const explicitProfile = structuredClone(selected.mascotProfile!);
+
+    const patched = store.patchBot(bot.id, { mascotProfile: explicitProfile, mascotBody: null })!;
+
+    expect(patched.mascotProfile).toEqual(explicitProfile);
+    expect(patched.mascotProfile?.selected).toEqual({ kind: "custom", shapeId: shape.id });
+    expect(patched.mascotBody).toBe("cursor");
+  });
+
+  it("migrates persisted Cat body IDs while preserving profile shape snapshots", () => {
+    const store = new Store(selection);
+    const legacyBodyBot = store.createBot({ name: "Legacy Cat body" });
+    const profileBot = store.createBot({ name: "Legacy Cat profile" });
+    const outline: CustomMascotPoint[] = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108];
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    store.addOrSelectMascotShape(profileBot.id, shape);
+
+    const bots = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<{
+      id: string;
+      mascotBody?: string | null;
+      mascotProfile?: { selected: unknown; shapes: unknown[] };
+    }>;
+    const legacyBodyRecord = bots.find((bot) => bot.id === legacyBodyBot.id)!;
+    delete legacyBodyRecord.mascotProfile;
+    legacyBodyRecord.mascotBody = "cat";
+    const legacyProfileRecord = bots.find((bot) => bot.id === profileBot.id)!;
+    legacyProfileRecord.mascotBody = "cat";
+    legacyProfileRecord.mascotProfile!.selected = { kind: "builtin", bodyId: "cat" };
+    writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(bots));
+
+    const restored = new Store(selection);
+    expect(restored.bot(legacyBodyBot.id)).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: [] },
+    });
+    expect(restored.bot(profileBot.id)).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: [shape] },
+    });
+    const migrated = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(migrated.find((bot) => bot.id === profileBot.id)).not.toHaveProperty("mascotBody");
+  });
 });
 
 describe("Store change stream", () => {

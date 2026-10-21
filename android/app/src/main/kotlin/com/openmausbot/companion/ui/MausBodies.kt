@@ -34,7 +34,7 @@ internal object MausBodies {
     )
 
     /** Every selectable body id, in the order the picker shows them. */
-    val order: List<String> = listOf("cursor", "cat", "blob", "circle", "squircle", "capsule", "drop", "shield", "hexagon", "diamond", "star")
+    val order: List<String> = listOf("cursor", "kitten", "blob", "circle", "squircle", "capsule", "drop", "shield", "hexagon", "diamond", "star")
 
     /** The shipped mascot, and the fallback for any unrecognised value. */
     const val DEFAULT_ID: String = "cursor"
@@ -102,8 +102,8 @@ internal object MausBodies {
             anchorY = 106.35f,
             anchorScale = 0.791f,
         ),
-        "cat" to Body(
-            id = "cat",
+        "kitten" to Body(
+            id = "kitten",
             name = "Cat",
             path =
                 """

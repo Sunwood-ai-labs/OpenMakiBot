@@ -2,6 +2,7 @@ import type { ReadableStreamReadResult } from "node:stream/web";
 import { z } from "zod";
 
 import { normalizeImageGenerationUrl, type ImageGenerationConfig } from "../shared/image-generation.ts";
+import type { MascotProfile } from "../shared/mascot-profile.ts";
 import { decodeGeneratedImage } from "./generated-image.ts";
 import type { BotRecord } from "./store.ts";
 
@@ -18,7 +19,8 @@ const generatedImageResponseSchema = z.object({
 });
 
 type AvatarIdentity = Pick<BotRecord, "name" | "title" | "description">;
-type AvatarGenerationState = Pick<BotRecord, "avatarUrl" | "avatarCrop">;
+type AvatarGenerationState = Pick<BotRecord, "avatarUrl" | "avatarCrop"> & Partial<Pick<BotRecord, "mascotProfile">>;
+type AvatarGenerationSnapshot = Pick<BotRecord, "avatarUrl" | "avatarCrop"> & { mascotProfile: string | null };
 interface AvatarImageConfig {
   imageGen?: ImageGenerationConfig;
   xai?: { key?: string };
@@ -49,16 +51,26 @@ export function avatarImageStatus(cfg: AvatarImageConfig) {
   };
 }
 
-/** Copy the mutable avatar fields before an asynchronous generation starts. */
-export function snapshotAvatarGenerationState(bot: AvatarGenerationState): AvatarGenerationState {
-  return { avatarUrl: bot.avatarUrl, avatarCrop: bot.avatarCrop };
+/** Copy the mutable avatar and canonical mascot fields before generation starts. */
+export function snapshotAvatarGenerationState(bot: AvatarGenerationState): AvatarGenerationSnapshot {
+  return {
+    avatarUrl: bot.avatarUrl,
+    avatarCrop: bot.avatarCrop,
+    mascotProfile: serializeMascotProfile(bot.mascotProfile),
+  };
 }
 
 export function avatarGenerationStateMatches(
-  initial: AvatarGenerationState,
+  initial: AvatarGenerationSnapshot,
   current: AvatarGenerationState,
 ): boolean {
-  return current.avatarUrl === initial.avatarUrl && current.avatarCrop === initial.avatarCrop;
+  return current.avatarUrl === initial.avatarUrl &&
+    current.avatarCrop === initial.avatarCrop &&
+    serializeMascotProfile(current.mascotProfile) === initial.mascotProfile;
+}
+
+function serializeMascotProfile(profile: MascotProfile | undefined): string | null {
+  return profile ? JSON.stringify(profile) : null;
 }
 
 /**

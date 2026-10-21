@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { canonicalJson, parsePackageDocument } from "../shared/package-format.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
 
 const FIXTURES = join(import.meta.dirname, "..", "shared", "package-fixtures");
 const fixture = (name: string): any => JSON.parse(readFileSync(join(FIXTURES, name), "utf8"));
@@ -29,6 +33,18 @@ function release(name: string, edit?: (document: any) => void) {
   edit?.(document);
   const bytes = canonicalJson(document);
   return { document, bytes, sha256: sha(bytes) };
+}
+
+function customMascotProfile() {
+  const outline = Array.from({ length: 48 }, (_, index) => {
+    const angle = (index / 48) * Math.PI * 2;
+    return [FACE_BOX / 2 + Math.cos(angle) * 60, FACE_BOX / 2 + Math.sin(angle) * 60] as const;
+  });
+  const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+  return addOrSelectCustomMascot(
+    createMascotProfile(),
+    validateCustomMascotDefinition({ name: "Stamped legacy Cat", outline, anchor }),
+  );
 }
 
 function entry(packageId: string, rel: { document: any; bytes: string; sha256: string }, patch: Record<string, unknown> = {}) {
@@ -257,6 +273,44 @@ describe("the relay", () => {
 });
 
 describe("adding from the shelf", () => {
+  it("stamps the raw legacy Cat release before migrating its explicit profile", async () => {
+    const app = await installation();
+    const savedProfile = customMascotProfile();
+    const team = release("full-team.v2.json", (document) => {
+      const lead = document.package.agents.find((agent: any) => agent.key === "lead");
+      lead.appearance.mascotBody = "cat";
+      lead.appearance.mascotProfile = {
+        ...savedProfile,
+        selected: { kind: "builtin", bodyId: "cat" },
+      };
+    });
+    const rawAgent = team.document.package.agents.find((agent: any) => agent.key === "lead")!;
+    expect(rawAgent.appearance.mascotProfile.selected).toEqual({ kind: "builtin", bodyId: "cat" });
+    const expectedReleaseLook = app.parts.releaseLook(rawAgent.appearance);
+    expect(expectedReleaseLook.mascotBody).toBe("cat");
+    expect(expectedReleaseLook.mascotProfile).toBe(app.parts.partHash(rawAgent.appearance.mascotProfile));
+
+    app.writeBlob(team.bytes);
+    const library = app.open();
+    library.applyRelay(relay(catalog([entry(TEAM_ID, team)])));
+    await library.settled();
+    const added = library.add(TEAM_ID, app.importDeps) as any;
+    expect(added.ok).toBe(true);
+    const lead = app.store.bots.find((bot) => bot.installedPackage?.agentKey === "lead")!;
+    expect(lead.mascotProfile).toEqual({
+      ...savedProfile,
+      selected: { kind: "builtin", bodyId: "kitten" },
+    });
+    const writtenLook = { ...expectedReleaseLook, ...app.parts.mascotLookFields(lead) };
+    expect(writtenLook.mascotBody).toBe("kitten");
+    expect(lead.packageBase!.look).toEqual({
+      r: app.parts.partHash(expectedReleaseLook),
+      w: app.parts.partHash(writtenLook),
+    });
+    expect(lead.packageBase!.look!.r).not.toBe(lead.packageBase!.look!.w);
+    library.dispose();
+  });
+
   it("adds a team with skills on, routines paused, and every record stamped", async () => {
     const app = await installation();
     app.store.createBot({ name: "Scout" });

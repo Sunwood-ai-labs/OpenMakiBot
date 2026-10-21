@@ -49,6 +49,11 @@ describe("botMascotBody", () => {
     expect(botMascotBody("blob")).toBe("blob");
   });
 
+  it("migrates the old Cat body id to the native catalog id", () => {
+    expect(mascotBodySchema.parse("cat")).toBe("kitten");
+    expect(botMascotBody("cat")).toBe("kitten");
+  });
+
   it("falls back to the cursor for anything else", () => {
     expect(botMascotBody("hexagram")).toBe("cursor");
     expect(botMascotBody(undefined)).toBe("cursor");

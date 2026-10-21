@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { FACE_BOX } from "./cursor-face-data.ts";
-import { MASCOT_BODY_IDS } from "./mascot-bodies.ts";
+import { DEFAULT_MASCOT_BODY, MASCOT_BODY_IDS, mascotBodySchema } from "./mascot-bodies.ts";
 
 export const MASCOT_PROFILE_VERSION = 1 as const;
 export const MAX_CUSTOM_MASCOT_SHAPES = 24;
@@ -43,6 +43,10 @@ export interface MascotProfile {
   selected: MascotSelection;
 }
 
+export type PackageMascotProfile = Omit<MascotProfile, "selected"> & {
+  selected: MascotSelection | { kind: "builtin"; bodyId: "cat" };
+};
+
 const coordinate = z.number().finite().min(0).max(FACE_BOX);
 const pointSchema = z.tuple([coordinate, coordinate]);
 const anchorSchema = z.object({
@@ -71,15 +75,15 @@ export const customMascotShapeSchema = customMascotDefinitionSchema.extend({
   id: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 
-const selectionSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("builtin"), bodyId: z.enum(MASCOT_BODY_IDS) }).strict(),
+const packageSelectionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("builtin"), bodyId: z.enum([...MASCOT_BODY_IDS, "cat"]) }).strict(),
   z.object({ kind: z.literal("custom"), shapeId: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
 ]);
 
-export const mascotProfileSchema = z.object({
+const mascotProfileObjectSchema = z.object({
   version: z.literal(MASCOT_PROFILE_VERSION),
   shapes: z.array(customMascotShapeSchema).max(MAX_CUSTOM_MASCOT_SHAPES),
-  selected: selectionSchema,
+  selected: packageSelectionSchema,
 }).strict().superRefine((profile, context) => {
   const ids = new Set<string>();
   for (const shape of profile.shapes) {
@@ -94,8 +98,22 @@ export const mascotProfileSchema = z.object({
   }
 });
 
+export const packageMascotProfileSchema = mascotProfileObjectSchema.transform((profile) => profile as PackageMascotProfile);
+export const mascotProfileSchema = z.preprocess(migrateLegacyCatSelection, packageMascotProfileSchema)
+  .transform((profile) => profile as MascotProfile);
+
 export function normalizeMascotName(value: string): string {
   return value.normalize("NFC").replace(/[\s\u200b]+/gu, " ").trim();
+}
+
+function migrateLegacyCatSelection(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const profile = input as Record<string, unknown>;
+  const selected = profile.selected;
+  if (!selected || typeof selected !== "object" || Array.isArray(selected)) return input;
+  const selection = selected as Record<string, unknown>;
+  if (selection.kind !== "builtin" || selection.bodyId !== "cat") return input;
+  return { ...profile, selected: { ...selection, bodyId: "kitten" } };
 }
 
 /** Round import and editor values before they become canonical wire data. */
@@ -166,9 +184,7 @@ export function isSimpleClosedOutline(outline: readonly CustomMascotPoint[]): bo
 }
 
 export function createMascotProfile(bodyId?: string | null): MascotProfile {
-  const safeBody = typeof bodyId === "string" && (MASCOT_BODY_IDS as readonly string[]).includes(bodyId)
-    ? bodyId as (typeof MASCOT_BODY_IDS)[number]
-    : "cursor";
+  const safeBody = mascotBodySchema.safeParse(bodyId).data ?? DEFAULT_MASCOT_BODY;
   return { version: MASCOT_PROFILE_VERSION, shapes: [], selected: { kind: "builtin", bodyId: safeBody } };
 }
 
