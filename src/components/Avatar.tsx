@@ -279,7 +279,7 @@ export function BotAvatar({ bot, size = 44, label, ...mascotProps }: BotAvatarPr
   const origin = `${focusX * 100}% ${focusY * 100}%`;
   return (
     <span
-      className="relative block shrink-0 overflow-hidden bg-raised"
+      className="relative block shrink-0 overflow-hidden"
       style={{ width: size, height: size, borderRadius: radius }}
     >
       <img
