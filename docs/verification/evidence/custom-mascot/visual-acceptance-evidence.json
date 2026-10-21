@@ -1,0 +1,297 @@
+{
+  "scope": "Visual acceptance only",
+  "verdict": "PASS",
+  "report": "visual-acceptance.md",
+  "video": {
+    "path": "motion.mp4",
+    "codec": "h264",
+    "width": 1440,
+    "height": 1000,
+    "durationSeconds": 12.4,
+    "sampleSeconds": [
+      0,
+      3,
+      6,
+      9,
+      11
+    ],
+    "sampling": "ffmpeg -ss <seconds> -frames:v 1"
+  },
+  "sourceArtifactsSha256": [
+    {
+      "path": "01-before-creator.png",
+      "bytes": 106018,
+      "sha256": "44518bf6ceab8014ce4c8eadecb392d705d1b5bd4f21cbb307c697e1dcde3bc3",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": "13-invalid-face-final.png",
+      "bytes": 88287,
+      "sha256": "922005dad8fcff7a0c21878bff162fc85da82fc9e9f9978930a2efcd964daed8",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": "15-bunny-saved-final.png",
+      "bytes": 100995,
+      "sha256": "982097cd831110602f07dc62ff312ae4a2ef6069f3ad93ab389f11f0850ddfa2",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": "16-reused-on-juniper-final.png",
+      "bytes": 87895,
+      "sha256": "28762738ef7c696752fc5dafb0cc180ca6fd2de8fdd25b94250c40694e6e0720",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "path": "19-creator-final.png",
+      "bytes": 96300,
+      "sha256": "f5f3bda874ad8450ac3872ec503a027d756aa8baec26239d0c59006b46e16dec",
+      "codec": "png",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "path": "20-creator-panel-final.png",
+      "bytes": 52545,
+      "sha256": "7bbf7568e5e32e348a8ee3caa63ebd13d5bdee2236a530a6f385e737ce6e4488",
+      "codec": "png",
+      "width": 420,
+      "height": 980
+    },
+    {
+      "path": "22-compact-desktop-final.png",
+      "bytes": 63370,
+      "sha256": "8a7f9e7d7e1cdbc3339623a6b433645d22d3ea49c7132016157bcbad1c44030f",
+      "codec": "png",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "path": "11-default-bunny-fit-fixed.json",
+      "bytes": 285,
+      "sha256": "ed6e2c07393309e84d8795da2ee455139292d037dc1538875c73d53dbe2e8f0a"
+    },
+    {
+      "path": "12-import-guards-final.json",
+      "bytes": 568,
+      "sha256": "6b002a8170b0d55342d86517276080b400badc495b9c68aa2cb71288ffdf5503"
+    },
+    {
+      "path": "13-invalid-face-final.json",
+      "bytes": 45,
+      "sha256": "3fe71457ce97b4864aee08b3403f7391a859bdb03ce8c26c8915a53a3133238a"
+    },
+    {
+      "path": "15-first-save-final.json",
+      "bytes": 39344,
+      "sha256": "d2f7c55095ef00813e221ff8d8f218626cb5b83a62312a25139fbb8077aa4a40"
+    },
+    {
+      "path": "16-multiple-and-reuse-final.json",
+      "bytes": 129674,
+      "sha256": "deccd2df7b19e2821bf821507ea382ef218f25e30c15d5b51bc50f62a22c54bb"
+    },
+    {
+      "path": "17-reset-keeps-library.json",
+      "bytes": 151,
+      "sha256": "787362f7dfb53dc8145001aba8c754595440a7531d6df33831c490acf869f9e2"
+    },
+    {
+      "path": "18-profiles-before-restart.json",
+      "bytes": 112596,
+      "sha256": "d2af6ab3de0ab425a52663e15dfe4e148ed4e06c0ff86e810c3c5fab7078941b"
+    },
+    {
+      "path": "18-restart-persistence-final.json",
+      "bytes": 1100,
+      "sha256": "583111cd57dae1af0d6c0a6deac9c6c1629335cf7f8a6da34f28b941e39b346f"
+    },
+    {
+      "path": "21-native-motion-proof.json",
+      "bytes": 1191,
+      "sha256": "9bd0b6ee8d1b253a7a92d2d1df4d4a6110a1550899039afd65faebd6e72634cf"
+    },
+    {
+      "path": "22-compact-desktop-proof.json",
+      "bytes": 396,
+      "sha256": "f48f1d175d04ccb6cecc65664d592a59e96cefb68386194fe7075010054fa759"
+    },
+    {
+      "path": "motion.mp4",
+      "bytes": 367537,
+      "sha256": "900d142bfc3183cd728bc3094b8f940693e3706c36dd28d5d800309bd4f0329d",
+      "codec": "h264",
+      "width": 1440,
+      "height": 1000,
+      "durationSeconds": 12.4
+    },
+    {
+      "path": "23-final-source-revalidation.json",
+      "bytes": 221,
+      "sha256": "324773c1676f0eb4b408d9f0c144d7190d45a0baab08fc8fef0ed83550575eeb"
+    }
+  ],
+  "derivedFramesSha256": [
+    {
+      "path": "visual-qa/motion-00s.png",
+      "bytes": 258716,
+      "sha256": "2461637d0e11d52f15dc49093cb763d62f88222839e56fa01deb7aeff644dd6c",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000,
+      "sampleSeconds": 0
+    },
+    {
+      "path": "visual-qa/motion-03s.png",
+      "bytes": 267681,
+      "sha256": "658cb644412d59abf15307835b1f910c71df3e9b3415dfbb8268a8d78a93a789",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000,
+      "sampleSeconds": 3
+    },
+    {
+      "path": "visual-qa/motion-06s.png",
+      "bytes": 299603,
+      "sha256": "143c91794cab57e029a25f398ac85b60da0e8bf24c34e973e93c1922428ebd6e",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000,
+      "sampleSeconds": 6
+    },
+    {
+      "path": "visual-qa/motion-09s.png",
+      "bytes": 309468,
+      "sha256": "2c02a105c016f6551418b0237d1dcc5cbcd2b20cf7ef8a33268b090ff73d869f",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000,
+      "sampleSeconds": 9
+    },
+    {
+      "path": "visual-qa/motion-11s.png",
+      "bytes": 307847,
+      "sha256": "1b7d27d5280f3645de8ca53b287a16f97ea389cc5c9959dda91e7602e636541d",
+      "codec": "png",
+      "width": 1440,
+      "height": 1000,
+      "sampleSeconds": 11
+    }
+  ],
+  "evidenceChecks": [
+    {
+      "name": "Creator workflow",
+      "status": "PASS",
+      "evidence": [
+        "19-creator-final.png",
+        "20-creator-panel-final.png"
+      ],
+      "detail": "SVG chooser, name field, animated preview, three position and size sliders, fit status, Save button, and saved mascot lists are visible."
+    },
+    {
+      "name": "Compact desktop at 1024x768",
+      "status": "PASS",
+      "evidence": [
+        "22-compact-desktop-final.png",
+        "22-compact-desktop-proof.json"
+      ],
+      "detail": "The viewport has no horizontal overflow. All three sliders and the enabled Save button are visible. Each slider ends at x=982 within the 1024 px viewport. This capture is vertically scrolled, so the top of the preview is above the viewport."
+    },
+    {
+      "name": "Native mascot appearance",
+      "status": "PASS",
+      "evidence": [
+        "01-before-creator.png",
+        "19-creator-final.png",
+        "15-bunny-saved-final.png"
+      ],
+      "detail": "The custom bunny uses its rounded silhouette without a square image tile. The green Fixture Starter keeps the native cursor triangle. Juniper displays the bunny after an explicit reuse action."
+    },
+    {
+      "name": "Standard controls",
+      "status": "PASS",
+      "evidence": [
+        "15-bunny-saved-final.png",
+        "19-creator-final.png"
+      ],
+      "detail": "Shape, expression, color, and body choices remain available around the custom mascot."
+    },
+    {
+      "name": "Readable panel",
+      "status": "PASS",
+      "evidence": [
+        "20-creator-panel-final.png"
+      ],
+      "detail": "The 420x980 detail crop shows labels and controls through the saved mascot and other bot lists without cut-off text."
+    },
+    {
+      "name": "Save, reuse, and persistence receipts",
+      "status": "CORROBORATED",
+      "evidence": [
+        "15-first-save-final.json",
+        "16-multiple-and-reuse-final.json",
+        "18-restart-persistence-final.json",
+        "23-final-source-revalidation.json"
+      ],
+      "detail": "Save, reselect, and copy returned HTTP 201. Atlas has two saved shapes, Juniper has one, and Fixture Starter has none. Final-source reload returned Save 201 with two saved shapes; the restart receipt reports identical profile JSON."
+    },
+    {
+      "name": "Invalid face placement",
+      "status": "PASS",
+      "evidence": [
+        "13-invalid-face-final.png",
+        "13-invalid-face-final.json"
+      ],
+      "detail": "The out-of-bounds face position shows a warning and disables Save."
+    },
+    {
+      "name": "SVG rejection behavior",
+      "status": "CORROBORATED",
+      "evidence": [
+        "12-import-guards-final.json"
+      ],
+      "detail": "Active-content, malformed, and oversized SVGs are rejected. The draft outline is preserved. The receipt records no script execution and no external requests."
+    },
+    {
+      "name": "Motion samples",
+      "status": "PASS_WITH_LIMITS",
+      "evidence": [
+        "motion.mp4",
+        "visual-qa/motion-00s.png",
+        "visual-qa/motion-03s.png",
+        "visual-qa/motion-06s.png",
+        "visual-qa/motion-09s.png",
+        "visual-qa/motion-11s.png",
+        "21-native-motion-proof.json"
+      ],
+      "detail": "Five samples show four unique face-path hashes and one body-path hash. The two creator-gaze samples match each other, so these samples do not prove pointer gaze. CSS group changes were not captured."
+    }
+  ],
+  "limitations": [
+    "This report covers visual acceptance only. It does not provide separate Electron or mobile acceptance.",
+    "The recorded full-tests.log shows server/index.test.ts with 278 tests, 206 failures, and 8 skips, followed by a failure in server/org-library.test.ts. This visual review does not explain or clear those test failures.",
+    "Pointer-gaze behavior was not demonstrated by distinct path hashes in the two creator-gaze samples."
+  ],
+  "unhashedEvidence": [
+    {
+      "path": "full-tests.log",
+      "reason": "The log is locked by the active test run and may still change, so it was not included in the SHA-256 manifest."
+    }
+  ],
+  "finalSourceRevalidation": {
+    "path": "23-final-source-revalidation.json",
+    "freshPageLoad": true,
+    "defaultFits": true,
+    "saveStatus": 201,
+    "savedShapeCount": 2,
+    "rendererChanged": false
+  }
+}

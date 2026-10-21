@@ -28,7 +28,11 @@ import { startFakeOAuth } from "./testing/fake-oauth-server.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { openSse } from "./testing/sse.ts";
 import { FILE_MAX_BYTES, IMAGE_MAX_BYTES } from "./attachments.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
 import { computerPrompt, SIGN_IN_PROMPT } from "./system-prompt.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
 import {
   PHONE_SECRET_INFO,
   phoneSecretAAD,
@@ -5984,6 +5988,40 @@ describe("harness HTTP API", () => {
       description: "reads diffs",
       modelSelection: { instanceId: "ghost", model: "ghost-1", effort: "xhigh" },
     });
+  });
+
+  it("creates a duplicate with a validated mascot snapshot and rejects forged copies", async () => {
+    const outline = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    const profile = addOrSelectCustomMascot(createMascotProfile(), shape);
+    const priorDefaults = (await api("GET", "/api/bot-defaults")).body.defaults;
+    const catDefaults = structuredClone(priorDefaults);
+    catDefaults.profile.mascotBody = "cat";
+    let createdBotId: string | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { newBotDefaults: catDefaults })).status).toBe(200);
+      const created = await api("POST", "/api/bots", { mascotProfile: profile });
+      expect(created.status).toBe(201);
+      createdBotId = created.body.bot.id;
+      expect(created.body.bot).toMatchObject({
+        mascotBody: "cursor",
+        mascotProfile: { selected: { kind: "custom", shapeId: shape.id }, shapes: [shape] },
+      });
+
+      const forged = structuredClone(profile);
+      forged.shapes[0]!.id = "b".repeat(64);
+      forged.selected = { kind: "custom", shapeId: "b".repeat(64) };
+      const rejected = await api("POST", "/api/bots", { mascotProfile: forged });
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error).toContain("fingerprint does not match");
+    } finally {
+      if (createdBotId) await api("DELETE", `/api/bots/${createdBotId}`);
+      await api("PUT", "/api/config", { newBotDefaults: priorDefaults });
+    }
   });
 
   it("rejects an unknown effort value even while the engine is offline", async () => {

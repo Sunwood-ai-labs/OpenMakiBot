@@ -1,10 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import { createBotPackageExport, createTeamPackageExport, shareableAddress, TEAM_TOO_LARGE_MESSAGE, TeamExportError } from "./package-export.ts";
-import { parseBotPackage, renderBotPackageMarkdown } from "./bot-package.ts";
+import { packageAgentAsMember, parseBotPackage, renderBotPackageMarkdown } from "./bot-package.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
 import type { Routine } from "./routines.ts";
 import type { BotRecord, GroupRecord } from "./store.ts";
 import { includedSkills, requestedSkills, startingTicks } from "../src/lib/team-share-skills.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
+import { downgradeToV1, parsePackageDocument } from "../shared/package-format.ts";
+
+function customMascotProfile() {
+  const outline = Array.from({ length: 96 }, (_, index) => {
+    const angle = (index / 96) * Math.PI * 2;
+    return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+  });
+  const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+  const shape = validateCustomMascotDefinition({ name: "Round mascot", outline, anchor });
+  return addOrSelectCustomMascot(createMascotProfile(), shape);
+}
 
 describe("package export", () => {
   it("preserves the exact cron and timezone through export and import", () => {
@@ -23,6 +38,32 @@ describe("package export", () => {
     expect(imported).not.toHaveProperty("skippedRuns");
     expect(imported).not.toHaveProperty("lastSkippedAt");
     expect(imported).not.toHaveProperty("failureStreak");
+  });
+
+  it("round-trips saved custom shapes through bot Markdown and team package exports", () => {
+    const mascotProfile = customMascotProfile();
+    const bot = {
+      id: "mascot-owner", threadId: "private-thread", name: "Mascot owner", color: "green",
+      mascotBody: "cursor", mascotProfile, createdAt: 1, section: "Mascot team",
+    } as BotRecord;
+
+    const botMarkdown = renderBotPackageMarkdown(createBotPackageExport({
+      name: "Mascot bot", bots: [bot], groups: [], routines: [],
+    }));
+    const botRoundTrip = parseBotPackage(botMarkdown).package.agents[0]!;
+    expect(botRoundTrip.appearance.mascotProfile).toEqual(mascotProfile);
+    expect(packageAgentAsMember(botRoundTrip).appearance.mascotProfile).toEqual(mascotProfile);
+
+    const teamExport = createTeamPackageExport({
+      team: "Mascot team", bots: [bot], groups: [], routines: [], published: null,
+    });
+    const teamRoundTrip = parsePackageDocument(teamExport.document).package.agents[0]!;
+    expect(teamRoundTrip.appearance.mascotProfile).toEqual(mascotProfile);
+
+    const oldAppExport = downgradeToV1(teamExport.document);
+    if ("error" in oldAppExport) throw new Error(oldAppExport.error);
+    expect(oldAppExport.document.package.agents[0]!.appearance).not.toHaveProperty("mascotProfile");
+    expect(oldAppExport.dropped).toContain("agents[mascot-owner].appearance.mascotProfile");
   });
 
   it("keeps collaboration structure while excluding runtime authority and state", () => {

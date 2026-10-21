@@ -154,6 +154,7 @@ export function packageAgentAsMember(agent: BotPackageAgent): TeamManifestMember
       color: agent.appearance.color,
       ...(agent.appearance.mascotExpression ? { mascotExpression: agent.appearance.mascotExpression } : {}),
       ...(agent.appearance.mascotBody ? { mascotBody: agent.appearance.mascotBody } : {}),
+      ...(agent.appearance.mascotProfile ? { mascotProfile: agent.appearance.mascotProfile } : {}),
     },
   };
 }
