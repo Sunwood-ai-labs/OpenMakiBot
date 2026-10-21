@@ -5502,8 +5502,8 @@ describe("harness HTTP API", () => {
     expect(exported.body).toMatchObject({ format: "openmaus.team", version: 2, team: { name: "Field Team" } });
     expect(exported.body.team.members.map((member: { name: string }) => member.name)).toEqual(visibleNames);
     expect(exported.body.team.members).toEqual(expect.arrayContaining([
-      expect.objectContaining({ key: "mira", name: "Mira", title: "Project Lead", appearance: { color: "purple", mascotExpression: "focused" } }),
-      expect.objectContaining({ key: "scout", name: "Scout", title: "Researcher", appearance: { color: "cyan" } }),
+      expect.objectContaining({ key: "mira", name: "Mira", title: "Project Lead", appearance: { color: "purple", mascotBody: "cursor", mascotExpression: "focused" } }),
+      expect.objectContaining({ key: "scout", name: "Scout", title: "Researcher", appearance: { color: "cyan", mascotBody: "cursor" } }),
     ]));
     expect(exported.body.team).not.toHaveProperty("room");
     expect(JSON.stringify(exported.body)).not.toMatch(/Archived|autoApprove|alwaysAllow|modelSelection|threadId/);
@@ -5521,6 +5521,14 @@ describe("harness HTTP API", () => {
       await stream.until((frame) => frame.kind === "hello");
       const imported = await api("POST", "/api/teams/import", exported.body);
       expect(imported.status).toBe(201);
+      expect(imported.body.bots[visibleNames.indexOf("Mira")]).toMatchObject({
+        mascotBody: "cursor",
+        mascotProfile: { selected: { kind: "builtin", bodyId: "cursor" } },
+      });
+      expect(imported.body.bots[visibleNames.indexOf("Scout")]).toMatchObject({
+        mascotBody: "cursor",
+        mascotProfile: { selected: { kind: "builtin", bodyId: "cursor" } },
+      });
       // the originals still exist, so every member arrives visibly numbered
       // rather than wearing a name that already resolves to another bot. The
       // starter name is intentionally random, so it can duplicate a member

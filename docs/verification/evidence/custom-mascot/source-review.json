@@ -1,10 +1,10 @@
 {
-  "reviewedAtUtc": "2026-10-21 11:59:24 UTC",
+  "reviewedAtUtc": "2026-10-21 12:19:05 UTC",
   "repo": "C:\\Prj\\OpenMakiBot-cat-avatar-20261021",
   "branch": "codex/feature/cat-avatar-preview",
-  "head": "6b4d749834f8581e1f6e42d7346a058c1c487e73",
+  "head": "e8d4c245f0b41935e41031bfe7791293a2d26546",
   "base": "6b4d74983",
-  "note": "All reviewed source findings are closed. The two importer files differ from their proof.json sourceSnapshot Git blobs only by one removed trailing LF each; normalized contents match exactly. Hashes below identify the current dirty-worktree snapshot.",
+  "note": "All source findings are closed. The reviewed team-manifest change is test-only: it makes the explicit builtin cursor expectation precise and verifies export/import preserve both the legacy projection and canonical selection. Production source hashes remain unchanged from the prior acceptance.",
   "proofBlobComparison": {
     "src/lib/custom-mascot-svg.ts": {
       "proofBlobOid": "c880875b744222937a788e8085e67a63080c0ee2",
@@ -50,12 +50,25 @@
     "server/index.ts": "f7152fcfda67d02a9f01fb0207fdfc63586353384bd4c4d729e3c5b3937c925d",
     "src/state/store.tsx": "ba4fff6360b6bc9210590c213992ab19a673ba4600258e24280ba476b6358bbe",
     "src/state/store.test.ts": "1dfe52b87da80f447ea5a2c9b3f64c45b7f1fcd8d266e63bf293f7ecd0a0c949",
-    "server/index.test.ts": "65eb9a64b0389e4cece6aa5e30ee7119b996dc0bb7d1a2a308bdc287a6955840",
+    "server/index.test.ts": "6c78a471e3fb39bb08e2d7f0f12fc1299e155c44a8efa3735f89407a0586d2d9",
     "server/new-bot-defaults.ts": "60d827aa7d006a53e2d5cc8c7576a647376f8e4bfeeef20c7ee93325fb860b97",
     "server/new-bot-defaults.test.ts": "cd35bd72fb36d7154b779530a7e613a0db9ca793217e5cb70d47a2662fd97a9d",
     "server/bot-profile.ts": "48d4a0f90d7370e0d0c6391b42e18a87464bc4baf0fc6cae904162d1b04b143c",
     "shared/new-bot-defaults.ts": "14587965e9fd3dd745e758c943351f6cbb902f10f1d9ccbfd7729d910bfe91fc",
     "shared/mascot-fixtures/bunny-outline.json": "3dccc918352998c277a7da1a6c064ce687e4874a6571824bb367c858d0d45213",
     "src/lib/custom-mascot-svg.test.ts": "a66d7b360d64693e5fd0467dce4f8c9a3691f997b82cdb6ff0acf22baca69592"
+  },
+  "finalAcceptance": {
+    "changedFile": "server/index.test.ts",
+    "changedLines": "5504-5506, 5522-5531",
+    "productionSourcesUnchanged": {
+      "server/index.ts": "f7152fcfda67d02a9f01fb0207fdfc63586353384bd4c4d729e3c5b3937c925d",
+      "server/team-manifest.ts": "a2419893aadeeff49a8a3e8e902fc7f03ef90be331309969785287e1009a05e0",
+      "server/package-import.ts": "2ad1a6b83e493786737c5733f8fa9d5a0d9ae3a3a866805c72ca6ff7dc87a7fc"
+    },
+    "targetTestCommand": "pnpm exec vitest run --no-file-parallelism --testNamePattern \"exports every visible bot and imports the team without creating a room\" server/index.test.ts",
+    "targetTestResult": "1 passed, 278 skipped by filter; test file passed",
+    "diffCheck": "git diff --check -- server/index.test.ts passed",
+    "conclusion": "The minimal test update expects mascotBody cursor in both exported appearances and asserts import returns legacy mascotBody cursor plus canonical selected builtin cursor. No production behavior changed; this protects round-trip selection."
   }
 }

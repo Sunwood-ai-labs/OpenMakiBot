@@ -265,8 +265,8 @@
       "runtimeFileSha256": "64eaecdb30b5ed0a2a0a5686e29dfbcd9300f2fa99b8f308afd99b5457b64dfe"
     },
     "server/index.test.ts": {
-      "gitBlobOid": "acb3881f38b8b9a0045c43cea1b9d90bceb5beb7",
-      "runtimeFileSha256": "65eb9a64b0389e4cece6aa5e30ee7119b996dc0bb7d1a2a308bdc287a6955840"
+      "gitBlobOid": "b46e820a12e3576175e3560a3152589cf2b28549",
+      "runtimeFileSha256": "6c78a471e3fb39bb08e2d7f0f12fc1299e155c44a8efa3735f89407a0586d2d9"
     },
     "server/index.ts": {
       "gitBlobOid": "aa6f1a39f010c0eb38f72decb2b76f77f34d3424",
@@ -451,6 +451,24 @@
       "failed": 0
     },
     "packagedServerSmoke": "passed",
-    "initialFullLocalTest": "in progress with reported failures; see test-triage.md"
+    "initialFullLocalTest": "in progress with reported failures; see test-triage.md",
+    "apiFileBeforeExpectationUpdate": {
+      "head": "e8d4c245f0b41935e41031bfe7791293a2d26546",
+      "passed": 277,
+      "failed": 1,
+      "skipped": 1,
+      "failure": "Old team-export expectation omitted canonical default Cursor selection."
+    },
+    "correctedTeamTransferCase": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 278,
+      "command": "pnpm exec vitest run server/index.test.ts -t \"exports every visible bot and imports the team without creating a room\""
+    }
+  },
+  "subsequentChanges": {
+    "recordedAt": "2026-10-21T12:21:45.834727+00:00",
+    "runtimeUnchangedSince": "e8d4c245f0b41935e41031bfe7791293a2d26546",
+    "change": "Only team-transfer test expectations/import assertions and verification receipts changed. Independent review accepted explicit Cursor serialization."
   }
 }
