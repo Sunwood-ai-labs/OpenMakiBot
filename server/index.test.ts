@@ -11471,6 +11471,69 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("rejects a late avatar after a same-value mascot selection", async () => {
+    const gate = deferredGate();
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const imageProvider = createServer((_req, res) => {
+      gate.enter();
+      void gate.wait.then(() => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ data: [{ b64_json: png }] }));
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      imageProvider.once("error", reject);
+      imageProvider.listen(0, "127.0.0.1", resolve);
+    });
+    const address = imageProvider.address();
+    if (!address || typeof address === "string") throw new Error("fixture image provider did not bind");
+    const imageUrl = "http://127.0.0.1:" + address.port + "/v1";
+    const attachmentsDir = join(home, ".openmausbot", "attachments");
+    const attachmentNames = () => existsSync(attachmentsDir) ? readdirSync(attachmentsDir).sort() : [];
+    let botId = "";
+    let generation: ReturnType<typeof api> | undefined;
+    const filesBefore = attachmentNames();
+
+    try {
+      expect((await api("PUT", "/api/config", {
+        imageGen: { provider: "custom", customUrl: imageUrl, customModel: "fixture/image", customApiKey: "" },
+      })).status).toBe(200);
+      const created = await api("POST", "/api/bots", { name: "Avatar race fixture", mascotBody: "kitten" });
+      expect(created.status).toBe(201);
+      botId = created.body.bot.id;
+      const prepared = await api("PATCH", "/api/bots/" + botId + "/profile", { mascotBody: "kitten", avatarCrop: "mascot" });
+      expect(prepared.status).toBe(200);
+      const before = (await api("GET", "/api/bots?messages=0")).body.bots.find((bot: { id: string }) => bot.id === botId);
+
+      const pending = api("POST", "/api/bots/" + botId + "/avatar/generate", { prompt: "fixture image" });
+      generation = pending;
+      await Promise.race([
+        gate.entered,
+        pending.then((result) => { throw new Error("generation returned before the fake provider: " + result.status); }),
+      ]);
+
+      const reselected = await api("PATCH", "/api/bots/" + botId + "/profile", { mascotBody: "kitten" });
+      expect(reselected.status).toBe(200);
+      gate.release();
+
+      const result = await pending;
+      expect(result.status).toBe(409);
+      const after = (await api("GET", "/api/bots?messages=0")).body.bots.find((bot: { id: string }) => bot.id === botId);
+      expect(after.avatarUrl).toBe(before.avatarUrl);
+      expect(after.avatarCrop).toBe(before.avatarCrop);
+      expect(after.mascotProfile).toEqual(before.mascotProfile);
+      expect(attachmentNames()).toEqual(filesBefore);
+    } finally {
+      gate.release();
+      if (generation) await generation.catch(() => undefined);
+      if (botId) await api("DELETE", "/api/bots/" + botId).catch(() => undefined);
+      await api("PUT", "/api/config", {
+        imageGen: { provider: "openai", key: "", customApiKey: "", customUrl: "", customModel: "" },
+      }).catch(() => undefined);
+      await new Promise<void>((resolve) => imageProvider.close(() => resolve()));
+    }
+  }, 20_000);
+
   it("keeps avatar providers and externally stored image credentials separate", async () => {
     try {
       const saved = await api("PUT", "/api/config?secretStorage=external", {

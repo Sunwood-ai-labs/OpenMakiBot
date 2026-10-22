@@ -1762,6 +1762,48 @@ describe("custom mascot profile persistence", () => {
   });
 });
 
+describe("Store bot appearance revisions", () => {
+  beforeEach(() => {
+    rmSync(DATA_DIR, { recursive: true, force: true });
+  });
+
+  it("tracks explicit appearance choices transiently, including same-value selections", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Appearance revision", mascotBody: "kitten" });
+    let revision = 0;
+    const checkBump = (choose: () => void) => {
+      choose();
+      revision += 1;
+      expect(store.appearanceRevisions.get(bot)).toBe(revision);
+    };
+
+    checkBump(() => { store.patchBot(bot.id, { avatarUrl: bot.avatarUrl }); });
+    checkBump(() => { store.patchBot(bot.id, { avatarCrop: bot.avatarCrop }); });
+    checkBump(() => { store.patchBot(bot.id, { mascotBody: bot.mascotBody }); });
+    checkBump(() => { store.patchBot(bot.id, { mascotProfile: bot.mascotProfile }); });
+    checkBump(() => { store.patchBot(bot.id, { color: bot.color }); });
+    checkBump(() => { store.patchBot(bot.id, { mascotExpression: bot.mascotExpression }); });
+    checkBump(() => { store.patchBotProfile(bot.id, { avatarUrl: bot.avatarUrl, avatarCrop: bot.avatarCrop }); });
+
+    const outline = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    checkBump(() => { store.addOrSelectMascotShape(bot.id, shape); });
+    checkBump(() => { store.addOrSelectMascotShape(bot.id, shape); });
+
+    expect(bot).not.toHaveProperty("appearanceRevision");
+    const persisted = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(persisted.find((record) => record.id === bot.id)).not.toHaveProperty("appearanceRevision");
+    const restoredStore = new Store(selection);
+    const restored = restoredStore.bot(bot.id);
+    if (!restored) throw new Error("appearance revision fixture did not reload");
+    expect(restoredStore.appearanceRevisions.get(restored)).toBe(0);
+  });
+});
+
 describe("Store change stream", () => {
   beforeEach(() => {
     rmSync(DATA_DIR, { recursive: true, force: true });

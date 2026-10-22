@@ -12,6 +12,7 @@ import { ensureSections, readSections, changeEmptySection } from "./section-cont
 import type { TeamComputers } from "./team-computers.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
+import { BotAppearanceRevisionTracker } from "./store-appearance-revisions.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
 import { DATA_DIR, EVENTS_DIR, NATIVE_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
@@ -616,6 +617,7 @@ export class Store {
   /** Room turns and old callers have their own activity slot. Clearing
    * that slot must not clear a concurrently running independent task. */
   private legacyActivities = new Map<string, BotActivity>();
+  readonly appearanceRevisions = new BotAppearanceRevisionTracker();
 
   constructor(
     defaultSelection: () => ModelSelection,
@@ -2006,6 +2008,7 @@ export class Store {
     // Runtime revocations must become effective in memory even when disk is
     // unavailable. Profile edits use the separate atomic path below.
     Object.assign(bot, patch);
+    this.appearanceRevisions.recordChoice(bot, patch);
     const task = this.activeTask(id);
     if (task) {
       for (const key of ["resumeCursors", "rewound", "pinnedMessageId", "unread"] as const) {
@@ -2059,6 +2062,7 @@ export class Store {
     // record. A failed write leaves both memory and disk at the old profile.
     this.saveBots(this.bots.map((candidate) => candidate.id === id ? next : candidate));
     Object.assign(bot, next);
+    this.appearanceRevisions.recordChoice(bot, patch);
     if (patch.soul !== undefined) {
       try { writeSoulMirror(id, patch.soul); } catch (e) {
         console.warn(`[bot-folder] could not write SOUL.md mirror for ${id}: ${(e as Error).message}`);
@@ -2082,6 +2086,7 @@ export class Store {
     };
     this.saveBots(this.bots.map((candidate) => candidate.id === id ? next : candidate));
     Object.assign(bot, next);
+    this.appearanceRevisions.record(bot);
     this.emit({ type: "bot", botId: id });
     return bot;
   }
