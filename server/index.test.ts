@@ -6033,6 +6033,49 @@ describe("harness HTTP API", () => {
     }
   });
 
+  it("does not expose registry paths when saving a custom mascot fails", async () => {
+    const created = await api("POST", "/api/bots");
+    expect(created.status).toBe(201);
+    const bot = created.body.bot;
+    const botsPath = join(home, ".openmausbot", "bots.json");
+    const backupPath = join(home, ".openmausbot", "bots.json.mascot-storage-" + randomUUID());
+    const originalBytes = readFileSync(botsPath);
+    const outline = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const validated = validateCustomMascotDefinition({ name: "Storage failure Bunny", outline, anchor });
+    const shape = { name: validated.name, outline: validated.outline, anchor: validated.anchor };
+
+    let moved = false;
+    try {
+      renameSync(botsPath, backupPath);
+      moved = true;
+      mkdirSync(botsPath);
+      const failed = await api("POST", "/api/bots/" + bot.id + "/mascot-shapes", { shape });
+      expect(failed.status).toBe(500);
+      expect(failed.body.error).toBe("The mascot could not be saved.");
+      expect(failed.body.error).not.toContain(home);
+    } finally {
+      if (moved) {
+        rmSync(botsPath, { recursive: true, force: true });
+        if (existsSync(backupPath)) renameSync(backupPath, botsPath);
+      }
+    }
+
+    try {
+      expect(readFileSync(botsPath)).toEqual(originalBytes);
+      const listed = await api("GET", "/api/bots");
+      const unchanged = listed.body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
+      expect(unchanged).toBeDefined();
+      expect(unchanged.avatarCrop).toBe(bot.avatarCrop);
+      expect(unchanged.mascotProfile).toEqual(bot.mascotProfile);
+    } finally {
+      await api("DELETE", "/api/bots/" + bot.id);
+    }
+  });
+
   it("rejects an unknown effort value even while the engine is offline", async () => {
     const bot = (await api("POST", "/api/bots")).body.bot;
     const patched = await api("PATCH", `/api/bots/${bot.id}`, {

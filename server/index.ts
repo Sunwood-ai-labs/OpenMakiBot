@@ -26,7 +26,7 @@ import { SharedComputerControl } from "./shared-computer-control.ts";
 import { RoomHandoffs, type RoomHandoff } from "./room-handoffs.ts";
 import { assertRequestTarget, guardedRequestPath, requestConflict, requestNeedsInput, requestSourceForCard } from "./guarded-requests.ts";
 import { botAvatarUrlFromStoredPath } from "../shared/bot-avatar.ts";
-import { legacyMascotBody } from "../shared/mascot-profile.ts";
+import { legacyMascotBody, MascotProfileValidationError } from "../shared/mascot-profile.ts";
 import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { CLOUD_COMPUTER_BUSY_ERROR } from "../shared/computer-contention.ts";
 import {
@@ -20131,7 +20131,11 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       try {
         bot = store.addOrSelectMascotShape(target.id, shape);
       } catch (error) {
-        return json(res, 422, { error: (error as Error).message || "The mascot could not be saved." });
+        if (error instanceof MascotProfileValidationError) {
+          return json(res, 422, { error: error.message });
+        }
+        console.error("[mascot] could not save selected shape", error);
+        throw new Error("The mascot could not be saved.");
       }
       if (!bot) return json(res, 404, { error: "no such bot" });
       const visible = wireBot(bot);
