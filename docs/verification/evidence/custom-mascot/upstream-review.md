@@ -1,14 +1,17 @@
 # Upstream review follow-up
 
-Backport code: `d4fa5f502971488d59bb4322e08675baf52c89dc`.
-Upstream proposal runtime: `1dccf24c3242f8a5095bc577e7f5fedb65e2b262`.
+Initial review backport: `d4fa5f502971488d59bb4322e08675baf52c89dc`.
+Current fork runtime: `3400275f63ea22236e74f0fef2ba9ec9539d4712`.
+Current upstream runtime: `cf5f530bbb176b769e89be869352df981c764a82`,
+including a merge of upstream main `bd5e209250957308305d4eb9d66ca17813008cf6` (0.1.122).
 
 Upstream proposal: [OpenMausBot #3240](https://github.com/milind-soni/OpenMausBot/pull/3240),
-ready and open, not merged as checked on 2026-10-22. Published head:
-`26d28455d85f16f81b81e82c9b0b36366720902b`; changes after the runtime commit are
-documentation and media only. The [production browser evidence](https://github.com/Sunwood-ai-labs/OpenMakiBot/blob/26d28455d85f16f81b81e82c9b0b36366720902b/docs/verification/evidence/custom-mascots/README.md)
-includes a continuous eight-second motion capture and independent acceptance.
+ready and open, not merged as checked on 2026-10-22. The
+[earlier production browser evidence](https://github.com/Sunwood-ai-labs/OpenMakiBot/blob/26d28455d85f16f81b81e82c9b0b36366720902b/docs/verification/evidence/custom-mascots/README.md)
+is historical evidence for runtime `1dccf24c3242f8a5095bc577e7f5fedb65e2b262`.
 Its 12 published files were anonymously retrieved and matched to Git bytes.
+Current visual receipts are linked from the upstream proposal; each receipt
+identifies its runtime source and media hashes separately from CI results.
 
 The fork proposal [OpenMakiBot #9](https://github.com/Sunwood-ai-labs/OpenMakiBot/pull/9)
 remains open against develop. Neither proposal has been merged; independent
@@ -33,7 +36,9 @@ retaining saved shapes. Package parsing preserves raw legacy values until the
 release look hash is calculated, then installs the canonical profile. Tests
 assert release `r` and written `w` independently; they can legitimately differ.
 
-Verification used disposable homes and no real provider turns:
+## Initial review backport verification
+
+Verification of `d4fa5f502` used disposable homes and no real provider turns:
 
 - Auth and avatar suites: 88 passed; final auth-only rerun: 47 passed.
 - Store profile and legacy-Cat migration filters: 4 and 1 passed.
@@ -42,7 +47,32 @@ Verification used disposable homes and no real provider turns:
 - Raw legacy-profile library stamp regression: 1 passed, retaining its shapes.
 - Typecheck, lint, locale validation, and diff checks passed.
 
-The full `pnpm test` script was not run for this follow-up. The earlier media
+The full `pnpm test` script was not run for that initial follow-up. The earlier media
 and source manifests in this directory remain historical evidence for their
 recorded revisions; they do not claim to capture this backport commit. Installed
 Electron and mobile runtime UI checks remain outside the browser evidence.
+
+## CI repair follow-up
+
+- `16214f5fc`: preserve omitted legacy cursor bodies in exports while retaining
+  explicit cursor choices; catalog assertions use the canonical body list.
+- `fca0d945c`: group-goal fixtures wait for their fake CLI to consume the exact
+  prompt before the intended group or Stop action. The 12 cases passed twice
+  in short disposable runtime paths; behavior assertions and timeouts remain.
+- `3400275f6`: track explicit appearance choices in a transient Store-owned
+  WeakMap and reject generated images after a record or choice change,
+  including a same-value selection. No revision is persisted or sent on wire.
+  The Store and deferred loopback HTTP cases passed (2 passed, 420 unrelated
+  filtered cases); typecheck passed at this committed runtime.
+
+The generic repairs retain the source-only Cat migration and independent raw
+release `r` versus canonical written `w` package hashes. A separate unsharded
+run at `fca0d945c` is not an exact-head result for the later backport. Consult
+the checks on each PR's published head for current CI results.
+
+Upstream 0.1.122 added a different Simple settings panel and cloud appearance
+transfer path. The upstream proposal now exposes the creator in that panel
+and carries custom profiles through its look payload, hash, and validated
+patch route. Those surfaces are absent from this older fork. Its identity
+and passkey browser CI launcher files are also absent, so upstream's bounded
+navigation retry and browser-home isolation changes were not copied here.
