@@ -2,12 +2,12 @@
 
 Initial review backport: `d4fa5f502971488d59bb4322e08675baf52c89dc`.
 Current fork runtime source: `76322ef183bf1c0612b3ac38609cd11b05b0e14f`.
-Current upstream runtime source: `bb7080d32b79ad7fc463b856d58790e4737155b6`,
+Current upstream runtime source: `f4f2d46e5240b6368d6eaf30aa65136e3b91711b`,
 including a merge of upstream main `bd5e209250957308305d4eb9d66ca17813008cf6` (0.1.122).
 
 Upstream proposal: [OpenMausBot #3240](https://github.com/milind-soni/OpenMausBot/pull/3240),
 ready and open, not merged as checked on 2026-10-22. The
-[earlier production browser evidence](https://github.com/Sunwood-ai-labs/OpenMakiBot/blob/26d28455d85f16f81b81e82c9b0b36366720902b/docs/verification/evidence/custom-mascots/README.md)
+[earlier built browser-renderer fixture evidence](https://github.com/Sunwood-ai-labs/OpenMakiBot/blob/26d28455d85f16f81b81e82c9b0b36366720902b/docs/verification/evidence/custom-mascots/README.md)
 is historical evidence for runtime `1dccf24c3242f8a5095bc577e7f5fedb65e2b262`.
 Its 12 published files were anonymously retrieved and matched to Git bytes.
 Current visual receipts are linked from the upstream proposal; each receipt
@@ -105,3 +105,9 @@ These source checks do not replace the runtime-specific visual receipts.
 The current upstream browser evidence is linked from PR #3240. The older
 fork media remains historical, and current CI is determined by the checks
 on each PR's published head.
+
+## Upstream-only initial-frame animation correction
+
+Upstream commit [f4f2d46e](https://github.com/milind-soni/OpenMausBot/commit/f4f2d46e5240b6368d6eaf30aa65136e3b91711b) clamps a negative first-frame time delta to zero in `src/components/CarvedAvatar.tsx`, preventing the initial animation frame from producing a negative ellipse radius. The fork at `84df1add6c645db681f3ed277f0b9b7b57726008` has no tracked `CarvedAvatar.tsx`, so this upstream-only change has no fork equivalent to backport. The fork runtime remains `76322ef183bf1c0612b3ac38609cd11b05b0e14f`.
+
+Upstream commit [f4f2d46e](https://github.com/Sunwood-ai-labs/OpenMakiBot/commit/f4f2d46e5240b6368d6eaf30aa65136e3b91711b) carries this correction; fork PR [#9](https://github.com/Sunwood-ai-labs/OpenMakiBot/pull/9) remains independent. PR #9 CI run [#41](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/39709807035) completed on the exact published head `84df1add6c645db681f3ed277f0b9b7b57726008` with 29 successful jobs and the Cloudflare deployment job skipped. That run does not validate a later documentation head. This update makes no additional visual-acceptance claim.
