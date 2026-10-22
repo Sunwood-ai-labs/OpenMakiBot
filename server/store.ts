@@ -13,6 +13,7 @@ import type { TeamComputers } from "./team-computers.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
 import { BotAppearanceRevisionTracker } from "./store-appearance-revisions.ts";
+import { normalizeStoredMascotProfile, preserveInvalidMascotProfileRegistry } from "./mascot-profile-recovery.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
 import { DATA_DIR, EVENTS_DIR, NATIVE_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
@@ -652,13 +653,9 @@ export class Store {
     const chiefSectionsSeen = new Set<string>();
     let groupsMigrated = false;
     for (const b of this.bots) {
-      const profile = mascotProfileSchema.safeParse(b.mascotProfile);
-      if (profile.success) {
-        b.mascotProfile = profile.data;
-      } else {
-        b.mascotProfile = createMascotProfile(b.mascotBody);
-        botsMigrated = true;
-      }
+      const mascot = normalizeStoredMascotProfile(b.mascotProfile, b.mascotBody, () => preserveInvalidMascotProfileRegistry(BOTS_FILE, b.id));
+      b.mascotProfile = mascot.profile;
+      if (mascot.changed) botsMigrated = true;
       const legacyBody = legacyMascotBody(b.mascotProfile);
       const omittedDefaultBody = b.mascotBody === undefined &&
         b.mascotProfile?.shapes.length === 0 &&

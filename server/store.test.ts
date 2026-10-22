@@ -3,7 +3,7 @@
 // except `busy`, which never does (no turn survives one either).
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -1680,6 +1680,71 @@ describe("custom mascot profile persistence", () => {
     const migrated = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
     expect(migrated[0]).toHaveProperty("mascotBody", "circle");
     expect(migrated[0]).toHaveProperty("mascotProfile");
+    expect(existsSync(join(DATA_DIR, "mascot-profile-recovery"))).toBe(false);
+  });
+
+  it.each([
+    ["malformed", { version: 1, shapes: "private-profile-marker", selected: { kind: "builtin", bodyId: "star" } }],
+    ["future", { version: 2, shapes: [], selected: { kind: "builtin", bodyId: "star" }, privateValue: "private-profile-marker" }],
+  ])("preserves invalid %s profile bytes before normalizing", (_label, profile) => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Invalid saved mascot", mascotBody: "star" });
+    const file = join(DATA_DIR, "bots.json");
+    const records = JSON.parse(readFileSync(file, "utf8")) as Array<Record<string, unknown>>;
+    records.find((record) => record.id === bot.id)!.mascotProfile = profile;
+    const source = Buffer.from(`${JSON.stringify(records, null, 2)}\n`);
+    writeFileSync(file, source);
+
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const restored = new Store(selection);
+      expect(restored.bot(bot.id)?.mascotProfile).toMatchObject({
+        selected: { kind: "builtin", bodyId: "star" },
+        shapes: [],
+      });
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining(`bot ${bot.id}`));
+      expect(warning.mock.calls[0]?.[0]).not.toContain("private-profile-marker");
+    } finally {
+      warning.mockRestore();
+    }
+
+    const digest = createHash("sha256").update(source).digest("hex");
+    const recoveryDirectory = join(DATA_DIR, "mascot-profile-recovery");
+    const recoveryFile = join(recoveryDirectory, `bots-mascot-profile-${digest}.json`);
+    expect(readdirSync(recoveryDirectory)).toEqual([`bots-mascot-profile-${digest}.json`]);
+    expect(readFileSync(recoveryFile)).toEqual(source);
+    if (process.platform !== "win32") {
+      expect(statSync(recoveryDirectory).mode & 0o777).toBe(0o700);
+      expect(statSync(recoveryFile).mode & 0o777).toBe(0o600);
+    }
+
+    writeFileSync(file, source);
+    const repeatWarning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(new Store(selection).bot(bot.id)?.mascotProfile).toMatchObject({
+        selected: { kind: "builtin", bodyId: "star" },
+        shapes: [],
+      });
+      expect(repeatWarning).toHaveBeenCalledTimes(1);
+    } finally {
+      repeatWarning.mockRestore();
+    }
+    expect(readdirSync(recoveryDirectory)).toEqual([`bots-mascot-profile-${digest}.json`]);
+    expect(readFileSync(recoveryFile)).toEqual(source);
+  });
+
+  it("does not rewrite bots.json when preserving an invalid profile fails", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Unrecoverable mascot", mascotBody: "star" });
+    const file = join(DATA_DIR, "bots.json");
+    const records = JSON.parse(readFileSync(file, "utf8")) as Array<Record<string, unknown>>;
+    records.find((record) => record.id === bot.id)!.mascotProfile = { version: 99 };
+    const source = Buffer.from(`${JSON.stringify(records, null, 2)}\n`);
+    writeFileSync(file, source);
+    writeFileSync(join(DATA_DIR, "mascot-profile-recovery"), "blocks recovery directory creation");
+
+    expect(() => new Store(selection)).toThrow();
+    expect(readFileSync(file)).toEqual(source);
   });
 
   it("preserves absent and explicit cursor bodies through reload and team export", () => {
