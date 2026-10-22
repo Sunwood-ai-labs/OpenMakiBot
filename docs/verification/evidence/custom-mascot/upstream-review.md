@@ -1,8 +1,8 @@
 # Upstream review follow-up
 
 Initial review backport: `d4fa5f502971488d59bb4322e08675baf52c89dc`.
-Current fork runtime: `3400275f63ea22236e74f0fef2ba9ec9539d4712`.
-Current upstream runtime: `cf5f530bbb176b769e89be869352df981c764a82`,
+Current fork runtime source: `76322ef183bf1c0612b3ac38609cd11b05b0e14f`.
+Current upstream runtime source: `bb7080d32b79ad7fc463b856d58790e4737155b6`,
 including a merge of upstream main `bd5e209250957308305d4eb9d66ca17813008cf6` (0.1.122).
 
 Upstream proposal: [OpenMausBot #3240](https://github.com/milind-soni/OpenMausBot/pull/3240),
@@ -76,3 +76,32 @@ and carries custom profiles through its look payload, hash, and validated
 patch route. Those surfaces are absent from this older fork. Its identity
 and passkey browser CI launcher files are also absent, so upstream's bounded
 navigation retry and browser-home isolation changes were not copied here.
+
+## Compact SVG arcs and stored-profile recovery
+
+- Upstream `f68e9475b` was backported as `bb46416e3`. Arc flags are consumed
+  as individual grammar operands, accepting adjacent flags and coordinates
+  without weakening numeric, bounds, separator, or closed-path validation.
+- Upstream `bb7080d32` was adapted as `b77358092`. A present but invalid
+  stored profile now preserves the exact original registry in a private,
+  content-addressed recovery file before the safe fallback is persisted.
+  Conflicting recovery contents or I/O failure stop startup before the
+  registry is rewritten. Missing legacy profiles need no recovery copy.
+- `76322ef18` aligns the older fork atomic writer's type with its existing
+  byte support, preserving Buffer snapshots without UTF-8 conversion.
+- The fork keeps its Cat migration, omitted versus explicit cursor fields,
+  raw release hashes, and appearance revision behavior. Its normalization
+  block was extracted and Store shrank by three lines.
+
+The full fork Store and SVG parser checks passed in sealed disposable homes:
+175 passed, one existing skip, and no suite-originated external network
+attempts. The corresponding upstream Store and size-ratchet checks passed
+155 cases with one existing skip; its parser passed all 31 cases. Recovery
+failure, byte preservation, repeated startup, and supported file permissions
+are covered by those checks. Each runner's separate network-guard preflight
+deliberately blocks three diagnostic requests; those are not suite traffic.
+
+These source checks do not replace the runtime-specific visual receipts.
+The current upstream browser evidence is linked from PR #3240. The older
+fork media remains historical, and current CI is determined by the checks
+on each PR's published head.
