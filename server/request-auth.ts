@@ -331,6 +331,7 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/tasks\/[\w-]+\/title$/ }, // Regenerate title: a rename by the bot's own engine
   { methods: ["PATCH"], path: /^\/api\/bots\/[\w-]+\/profile$/ },
   { methods: ["PATCH"], path: /^\/api\/bots\/[\w-]+$/ }, // display fields only: see clientBotPatchViolation
+  { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/mascot-shapes$/ },
   // approvals and cards
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/respond$/ },
   { methods: ["POST"], path: /^\/api\/threads\/[\w-]+\/respond$/ },

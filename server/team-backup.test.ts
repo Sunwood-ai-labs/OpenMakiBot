@@ -8,6 +8,10 @@ import { createTeamBackup, importTeamBackup } from "./team-backup.ts";
 import { parseTeamBackup } from "../shared/team-backup.ts";
 import { soulFile, soulHash } from "./bot-folder.ts";
 import { appendMemoryLog, readMemoryFile, readMemoryLog, readMemoryTopic, searchMemoryFiles, updateMemory, workspaceDir, writeMemoryTopic } from "./workspace.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import type { CustomMascotPoint } from "../shared/mascot-profile.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
 
 const selection = () => ({ instanceId: "fixture", model: "fixture-model" });
 
@@ -57,6 +61,23 @@ function fixture() {
 
 describe("additive portable team backups", () => {
   beforeEach(() => rmSync(DATA_DIR, { recursive: true, force: true }));
+
+  it("backs up and restores each bot's self-contained custom mascot snapshots", () => {
+    const { store, routines, scout } = fixture();
+    const outline: CustomMascotPoint[] = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108];
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    store.addOrSelectMascotShape(scout.id, shape);
+
+    const backup = createTeamBackup(store, routines.listRoutines(), "Mascot snapshots");
+    expect(backup.bots.find((bot) => bot.key === scout.id)?.mascotProfile).toEqual(scout.mascotProfile);
+    const imported = importTeamBackup(store, routines, backup, selection()).bots.find((bot) => bot.name === "Scout 2")!;
+    expect(imported.mascotProfile).toEqual(scout.mascotProfile);
+    expect(new Store(selection).bot(imported.id)?.mascotProfile).toEqual(scout.mascotProfile);
+  });
 
   it("carries tool restrictions through backup and import without restoring execution grants", () => {
     const { store, routines, chief, scout } = fixture();

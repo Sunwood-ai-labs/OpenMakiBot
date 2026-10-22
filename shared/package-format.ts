@@ -21,6 +21,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
 import { BOT_PROFILE_LIMITS, fitsOnOneLine } from "./bot-profile.ts";
+import { packageMascotProfileSchema } from "./mascot-profile.ts";
 import { redactSecretsInText } from "./redact.ts";
 import { normalizeCronSchedule } from "./routine-schedule.ts";
 import { isSkillName, parseSkillMd, scanSkillText, SKILL_FILE_MAX_BYTES } from "./skill-md.ts";
@@ -243,6 +244,7 @@ const packageDocumentV1Schema = z.object({
         color: z.enum(COLORS, { error: "is not supported" }),
         mascotExpression: optionalText(80),
         mascotBody: optionalText(40),
+        mascotProfile: packageMascotProfileSchema.optional(),
       }),
       playbooks: z.array(key).max(40).optional(),
       skills: z.array(skillName).max(PACKAGE_V1_MAX_SKILLS).optional(),
@@ -333,6 +335,7 @@ const appearanceSchema = z.object({
   color: z.enum(COLORS, { error: "is not supported" }),
   mascotExpression: optionalText(80),
   mascotBody: optionalText(40),
+  mascotProfile: packageMascotProfileSchema.optional(),
   avatar: avatarSchema.optional(),
 });
 
@@ -831,8 +834,9 @@ export function downgradeToV1(document: PackageDocument):
   for (const connection of pkg.connections ?? []) dropped.push(`connections[${connection.key}]`);
   const agents = pkg.agents.map((agent) => {
     const { approval, connections, seed, appearance, ...kept } = agent;
-    const { avatar, ...look } = appearance;
+    const { avatar, mascotProfile, ...look } = appearance;
     if (avatar) dropped.push(`agents[${agent.key}].appearance.avatar`);
+    if (mascotProfile) dropped.push(`agents[${agent.key}].appearance.mascotProfile`);
     if (approval !== undefined) dropped.push(`agents[${agent.key}].approval`);
     if (connections?.length) dropped.push(`agents[${agent.key}].connections`);
     if (seed) dropped.push(`agents[${agent.key}].seed`);

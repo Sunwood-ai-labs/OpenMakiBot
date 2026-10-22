@@ -4,7 +4,10 @@
 // so a future field cannot silently become remotely writable.
 import { describe, expect, it } from "vitest";
 
+import { MASCOT_BODY_IDS } from "../shared/mascot-bodies.ts";
 import { parseBotProfilePatch } from "./bot-profile.ts";
+
+const readableMascotBodyIds = `${MASCOT_BODY_IDS.slice(0, -1).join(", ")}, or ${MASCOT_BODY_IDS.at(-1)}`;
 
 describe("parseBotProfilePatch (strict — the paired boundary)", () => {
   it("refuses every privilege-bearing bot field by name", () => {
@@ -115,8 +118,7 @@ describe("mascotBody", () => {
   it("maps an unknown body to a readable message", () => {
     expect(parseBotProfilePatch({ mascotBody: "hexagram" } as never, true)).toEqual({
       ok: false,
-      error:
-        "mascotBody must be cursor, blob, circle, squircle, capsule, drop, shield, hexagon, diamond, or star",
+      error: `mascotBody must be ${readableMascotBodyIds}`,
     });
   });
 });

@@ -7,6 +7,8 @@ import {
   configStatusFromFrame,
   createStreamDeltaBuffer,
   currentTaskBot,
+  duplicateBotCreateOptions,
+  duplicateBotProfile,
   initialState,
   loadSnapshotBoundary,
   messageVersions,
@@ -41,6 +43,41 @@ describe("api refusals", () => {
     const error = await api("/api/teams/export", { method: "POST", body: "{}" }).catch((cause: unknown) => cause);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ message: refusal.error, status: 400, body: refusal });
+  });
+});
+
+describe("bot duplication payload", () => {
+  it("retains saved shapes and a builtin selection in the create payload", () => {
+    const mascotProfile = {
+      version: 1,
+      shapes: [{
+        id: "a".repeat(64),
+        name: "Bunny",
+        outline: [[10, 10], [30, 10], [30, 30], [10, 30]],
+        anchor: { x: 20, y: 20, scale: 0.5 },
+      }],
+      selected: { kind: "builtin", bodyId: "star" },
+    } as unknown as Bot["mascotProfile"];
+    const source = {
+      id: "source",
+      name: "Atlas",
+      title: "Guide",
+      description: "Keeps the path clear.",
+      notifications: true,
+      color: "blue",
+      modelSelection: { instanceId: "codex", model: "test-model" },
+      mascotProfile,
+    } as unknown as Bot;
+
+    const serialized = JSON.parse(JSON.stringify(duplicateBotCreateOptions(source)));
+    expect(serialized).toMatchObject({
+      mascotProfile: {
+        shapes: [{ id: "a".repeat(64), name: "Bunny" }],
+        selected: { kind: "builtin", bodyId: "star" },
+      },
+    });
+    expect(duplicateBotProfile(source)).toMatchObject({ name: "Atlas copy", title: "Guide" });
+    expect(duplicateBotProfile(source)).not.toHaveProperty("mascotProfile");
   });
 });
 

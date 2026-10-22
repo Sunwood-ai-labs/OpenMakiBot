@@ -26,6 +26,7 @@ import { SharedComputerControl } from "./shared-computer-control.ts";
 import { RoomHandoffs, type RoomHandoff } from "./room-handoffs.ts";
 import { assertRequestTarget, guardedRequestPath, requestConflict, requestNeedsInput, requestSourceForCard } from "./guarded-requests.ts";
 import { botAvatarUrlFromStoredPath } from "../shared/bot-avatar.ts";
+import { legacyMascotBody, MascotProfileValidationError } from "../shared/mascot-profile.ts";
 import { BOT_PROFILE_LIMITS } from "../shared/bot-profile.ts";
 import { CLOUD_COMPUTER_BUSY_ERROR } from "../shared/computer-contention.ts";
 import {
@@ -499,6 +500,7 @@ import {
 import { readPublishedTeam, writePublishedTeam } from "./published-teams.ts";
 import { OrgLibrary } from "./org-library.ts";
 import { createTeamBackup, importTeamBackup } from "./team-backup.ts";
+import { validateCustomMascotDefinition, validateMascotProfile } from "./custom-mascot-validation.ts";
 import { MAX_TEAM_BACKUP_BYTES } from "../shared/team-backup.ts";
 import { shouldMountLocalComputer } from "./local-routing.ts";
 import { autoLocalVmAttachable, type ContainerComputerStatus } from "./container-computer.ts";
@@ -3713,6 +3715,7 @@ const wireBot = (bot: BotRecord): WireBot => {
     ? { ...rest, approvalMode: "ask" as const, autoApprove: false }
     : rest;
   return { ...visible, waitingForTeammates: activeCoordinationForThread(bot.threadId) && !threadBusy(bot.id, bot.threadId),
+    mascotBody: legacyMascotBody(visible.mascotProfile),
     avatarUrl: visible.avatarUrl ?? null, ...(tasks ? { tasks: tasks.map(wireTask) } : {}) };
 };
 
@@ -3728,7 +3731,7 @@ function toolScopeForTurn(botId: string) {
  * can validate it before sending the confirmation that makes it effective. */
 const wireTrustedApprovalBot = (bot: NonNullable<ReturnType<typeof store.bot>>) => {
   const { resumeCursors: _resumeCursors, tasks, approvalGrant: _approvalGrant, lastProfileRequestId: _lastProfileRequestId, lastTighteningRequestId: _lastTighteningRequestId, lastTeamSetupReceipt: _lastTeamSetupReceipt, packageBase: _packageBase, assignedSkills: _assignedSkills, ...rest } = bot;
-  return { ...rest, approvalMode: approvalModeFor(rest), avatarUrl: rest.avatarUrl ?? null, ...(tasks ? { tasks: tasks.map(wireTask) } : {}) };
+  return { ...rest, mascotBody: legacyMascotBody(rest.mascotProfile), approvalMode: approvalModeFor(rest), avatarUrl: rest.avatarUrl ?? null, ...(tasks ? { tasks: tasks.map(wireTask) } : {}) };
 };
 
 /** A settings-based preview, not a receipt of a dispatched turn. No
@@ -19920,6 +19923,14 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       if (body.requireAvailableModel === true && body.modelSelection === undefined) {
         return json(res, 400, { error: "requireAvailableModel requires modelSelection" });
       }
+      let mascotProfile;
+      if (body.mascotProfile !== undefined) {
+        try {
+          mascotProfile = validateMascotProfile(body.mascotProfile);
+        } catch (error) {
+          return json(res, 400, { error: error instanceof Error ? error.message : "Invalid mascot profile" });
+        }
+      }
       const profileInput = Object.fromEntries(
         ["name", "title", "description"]
           .filter((key) => body[key] !== undefined)
@@ -19953,15 +19964,23 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const created = body.visibility === undefined ? null : parseVisibility(body.visibility);
       if (created && !created.ok) return json(res, 400, { error: created.error });
       const bot = store.createBot({ ...profile.patch, soul: settings.soul, section, modelSelection: selection,
+        ...(mascotProfile ? { mascotProfile } : {}),
         toolScope: settings.toolScope ?? undefined,
         ...(created?.ok ? { visibility: created.visibility } : {}) });
       const createdRoutines: Array<{ id: string; enabled: boolean }> = [];
       try {
-        const { chiefOfStaff: _chief, managedSections: _managed, toolScope: _toolScope, ...ordinary } = settings;
+        const {
+          chiefOfStaff: _chief,
+          managedSections: _managed,
+          toolScope: _toolScope,
+          mascotBody: defaultMascotBody,
+          ...ordinary
+        } = settings;
         store.patchBot(bot.id, {
           // Store creation completes workspace defaults (including effort).
           // Applying the rest of the template must not undo that selection.
           ...ordinary, name: bot.name, section, modelSelection: bot.modelSelection,
+          ...(!mascotProfile && defaultMascotBody !== undefined ? { mascotBody: defaultMascotBody } : {}),
           mascotExpression: ordinary.mascotExpression ?? undefined,
           avatarUrl: ordinary.avatarUrl || undefined,
           computer: ordinary.computer ?? undefined, cwd: checkedCwd.cwd ?? undefined,
@@ -20040,6 +20059,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       // delete this bot while it is in flight. Snapshot the two fields this
       // request owns before the first await so a late result cannot win.
       const initialAvatar = snapshotAvatarGenerationState(existing);
+      const initialAppearanceRevision = store.appearanceRevisions.get(existing);
       const parsed = avatarGenerationRequestSchema.safeParse(await readBody(req));
       if (!parsed.success) {
         return json(res, 400, { error: `prompt must be at most 400 characters` });
@@ -20047,7 +20067,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const generated = await generateAvatarImage(cfg, existing, parsed.data.prompt);
       const current = store.bot(existing.id);
       if (!current) return json(res, 404, { error: "no such bot" });
-      if (!avatarGenerationStateMatches(initialAvatar, current)) {
+      if (current !== existing ||
+          store.appearanceRevisions.get(current) !== initialAppearanceRevision ||
+          !avatarGenerationStateMatches(initialAvatar, current)) {
         return json(res, 409, { error: "avatar changed while generation was in progress" });
       }
       const saved = saveImage(generated.bytes, generated.mime);
@@ -20092,6 +20114,32 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const visible = wireBot(bot);
       broadcast({ kind: "bot", bot: visible });
       return json(res, 200, { bot: visible });
+    }
+    m = path.match(/^\/api\/bots\/([\w-]+)\/mascot-shapes$/);
+    if (m && method === "POST") {
+      const target = store.bot(m[1]);
+      if (!target) return json(res, 404, { error: "no such bot" });
+      const parsed = z.object({ shape: z.unknown() }).strict().safeParse(await readBody(req));
+      if (!parsed.success) return json(res, 400, { error: "shape must contain a valid name, numeric outline and face anchor" });
+      let shape: ReturnType<typeof validateCustomMascotDefinition>;
+      try {
+        shape = validateCustomMascotDefinition(parsed.data.shape);
+      } catch (error) {
+        return json(res, 422, { error: (error as Error).message || "The mascot outline is invalid." });
+      }
+      let bot: BotRecord | null;
+      try {
+        bot = store.addOrSelectMascotShape(target.id, shape);
+      } catch (error) {
+        if (error instanceof MascotProfileValidationError) {
+          return json(res, 422, { error: error.message });
+        }
+        console.error("[mascot] could not save selected shape", error);
+        throw new Error("The mascot could not be saved.");
+      }
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      const visible = wireBot(bot);
+      return json(res, 201, { bot: visible });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/model$/);
     if (m && method === "PATCH") {
@@ -20706,7 +20754,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           (freshBrowserBot.busy || browserRuntime.heldBy(currentBrowserSession(freshBrowserBot.id, freshBrowserBot.browserProfile)))) {
         return json(res, 409, { error: "Stop the bot and release browser control before changing its profile." });
       }
-      if (profile.patch.soul !== undefined) {
+      if (profile.patch.soul !== undefined || profile.patch.mascotBody !== undefined) {
         if (freshBrowserBot) assertTeamComputerChangeIdle(freshBrowserBot, { ...freshBrowserBot, ...patch } as BotRecord);
         // A mixed settings request must not turn a runtime revocation into
         // a persist-first edit. Apply runtime fields with their existing

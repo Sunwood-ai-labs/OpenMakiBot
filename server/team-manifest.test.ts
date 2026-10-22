@@ -1,8 +1,42 @@
 import { describe, expect, it } from "vitest";
 
 import { createTeamManifest, importedMemberProfile, parseTeamManifest } from "./team-manifest.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
+
+function customMascotProfile() {
+  const outline = Array.from({ length: 96 }, (_, index) => {
+    const angle = (index / 96) * Math.PI * 2;
+    return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+  });
+  const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+  return addOrSelectCustomMascot(
+    createMascotProfile(),
+    validateCustomMascotDefinition({ name: "Round mascot", outline, anchor }),
+  );
+}
 
 describe("team manifests", () => {
+  it("round-trips saved mascot snapshots and revalidates them before creating a bot", () => {
+    const mascotProfile = customMascotProfile();
+    const manifest = createTeamManifest({ name: "Mascot team", memberIds: ["one"] }, [{
+      id: "one", name: "One", title: "", description: "", color: "blue", mascotBody: "cursor", mascotProfile,
+    }]);
+    const member = parseTeamManifest(JSON.parse(JSON.stringify(manifest))).team.members[0]!;
+
+    expect(member.appearance.mascotProfile).toEqual(mascotProfile);
+    expect(importedMemberProfile(member, new Set()).mascotProfile).toEqual(mascotProfile);
+
+    const forged = structuredClone(manifest);
+    const profile = forged.team.members[0]!.appearance.mascotProfile!;
+    profile.shapes[0]!.id = "b".repeat(64);
+    profile.selected = { kind: "custom", shapeId: "b".repeat(64) };
+    expect(() => importedMemberProfile(parseTeamManifest(forged).team.members[0]!, new Set()))
+      .toThrow("fingerprint does not match");
+  });
+
   it("round-trips optional soul exactly and rejects over-budget Unicode", () => {
     const soul = "  Be precise. 🐭\n\n";
     const manifest = createTeamManifest({ name: "Soul team", memberIds: ["one"] }, [{

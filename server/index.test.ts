@@ -28,7 +28,11 @@ import { startFakeOAuth } from "./testing/fake-oauth-server.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { openSse } from "./testing/sse.ts";
 import { FILE_MAX_BYTES, IMAGE_MAX_BYTES } from "./attachments.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
 import { computerPrompt, SIGN_IN_PROMPT } from "./system-prompt.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
 import {
   PHONE_SECRET_INFO,
   phoneSecretAAD,
@@ -113,7 +117,6 @@ let managedBoatRows: Array<Record<string, unknown>> = [];
 let managedBoatListRowsOverride: Array<Record<string, unknown>> | null = null;
 let managedBoatListStatus = 200;
 let managedBoatStopDelayMs = 0;
-let managedBoatRenameDelayMs = 0;
 type DeferredGate = {
   wait: Promise<void>;
   release: () => void;
@@ -133,6 +136,7 @@ const deferredGate = (): DeferredGate => {
 };
 let managedBoatListGate: DeferredGate | null = null;
 let managedBoatCreateGate: DeferredGate | null = null;
+let managedBoatRenameGate: DeferredGate | null = null;
 let managedBoatDeleteGate: DeferredGate | null = null;
 const managedBoatRejectedTokens = new Set<string>();
 const managedBoatCreateBodies: Array<Record<string, unknown>> = [];
@@ -1033,8 +1037,10 @@ beforeAll(async () => {
         let raw = "";
         for await (const chunk of req) raw += chunk;
         const requestedName = raw ? JSON.parse(raw).name : undefined;
-        if (managedBoatRenameDelayMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, managedBoatRenameDelayMs));
+        const renameGate = managedBoatRenameGate;
+        if (renameGate) {
+          renameGate.enter();
+          await renameGate.wait;
         }
         if (managedBoatCreateMode === "fail-rename") {
           res.statusCode = 503;
@@ -1220,6 +1226,8 @@ describe("harness HTTP API", () => {
     managedBoatCreateGate = null;
     managedBoatDeleteGate?.release();
     managedBoatDeleteGate = null;
+    managedBoatRenameGate?.release();
+    managedBoatRenameGate = null;
     const deadline = Date.now() + 15_000;
     let stuck = { bots: [] as string[], groups: [] as string[], computers: [] as string[] };
     while (Date.now() < deadline) {
@@ -5485,6 +5493,7 @@ describe("harness HTTP API", () => {
       title: "Researcher",
       description: "Finds evidence",
       color: "cyan",
+      mascotBody: "cursor",
     });
     await api("PATCH", `/api/bots/${hidden.id}`, { name: "Archived", hidden: true });
 
@@ -5499,7 +5508,7 @@ describe("harness HTTP API", () => {
     expect(exported.body.team.members.map((member: { name: string }) => member.name)).toEqual(visibleNames);
     expect(exported.body.team.members).toEqual(expect.arrayContaining([
       expect.objectContaining({ key: "mira", name: "Mira", title: "Project Lead", appearance: { color: "purple", mascotExpression: "focused" } }),
-      expect.objectContaining({ key: "scout", name: "Scout", title: "Researcher", appearance: { color: "cyan" } }),
+      expect.objectContaining({ key: "scout", name: "Scout", title: "Researcher", appearance: { color: "cyan", mascotBody: "cursor" } }),
     ]));
     expect(exported.body.team).not.toHaveProperty("room");
     expect(JSON.stringify(exported.body)).not.toMatch(/Archived|autoApprove|alwaysAllow|modelSelection|threadId/);
@@ -5517,6 +5526,14 @@ describe("harness HTTP API", () => {
       await stream.until((frame) => frame.kind === "hello");
       const imported = await api("POST", "/api/teams/import", exported.body);
       expect(imported.status).toBe(201);
+      expect(imported.body.bots[visibleNames.indexOf("Mira")]).toMatchObject({
+        mascotBody: "cursor",
+        mascotProfile: { selected: { kind: "builtin", bodyId: "cursor" } },
+      });
+      expect(imported.body.bots[visibleNames.indexOf("Scout")]).toMatchObject({
+        mascotBody: "cursor",
+        mascotProfile: { selected: { kind: "builtin", bodyId: "cursor" } },
+      });
       // the originals still exist, so every member arrives visibly numbered
       // rather than wearing a name that already resolves to another bot. The
       // starter name is intentionally random, so it can duplicate a member
@@ -5984,6 +6001,83 @@ describe("harness HTTP API", () => {
       description: "reads diffs",
       modelSelection: { instanceId: "ghost", model: "ghost-1", effort: "xhigh" },
     });
+  });
+
+  it("creates a duplicate with a validated mascot snapshot and rejects forged copies", async () => {
+    const outline = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    const profile = addOrSelectCustomMascot(createMascotProfile(), shape);
+    const priorDefaults = (await api("GET", "/api/bot-defaults")).body.defaults;
+    const catDefaults = structuredClone(priorDefaults);
+    catDefaults.profile.mascotBody = "cat";
+    let createdBotId: string | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { newBotDefaults: catDefaults })).status).toBe(200);
+      const created = await api("POST", "/api/bots", { mascotProfile: profile });
+      expect(created.status).toBe(201);
+      createdBotId = created.body.bot.id;
+      expect(created.body.bot).toMatchObject({
+        mascotBody: "cursor",
+        mascotProfile: { selected: { kind: "custom", shapeId: shape.id }, shapes: [shape] },
+      });
+
+      const forged = structuredClone(profile);
+      forged.shapes[0]!.id = "b".repeat(64);
+      forged.selected = { kind: "custom", shapeId: "b".repeat(64) };
+      const rejected = await api("POST", "/api/bots", { mascotProfile: forged });
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error).toContain("fingerprint does not match");
+    } finally {
+      if (createdBotId) await api("DELETE", `/api/bots/${createdBotId}`);
+      await api("PUT", "/api/config", { newBotDefaults: priorDefaults });
+    }
+  });
+
+  it("does not expose registry paths when saving a custom mascot fails", async () => {
+    const created = await api("POST", "/api/bots");
+    expect(created.status).toBe(201);
+    const bot = created.body.bot;
+    const botsPath = join(home, ".openmausbot", "bots.json");
+    const backupPath = join(home, ".openmausbot", "bots.json.mascot-storage-" + randomUUID());
+    const originalBytes = readFileSync(botsPath);
+    const outline = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const validated = validateCustomMascotDefinition({ name: "Storage failure Bunny", outline, anchor });
+    const shape = { name: validated.name, outline: validated.outline, anchor: validated.anchor };
+
+    let moved = false;
+    try {
+      renameSync(botsPath, backupPath);
+      moved = true;
+      mkdirSync(botsPath);
+      const failed = await api("POST", "/api/bots/" + bot.id + "/mascot-shapes", { shape });
+      expect(failed.status).toBe(500);
+      expect(failed.body.error).toBe("The mascot could not be saved.");
+      expect(failed.body.error).not.toContain(home);
+    } finally {
+      if (moved) {
+        rmSync(botsPath, { recursive: true, force: true });
+        if (existsSync(backupPath)) renameSync(backupPath, botsPath);
+      }
+    }
+
+    try {
+      expect(readFileSync(botsPath)).toEqual(originalBytes);
+      const listed = await api("GET", "/api/bots");
+      const unchanged = listed.body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
+      expect(unchanged).toBeDefined();
+      expect(unchanged.avatarCrop).toBe(bot.avatarCrop);
+      expect(unchanged.mascotProfile).toEqual(bot.mascotProfile);
+    } finally {
+      await api("DELETE", "/api/bots/" + bot.id);
+    }
   });
 
   it("rejects an unknown effort value even while the engine is offline", async () => {
@@ -7756,6 +7850,7 @@ describe("harness HTTP API", () => {
 
   it("rejects a Boat token change while create and rename own the lifecycle lane", async () => {
     let botId = "";
+    const renameGate = deferredGate();
     try {
       managedBoatRows = [];
       expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
@@ -7765,18 +7860,19 @@ describe("harness HTTP API", () => {
       managedBoatCreateMode = "success";
       managedBoatCreateId = "bx_fghjkmnp";
       managedBoatCreateName = managedBoatNameForFixture(bot.id);
-      managedBoatRenameDelayMs = 1_000;
+      managedBoatRenameGate = renameGate;
       boatRouteCalls.length = 0;
 
       const provisioning = api("POST", `/api/bots/${bot.id}/computer/provision`, {});
-      await expect.poll(() => boatRouteCalls.some(
-        (call) => call.method === "PATCH" && call.path === `/boxes/${managedBoatCreateId}`,
-      )).toBe(true);
+      await Promise.race([renameGate.entered, provisioning.then(({ status }) => {
+        throw new Error(`Provisioning completed before the rename gate (HTTP ${status})`);
+      })]);
       const racedChange = await api("PUT", "/api/config", { box: { token: "box_good" } });
       expect(racedChange.status).toBe(409);
       expect(racedChange.body.error).toMatch(/cloud computer actions/i);
+      renameGate.release();
       expect((await provisioning).status).toBe(200);
-      managedBoatRenameDelayMs = 0;
+      managedBoatRenameGate = null;
 
       expect((await api("POST", `/api/computers/boxes/${managedBoatCreateId}/delete`, {
         confirmName: managedBoatCreateName,
@@ -7784,7 +7880,8 @@ describe("harness HTTP API", () => {
       expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
       botId = "";
     } finally {
-      managedBoatRenameDelayMs = 0;
+      renameGate.release();
+      managedBoatRenameGate = null;
       managedBoatCreateMode = "refuse";
       managedBoatCreateId = "bx_cdefghjk";
       managedBoatCreateName = "";
@@ -11423,6 +11520,69 @@ describe("harness HTTP API", () => {
       await api("PUT", "/api/config", { imageGen: { key: "" } });
     }
   });
+
+  it("rejects a late avatar after a same-value mascot selection", async () => {
+    const gate = deferredGate();
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const imageProvider = createServer((_req, res) => {
+      gate.enter();
+      void gate.wait.then(() => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ data: [{ b64_json: png }] }));
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      imageProvider.once("error", reject);
+      imageProvider.listen(0, "127.0.0.1", resolve);
+    });
+    const address = imageProvider.address();
+    if (!address || typeof address === "string") throw new Error("fixture image provider did not bind");
+    const imageUrl = "http://127.0.0.1:" + address.port + "/v1";
+    const attachmentsDir = join(home, ".openmausbot", "attachments");
+    const attachmentNames = () => existsSync(attachmentsDir) ? readdirSync(attachmentsDir).sort() : [];
+    let botId = "";
+    let generation: ReturnType<typeof api> | undefined;
+    const filesBefore = attachmentNames();
+
+    try {
+      expect((await api("PUT", "/api/config", {
+        imageGen: { provider: "custom", customUrl: imageUrl, customModel: "fixture/image", customApiKey: "" },
+      })).status).toBe(200);
+      const created = await api("POST", "/api/bots", { name: "Avatar race fixture", mascotBody: "kitten" });
+      expect(created.status).toBe(201);
+      botId = created.body.bot.id;
+      const prepared = await api("PATCH", "/api/bots/" + botId + "/profile", { mascotBody: "kitten", avatarCrop: "mascot" });
+      expect(prepared.status).toBe(200);
+      const before = (await api("GET", "/api/bots?messages=0")).body.bots.find((bot: { id: string }) => bot.id === botId);
+
+      const pending = api("POST", "/api/bots/" + botId + "/avatar/generate", { prompt: "fixture image" });
+      generation = pending;
+      await Promise.race([
+        gate.entered,
+        pending.then((result) => { throw new Error("generation returned before the fake provider: " + result.status); }),
+      ]);
+
+      const reselected = await api("PATCH", "/api/bots/" + botId + "/profile", { mascotBody: "kitten" });
+      expect(reselected.status).toBe(200);
+      gate.release();
+
+      const result = await pending;
+      expect(result.status).toBe(409);
+      const after = (await api("GET", "/api/bots?messages=0")).body.bots.find((bot: { id: string }) => bot.id === botId);
+      expect(after.avatarUrl).toBe(before.avatarUrl);
+      expect(after.avatarCrop).toBe(before.avatarCrop);
+      expect(after.mascotProfile).toEqual(before.mascotProfile);
+      expect(attachmentNames()).toEqual(filesBefore);
+    } finally {
+      gate.release();
+      if (generation) await generation.catch(() => undefined);
+      if (botId) await api("DELETE", "/api/bots/" + botId).catch(() => undefined);
+      await api("PUT", "/api/config", {
+        imageGen: { provider: "openai", key: "", customApiKey: "", customUrl: "", customModel: "" },
+      }).catch(() => undefined);
+      await new Promise<void>((resolve) => imageProvider.close(() => resolve()));
+    }
+  }, 20_000);
 
   it("keeps avatar providers and externally stored image credentials separate", async () => {
     try {

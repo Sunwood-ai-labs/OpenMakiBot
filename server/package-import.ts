@@ -22,7 +22,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mcpServerNameError, MAX_MCP_SERVERS, parseStoredMcpServer } from "./mcp-registry.ts";
 import {
   AGENT_PARTS, agentReleaseValues, connectionLocalValue, connectionReleaseValue, pair, pairs, playbookValues,
-  ROOM_PARTS, roomReleaseValues, ROUTINE_PARTS, routineReleaseValues, scheduleValue, sha256Hex, TEAM_PARTS,
+  mascotLookFields, ROOM_PARTS, roomReleaseValues, ROUTINE_PARTS, routineReleaseValues, scheduleValue, sha256Hex, TEAM_PARTS,
   type AgentPart, type PartPair, type TeamPart,
 } from "./package-parts.ts";
 import type { PresetRegistry } from "./presets.ts";
@@ -32,6 +32,7 @@ import type { BotRecord, GroupRecord, InstalledPackageMetadata, Store } from "./
 import { importedMemberProfile, type ParsedTeamManifest, type TeamManifestMember } from "./team-manifest.ts";
 import { takeImportName } from "../shared/import-name.ts";
 import { decodeBase64, type PackageAgent, type PackageDocument, type PackageTrust } from "../shared/package-format.ts";
+import { mascotProfileSchema } from "../shared/mascot-profile.ts";
 import type { BotVisibility, ModelSelection } from "../shared/wire.ts";
 
 export const NO_BOTS_MESSAGE = "This package has no bots. Add it from your organization's shelf, or update OpenMausBot.";
@@ -173,6 +174,7 @@ function memberFromAgent(agent: PackageAgent): TeamManifestMember {
       color: agent.appearance.color,
       ...(agent.appearance.mascotExpression ? { mascotExpression: agent.appearance.mascotExpression } : {}),
       ...(agent.appearance.mascotBody ? { mascotBody: agent.appearance.mascotBody } : {}),
+      ...(agent.appearance.mascotProfile ? { mascotProfile: mascotProfileSchema.parse(agent.appearance.mascotProfile) } : {}),
     },
   };
 }
@@ -427,7 +429,7 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
           look: {
             color: written.color,
             mascotExpression: written.mascotExpression ?? null,
-            mascotBody: written.mascotBody ?? null,
+            ...mascotLookFields(written),
             avatar: avatarHash,
             crop: written.avatarCrop ?? null,
           },

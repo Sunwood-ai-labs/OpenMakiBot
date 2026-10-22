@@ -3,11 +3,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
+import { createBotPackageExport } from "./package-export.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { addOrSelectCustomMascot, createMascotProfile } from "../shared/mascot-profile.ts";
 import type { PackageDocument } from "../shared/package-format.ts";
 
 const FIXTURES = join(import.meta.dirname, "..", "shared", "package-fixtures");
 const fixture = (name: string): any => JSON.parse(readFileSync(join(FIXTURES, name), "utf8"));
 let home: string;
+
+function customMascotProfile() {
+  const outline = Array.from({ length: 96 }, (_, index) => {
+    const angle = (index / 96) * Math.PI * 2;
+    return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+  });
+  const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+  return addOrSelectCustomMascot(
+    createMascotProfile(),
+    validateCustomMascotDefinition({ name: "Round mascot", outline, anchor }),
+  );
+}
 
 /** A real Store, RoutineManager, skill store, memory and section registry in
  * a throwaway home; MCP config and policy are in-memory stand-ins. */
@@ -63,6 +80,56 @@ afterEach(async () => {
 });
 
 describe("importing a whole team", () => {
+  it("imports package mascot snapshots after checking their geometry and fingerprint", async () => {
+    const app = await installation();
+    const input = fixture("full-team.v2.json");
+    const mascotProfile = customMascotProfile();
+    delete input.package.agents[0].appearance.avatar;
+    input.package.agents[0].appearance.mascotProfile = mascotProfile;
+    const document: PackageDocument = app.parsePackageDocument(input);
+
+    const forged = structuredClone(document);
+    const forgedProfile = forged.package.agents[0]!.appearance.mascotProfile!;
+    forgedProfile.shapes[0]!.id = "b".repeat(64);
+    forgedProfile.selected = { kind: "custom", shapeId: "b".repeat(64) };
+    expect(() => app.importer.importPackageDocument(forged, { trust: "file", mode: "add" }, app.deps))
+      .toThrow("fingerprint does not match");
+    expect(app.store.bots).toHaveLength(0);
+
+    const result = app.importer.importPackageDocument(document, { trust: "file", mode: "add" }, app.deps);
+    if (result.alreadyAdded) throw new Error("unexpected");
+    const imported = result.bots.find((bot) => bot.installedPackage?.agentKey === "lead")!;
+    expect(imported.mascotProfile).toEqual(mascotProfile);
+    expect(imported.mascotBody).toBe("cursor");
+  });
+
+  it("migrates the old package Cat ID and re-exports the canonical body with saved shapes", async () => {
+    const app = await installation();
+    const input = fixture("full-team.v2.json");
+    delete input.package.agents[0].appearance.avatar;
+    input.package.agents[0].appearance.mascotBody = "cat";
+    const savedProfile = customMascotProfile();
+    input.package.agents[0].appearance.mascotProfile = {
+      ...savedProfile,
+      selected: { kind: "builtin", bodyId: "cat" },
+    };
+    const document: PackageDocument = app.parsePackageDocument(input);
+
+    const result = app.importer.importPackageDocument(document, { trust: "file", mode: "add" }, app.deps);
+    if (result.alreadyAdded) throw new Error("unexpected");
+    const imported = result.bots.find((bot) => bot.installedPackage?.agentKey === "lead")!;
+    expect(imported).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: savedProfile.shapes },
+    });
+
+    const reexported = createBotPackageExport({ name: "Migrated Cat", bots: [imported], groups: [], routines: [] });
+    expect(reexported.package.agents[0]!.appearance).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: savedProfile.shapes },
+    });
+  });
+
   it("adds every part from a file: persona, picture, brief, Chief, rooms, paused routines, skills off, valueless connections, notes", async () => {
     const app = await installation({ servers: { crm: { type: "http", url: "https://existing.example.com", headers: { Authorization: "Bearer mine" }, enabled: true } } });
     const document: PackageDocument = app.parsePackageDocument(fixture("full-team.v2.json"));

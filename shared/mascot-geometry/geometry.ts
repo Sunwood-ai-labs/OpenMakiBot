@@ -7,7 +7,7 @@
  * annotations that the type-stripper can erase.
  */
 
-import { FACE_BOX } from "../../src/components/cursor-face-data.ts"
+import { FACE_BOX } from "../cursor-face-data.ts"
 
 export interface Bounds {
   minX: number

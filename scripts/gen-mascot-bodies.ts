@@ -29,8 +29,8 @@
  *
  * 2. One shared size. The smallest scale in the catalog is applied to every body, and
  *    each body's anchor is then re-solved at that fixed size. Roomier bodies get more
- *    margin rather than a bigger face, which is what makes the ten read as one character
- *    wearing different bodies instead of ten unrelated mascots.
+ *    margin rather than a bigger face, which is what makes the catalog read as one character
+ *    wearing different bodies instead of unrelated mascots.
  *
  * The run fails, loudly and with a non-zero exit, if any expression would clip at any
  * body's final anchor at any aim. That assertion is the feature's correctness guarantee:
@@ -46,12 +46,12 @@
 import { writeFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
-import { MOUTH_STROKE } from "../src/components/cursor-face-data.ts"
+import { MOUTH_STROKE } from "../shared/cursor-face-data.ts"
 import { BODY_DEFS, type BodyDef } from "./mascot-bodies/builders.ts"
-import { applyFit, boundsOf, fitTransform, flatten } from "./mascot-bodies/geometry.ts"
-import { maskFromPolylines } from "./mascot-bodies/raster.ts"
-import { fieldFromMask, largestInscribedCircle, type Sdf } from "./mascot-bodies/sdf.ts"
-import { buildClouds, maxScaleAt, report } from "./mascot-bodies/solve.ts"
+import { applyFit, boundsOf, fitTransform, flatten } from "../shared/mascot-geometry/geometry.ts"
+import { maskFromPolylines } from "../shared/mascot-geometry/raster.ts"
+import { fieldFromMask, largestInscribedCircle, type Sdf } from "../shared/mascot-geometry/sdf.ts"
+import { buildClouds, maxScaleAt, report } from "../shared/mascot-geometry/solve.ts"
 
 /** The id the catalog falls back to, and the body whose face size sets the floor. */
 const DEFAULT_ID = "cursor"
@@ -284,7 +284,7 @@ function emit(bodies: Baked[]): string {
  *
  * Every body carries the same face at the same size: the generator clamps the whole
  * catalog to the smallest face any one body can hold, so the mascot reads as one
- * character in different bodies rather than ten different mascots. Roomier bodies simply
+ * character in different bodies rather than different mascots. Roomier bodies simply
  * end up with more margin around the face.
  *
  * The fields match \`CursorSilhouette\` exactly, so a body can be handed to the renderer
@@ -298,7 +298,10 @@ export const MASCOT_BODY_IDS = [${ids}] as const;
 
 export type MascotBodyId = (typeof MASCOT_BODY_IDS)[number];
 
-export const mascotBodySchema = z.enum(MASCOT_BODY_IDS);
+export const mascotBodySchema = z.preprocess(
+  (value) => value === "cat" ? "kitten" : value,
+  z.enum(MASCOT_BODY_IDS),
+);
 
 export interface MascotBody {
   id: MascotBodyId;

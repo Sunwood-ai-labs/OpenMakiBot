@@ -11,7 +11,7 @@
  * annotations the type-stripper can erase.
  */
 
-import { FACE_BOX } from "../../src/components/cursor-face-data.ts"
+import { FACE_BOX } from "../cursor-face-data.ts"
 
 type Point = [number, number]
 

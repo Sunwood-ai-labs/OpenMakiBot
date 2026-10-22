@@ -11,6 +11,8 @@
 import { createHash } from "node:crypto";
 
 import { canonicalJson, decodeBase64 } from "../shared/package-format.ts";
+import { DEFAULT_MASCOT_BODY } from "../shared/mascot-bodies.ts";
+import type { PackageMascotProfile } from "../shared/mascot-profile.ts";
 import type {
   PackageAgent,
   PackageConnection,
@@ -44,16 +46,41 @@ export interface LookValue {
   color: string;
   mascotExpression: string | null;
   mascotBody: string | null;
+  /** Present only when the saved custom-shape library changes the look profile. */
+  mascotProfile?: string;
   avatar: string | null;
   crop: string | null;
 }
 
-export function releaseLook(appearance: PackageAgent["appearance"]): LookValue {
+type MascotProfileLook = PackageMascotProfile;
+type LookAppearance = Omit<PackageAgent["appearance"], "mascotProfile"> & { mascotProfile?: MascotProfileLook };
+
+/**
+ * Mascot fields for both imported releases and the just-written bot. Keep the
+ * legacy body encoding unchanged, and fingerprint any saved custom shapes.
+ */
+export function mascotLookFields(appearance: {
+  mascotBody?: string | null;
+  mascotProfile?: MascotProfileLook;
+}): Pick<LookValue, "mascotBody"> & Partial<Pick<LookValue, "mascotProfile">> {
+  const selection = appearance.mascotProfile?.selected;
+  const selectedBody = selection
+    ? selection.kind === "builtin" ? selection.bodyId : DEFAULT_MASCOT_BODY
+    : appearance.mascotBody;
+  return {
+    mascotBody: selectedBody ?? null,
+    ...(appearance.mascotProfile?.shapes.length
+      ? { mascotProfile: partHash(appearance.mascotProfile) }
+      : {}),
+  };
+}
+
+export function releaseLook(appearance: LookAppearance): LookValue {
   const bytes = appearance.avatar ? decodeBase64(appearance.avatar.data) : null;
   return {
     color: appearance.color,
     mascotExpression: appearance.mascotExpression ?? null,
-    mascotBody: appearance.mascotBody ?? null,
+    ...mascotLookFields(appearance),
     avatar: bytes ? sha256Hex(bytes) : null,
     crop: appearance.avatar?.crop ?? null,
   };

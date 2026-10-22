@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
-import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { ImagePlus, Loader2, PawPrint, Trash2 } from "lucide-react";
 
 import { useStore, type Bot } from "@/state/store";
 import { useBotEditor } from "./bot-settings/BotEditorContext";
@@ -25,7 +25,9 @@ import {
 import { MASCOT_BODIES, MASCOT_BODY_IDS } from "../../shared/mascot-bodies";
 import { BotAvatar, MausAvatar } from "./Avatar";
 import { AvatarImageGenerator } from "./AvatarImageGenerator";
+import { CustomMascotCreator } from "./CustomMascotCreator";
 import { useOrganizationBranding } from "@/lib/use-organization-branding";
+import { t } from "@/lib/i18n";
 
 type AvatarPatch = Partial<
   Pick<Bot, "avatarCrop" | "avatarUrl" | "avatarZoom" | "avatarFocusX" | "avatarFocusY" | "color" | "mascotExpression" | "mascotBody">
@@ -140,14 +142,20 @@ export function BotProfileAvatarCard({
   const { request: api, uploadAvatar } = useBotEditor();
   const organization = useOrganizationBranding();
   const fileRef = useRef<HTMLInputElement>(null);
+  const creatorTriggerRef = useRef<HTMLButtonElement>(null);
   const [uploading, setUploading] = useState(false);
   const [savingConnection, setSavingConnection] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [creatorOpen, setCreatorOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const crop = bot.avatarCrop ?? "mascot";
   const cropRef = useRef(crop);
   cropRef.current = crop;
   const busy = uploading || generating || savingConnection;
+  const closeCreator = () => {
+    setCreatorOpen(false);
+    requestAnimationFrame(() => creatorTriggerRef.current?.focus());
+  };
 
   const upload = async (file: File | undefined) => {
     if (!file || busy) return;
@@ -285,6 +293,24 @@ export function BotProfileAvatarCard({
           )}
         </div>
         <div className="mt-1.5 text-[11.5px] text-ink-secondary">PNG, JPEG, GIF, or WebP · up to 10 MB</div>
+
+        <button
+          ref={creatorTriggerRef}
+          type="button"
+          disabled={busy}
+          aria-expanded={creatorOpen}
+          aria-controls={"custom-mascot-creator-" + bot.id}
+          onClick={() => creatorOpen ? closeCreator() : setCreatorOpen(true)}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-hairline/50 px-3 py-2 text-[12.5px] font-medium text-ink-secondary hover:bg-control hover:text-ink disabled:opacity-50"
+        >
+          <PawPrint size={14} aria-hidden="true" />
+          {t("mascot.creator.open")}
+        </button>
+        {creatorOpen && (
+          <div id={"custom-mascot-creator-" + bot.id}>
+            <CustomMascotCreator bot={bot} disabled={busy} onClose={closeCreator} />
+          </div>
+        )}
 
         <div className="mb-2 mt-4 text-[12px] font-medium uppercase tracking-[0.08em] text-ink-secondary">
           Shape

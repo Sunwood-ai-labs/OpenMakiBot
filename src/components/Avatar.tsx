@@ -14,9 +14,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { MAUS_COLORS, type MausColor, type MausMotion, type MausState } from "@/lib/mascot";
-import { CursorAvatar, type CursorAvatarHandle } from "./CursorAvatar";
+import { CursorAvatar, customMascotSilhouette, type CursorAvatarHandle, type CursorSilhouette } from "./CursorAvatar";
 import { botAvatarProfile, clampAvatarFocus, clampAvatarZoom, type BotAvatarCrop } from "../../shared/bot-avatar";
 import { MASCOT_BODIES, botMascotBody, type MascotBodyId } from "../../shared/mascot-bodies";
+import { selectedCustomMascot, type MascotProfile } from "../../shared/mascot-profile";
 
 export const EYE_SCALE = 1.12;
 export const MOUTH_WEIGHT = 11;
@@ -110,6 +111,8 @@ export type MausAvatarProps = {
   animated?: boolean;
   /** Which body the bot wears. Unknown values fall back to the cursor. */
   bodyId?: MascotBodyId;
+  /** Custom outline rendered by the same native face and motion engine. */
+  silhouette?: CursorSilhouette;
 };
 
 function MausAvatarComponent(
@@ -132,10 +135,11 @@ function MausAvatarComponent(
     trackPointer = true,
     animated = true,
     bodyId,
+    silhouette: requestedSilhouette,
   }: MausAvatarProps,
   ref: React.Ref<MausAvatarHandle>,
 ) {
-  const silhouette = MASCOT_BODIES[botMascotBody(bodyId)];
+  const silhouette = requestedSilhouette ?? MASCOT_BODIES[botMascotBody(bodyId)];
   const inner = useRef<CursorAvatarHandle>(null);
   useImperativeHandle(ref, () => ({
     blink: () => inner.current?.blink(),
@@ -209,6 +213,7 @@ export type BotAvatarProps = Omit<MausAvatarProps, "color"> & {
     avatarFocusX?: number;
     avatarFocusY?: number;
     mascotBody?: MascotBodyId | null;
+    mascotProfile?: MascotProfile;
   };
 };
 
@@ -256,9 +261,12 @@ export function BotAvatar({ bot, size = 44, label, ...mascotProps }: BotAvatarPr
   });
 
   if (outcome !== "flatImage") {
+    const customShape = selectedCustomMascot(bot.mascotProfile);
+    const customSilhouette = customShape ? customMascotSilhouette(customShape) : undefined;
     return (
       <MausAvatar
         bodyId={bot.mascotBody ?? undefined}
+        silhouette={customSilhouette}
         {...mascotProps}
         color={bot.color}
         size={size}
@@ -279,7 +287,7 @@ export function BotAvatar({ bot, size = 44, label, ...mascotProps }: BotAvatarPr
   const origin = `${focusX * 100}% ${focusY * 100}%`;
   return (
     <span
-      className="relative block shrink-0 overflow-hidden bg-raised"
+      className="relative block shrink-0 overflow-hidden"
       style={{ width: size, height: size, borderRadius: radius }}
     >
       <img

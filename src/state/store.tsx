@@ -21,6 +21,7 @@ import type { MausColor, MausMotion } from "@/lib/mascot";
 import type { BotAvatarCrop } from "../../shared/bot-avatar";
 import { approvalModeFor, type ApprovalMode } from "../../shared/approval-mode";
 import type { MascotBodyId } from "../../shared/mascot-bodies";
+import type { MascotProfile } from "../../shared/mascot-profile";
 import type { QuestionRequestCardData } from "../../shared/ask-question";
 import type { ProfileRequestCardData } from "../../shared/profile-request";
 import type { ModelRequestCardData } from "../../shared/model-request";
@@ -382,6 +383,7 @@ export interface Bot {
   mascotExpression?: string | null;
   /** Which body the bot wears. Unknown/absent values fall back to the cursor. */
   mascotBody?: MascotBodyId | null;
+  mascotProfile?: MascotProfile;
   /** App-owned image attachment used for this bot's profile. */
   avatarUrl?: string | null;
   /** Mascot, or the crop applied to avatarUrl. */
@@ -1059,6 +1061,49 @@ function replaceBotQueues(state: AppState, queues: AppState["pendingQueued"]): A
 }
 
 export type BotAnnouncement = Omit<Bot, "messages"> & { messages?: Message[] };
+
+export function duplicateBotProfile(source: Bot): Pick<
+  Bot,
+  | "name"
+  | "title"
+  | "description"
+  | "soul"
+  | "notifications"
+  | "modelSelection"
+  | "computer"
+  | "cloudBackend"
+  | "autoStartVps"
+  | "avatarUrl"
+  | "avatarCrop"
+  | "avatarZoom"
+  | "avatarFocusX"
+  | "avatarFocusY"
+> {
+  return {
+    name: `${source.name} copy`,
+    title: source.title,
+    description: source.description,
+    soul: source.soul,
+    notifications: source.notifications,
+    modelSelection: source.modelSelection,
+    computer: source.computer,
+    cloudBackend: source.cloudBackend,
+    autoStartVps: source.autoStartVps,
+    avatarUrl: source.avatarUrl,
+    avatarCrop: source.avatarCrop,
+    avatarZoom: source.avatarZoom,
+    avatarFocusX: source.avatarFocusX,
+    avatarFocusY: source.avatarFocusY,
+  };
+}
+
+export function duplicateBotCreateOptions(source: Bot) {
+  return {
+    ...(source.visibility && source.visibility !== "everyone" ? { visibility: source.visibility } : {}),
+    ...(Object.hasOwn(source, "toolScope") ? { settings: { toolScope: source.toolScope } } : {}),
+    ...(source.mascotProfile ? { mascotProfile: source.mascotProfile } : {}),
+  };
+}
 
 export type Action =
   | {
@@ -3296,29 +3341,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         case "duplicateBot": {
           const source = stateRef.current.bots.find((b) => b.id === action.botId);
           if (!source) break;
-          const duplicateProfile = {
-            name: `${source.name} copy`,
-            title: source.title,
-            description: source.description,
-            soul: source.soul,
-            notifications: source.notifications,
-            modelSelection: source.modelSelection,
-            computer: source.computer,
-            cloudBackend: source.cloudBackend,
-            autoStartVps: source.autoStartVps,
-            avatarUrl: source.avatarUrl,
-            avatarCrop: source.avatarCrop,
-            avatarZoom: source.avatarZoom,
-            avatarFocusX: source.avatarFocusX,
-            avatarFocusY: source.avatarFocusY,
-          };
+          const duplicateProfile = duplicateBotProfile(source);
           // A copy of a restricted bot is restricted from its first moment.
           api("/api/bots", {
             method: "POST",
-            body: JSON.stringify({
-              ...(source.visibility && source.visibility !== "everyone" ? { visibility: source.visibility } : {}),
-              ...(Object.hasOwn(source, "toolScope") ? { settings: { toolScope: source.toolScope } } : {}),
-            }),
+            body: JSON.stringify(duplicateBotCreateOptions(source)),
           })
             .then(({ bot }) =>
               api(`/api/bots/${bot.id}`, {

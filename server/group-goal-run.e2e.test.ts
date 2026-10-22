@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,11 @@ let busyGoalFinishGate = "";
 let routineGoalFinishGate = "";
 let queueFinishGate = "";
 let stopScopedLeadFinishGate = "";
+let busyGoalPrompts = "";
+let busyWorkerPrompts = "";
+let directHangPrompts = "";
+let stopScopedLeadPrompts = "";
+let stopScopedWorkerPrompts = "";
 let base = "";
 let stderr = "";
 
@@ -48,6 +53,12 @@ const api = async (method: string, path: string, body?: unknown): Promise<{ stat
   return { status: response.status, body: await response.json() };
 };
 
+const waitForFakePrompt = async (path: string, expectedText: string) => {
+  await expect.poll(() => {
+    return existsSync(path) && readFileSync(path, "utf8").includes(expectedText);
+  }, { timeout: 10_000 }).toBe(true);
+};
+
 beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "omb-goal-run-"));
   stopScopedWorkerFinishGate = join(home, "stop-scoped-worker-finish");
@@ -56,6 +67,11 @@ beforeAll(async () => {
   routineGoalFinishGate = join(home, "routine-goal-finish");
   queueFinishGate = join(home, "queue-finish");
   stopScopedLeadFinishGate = join(home, "stop-scoped-lead-finish");
+  busyGoalPrompts = join(home, "busy-goal-prompts.jsonl");
+  busyWorkerPrompts = join(home, "busy-worker-prompts.jsonl");
+  directHangPrompts = join(home, "direct-hang-prompts.jsonl");
+  stopScopedLeadPrompts = join(home, "stop-scoped-lead-prompts.jsonl");
+  stopScopedWorkerPrompts = join(home, "stop-scoped-worker-prompts.jsonl");
   writeFileSync(stopScopedLeadFinishGate, "allow initial goal delegation");
   const data = join(home, ".openmausbot");
   const staticDir = join(home, "static");
@@ -112,6 +128,7 @@ beforeAll(async () => {
             "The unrelated direct task is complete.",
             "The queued team goal is complete.\n<openmaus-goal>{\"status\":\"completed\",\"detail\":\"Waited for the lead, then completed normally.\"}</openmaus-goal>",
           ]),
+          FAKE_CLAUDE_PROMPTS: busyGoalPrompts,
           FAKE_CLAUDE_REPLY_STATE: join(home, "busy-goal-replies.txt"),
         },
         config: { cli: FAKE_CLAUDE },
@@ -139,6 +156,7 @@ beforeAll(async () => {
             "The unrelated direct research is complete.",
             "Evidence gathered for the coordinator.",
           ]),
+          FAKE_CLAUDE_PROMPTS: busyWorkerPrompts,
           FAKE_CLAUDE_REPLY_STATE: join(home, "busy-worker-replies.txt"),
         },
         config: { cli: FAKE_CLAUDE },
@@ -154,6 +172,7 @@ beforeAll(async () => {
             "This is unrelated direct work and should be stopped.",
             "The scheduled analysis is now complete.\n<openmaus-goal>{\"status\":\"completed\",\"detail\":\"Scheduled goal survived the coordinator's direct Stop.\"}</openmaus-goal>",
           ]),
+          FAKE_CLAUDE_PROMPTS: stopScopedLeadPrompts,
           FAKE_CLAUDE_REPLY_STATE: join(home, "stop-scoped-lead-replies.txt"),
         },
         config: { cli: FAKE_CLAUDE },
@@ -168,6 +187,7 @@ beforeAll(async () => {
             "The worker's unrelated direct task completed naturally.",
             "Scheduled analysis returned to the coordinator.",
           ]),
+          FAKE_CLAUDE_PROMPTS: stopScopedWorkerPrompts,
           FAKE_CLAUDE_REPLY_STATE: join(home, "stop-scoped-worker-replies.txt"),
           FAKE_CLAUDE_TRANSIENTS: "1",
           FAKE_CLAUDE_STATE: join(home, "stop-scoped-worker-launches.txt"),
@@ -177,7 +197,10 @@ beforeAll(async () => {
       directHang: {
         driver: "claudeAgent",
         displayName: "Direct hang fixture",
-        environment: { FAKE_CLAUDE_MODE: "hang" },
+        environment: {
+          FAKE_CLAUDE_MODE: "hang",
+          FAKE_CLAUDE_PROMPTS: directHangPrompts,
+        },
         config: { cli: FAKE_CLAUDE },
       },
       routineGoal: {
@@ -290,12 +313,14 @@ describe("goal-driven channel runs", () => {
     })).body.group;
 
     try {
+      rmSync(busyGoalPrompts, { force: true });
       expect((await api("POST", `/api/bots/${lead.id}/messages`, { text: "Finish this direct task first" })).status)
         .toBe(202);
       await expect.poll(async () => {
         const state = (await api("GET", "/api/bots?messages=0")).body;
         return state.bots.find((bot: { id: string }) => bot.id === lead.id)?.busy;
       }).toBe(true);
+      await waitForFakePrompt(busyGoalPrompts, "Finish this direct task first");
 
       expect((await api("POST", `/api/groups/${room.id}/messages`, {
         text: "Complete this goal after your current work",
@@ -374,6 +399,7 @@ describe("goal-driven channel runs", () => {
     })).body.group;
 
     try {
+      rmSync(busyWorkerPrompts, { force: true });
       expect((await api("POST", `/api/bots/${worker.id}/messages`, {
         text: "Complete this unrelated direct research first",
       })).status).toBe(202);
@@ -381,6 +407,7 @@ describe("goal-driven channel runs", () => {
         const state = (await api("GET", "/api/bots?messages=0")).body;
         return state.bots.find((bot: { id: string }) => bot.id === worker.id)?.busy;
       }).toBe(true);
+      await waitForFakePrompt(busyWorkerPrompts, "Complete this unrelated direct research first");
 
       expect((await api("POST", `/api/groups/${room.id}/messages`, {
         text: "Research and resolve the team question",
@@ -474,12 +501,14 @@ describe("goal-driven channel runs", () => {
     });
 
     try {
+      rmSync(directHangPrompts, { force: true });
       expect((await api("POST", `/api/bots/${lead.id}/messages`, { text: "Keep this direct task running" })).status)
         .toBe(202);
       await expect.poll(async () => {
         const state = (await api("GET", "/api/bots?messages=0")).body;
         return state.bots.find((bot: { id: string }) => bot.id === lead.id)?.busy;
       }).toBe(true);
+      await waitForFakePrompt(directHangPrompts, "Keep this direct task running");
 
       // ordinary chat: the round parks on the busy lead — visibly working,
       // nobody named as speaker, one neutral note, and no skip
@@ -571,6 +600,7 @@ describe("goal-driven channel runs", () => {
     const originalThreadId = room.threadId;
 
     try {
+      rmSync(directHangPrompts, { force: true });
       const created = await api("POST", "/api/routines", {
         name: "Hanging scheduled goal",
         prompt: "Keep this scheduled team goal running",
@@ -611,6 +641,7 @@ describe("goal-driven channel runs", () => {
         roomWorking: true,
         leadBusy: true,
       });
+      await waitForFakePrompt(directHangPrompts, "Keep this scheduled team goal running");
 
       // No task switch and no explicit thread: the ordinary room Stop must
       // discover the detached operation rather than targeting the visible task.
@@ -666,6 +697,7 @@ describe("goal-driven channel runs", () => {
     const originalThreadId = room.threadId;
 
     try {
+      rmSync(directHangPrompts, { force: true });
       const created = await api("POST", "/api/routines", {
         name: "Coordinator-stopped scheduled goal",
         prompt: "Keep this detached goal running until the coordinator is stopped",
@@ -702,6 +734,7 @@ describe("goal-driven channel runs", () => {
         roomWorking: true,
         leadBusy: true,
       });
+      await waitForFakePrompt(directHangPrompts, "Keep this detached goal running until the coordinator is stopped");
 
       // The visible room still points at originalThreadId. Bot Stop must use
       // the detached operation's exact speaker thread, not that visible task.
@@ -761,6 +794,7 @@ describe("goal-driven channel runs", () => {
     })).body.group;
 
     try {
+      rmSync(stopScopedWorkerPrompts, { force: true });
       expect((await api("POST", `/api/bots/${worker.id}/messages`, {
         text: "Finish this unrelated worker task first",
       })).status).toBe(202);
@@ -768,6 +802,7 @@ describe("goal-driven channel runs", () => {
         const state = (await api("GET", "/api/bots?messages=0")).body;
         return state.bots.find((bot: { id: string }) => bot.id === worker.id)?.busy;
       }).toBe(true);
+      await waitForFakePrompt(stopScopedWorkerPrompts, "Finish this unrelated worker task first");
 
       const created = await api("POST", "/api/routines", {
         name: "Worker-gated scheduled goal",
@@ -820,9 +855,11 @@ describe("goal-driven channel runs", () => {
       // Hold just this unrelated direct turn until Stop is observed. The
       // initial goal delegation used the already-open gate above.
       rmSync(stopScopedLeadFinishGate, { force: true });
+      rmSync(stopScopedLeadPrompts, { force: true });
       expect((await api("POST", `/api/bots/${lead.id}/messages`, {
         text: "Start unrelated coordinator work",
       })).status).toBe(202);
+      await waitForFakePrompt(stopScopedLeadPrompts, "Start unrelated coordinator work");
       await expect.poll(async () => {
         const state = (await api("GET", "/api/bots?messages=30")).body;
         const currentLead = state.bots.find((bot: { id: string }) => bot.id === lead.id);

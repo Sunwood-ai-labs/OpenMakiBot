@@ -12,6 +12,8 @@ import { ensureSections, readSections, changeEmptySection } from "./section-cont
 import type { TeamComputers } from "./team-computers.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
+import { BotAppearanceRevisionTracker } from "./store-appearance-revisions.ts";
+import { normalizeStoredMascotProfile, preserveInvalidMascotProfileRegistry } from "./mascot-profile-recovery.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
 import { DATA_DIR, EVENTS_DIR, NATIVE_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
@@ -22,6 +24,7 @@ import { newId, type ModelSelection } from "./contracts.ts";
 import { pickBotName } from "./names.ts";
 import { redactSecretsInText } from "./redact.ts";
 import { AVATAR_FOCUS_CENTER, AVATAR_ZOOM_MIN, botAvatarProfile, clampAvatarFocus, clampAvatarZoom } from "../shared/bot-avatar.ts";
+import { addOrSelectCustomMascot, createMascotProfile, legacyMascotBody, mascotProfileSchema, selectBuiltinMascot, type CustomMascotShape } from "../shared/mascot-profile.ts";
 import { approvalModeFor, isApprovalMode } from "../shared/approval-mode.ts";
 import type { ProfileRequestChanges } from "../shared/profile-request.ts";
 import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts";
@@ -615,6 +618,7 @@ export class Store {
   /** Room turns and old callers have their own activity slot. Clearing
    * that slot must not clear a concurrently running independent task. */
   private legacyActivities = new Map<string, BotActivity>();
+  readonly appearanceRevisions = new BotAppearanceRevisionTracker();
 
   constructor(
     defaultSelection: () => ModelSelection,
@@ -649,6 +653,18 @@ export class Store {
     const chiefSectionsSeen = new Set<string>();
     let groupsMigrated = false;
     for (const b of this.bots) {
+      const mascot = normalizeStoredMascotProfile(b.mascotProfile, b.mascotBody, () => preserveInvalidMascotProfileRegistry(BOTS_FILE, b.id));
+      b.mascotProfile = mascot.profile;
+      if (mascot.changed) botsMigrated = true;
+      const legacyBody = legacyMascotBody(b.mascotProfile);
+      const omittedDefaultBody = b.mascotBody === undefined &&
+        b.mascotProfile?.shapes.length === 0 &&
+        b.mascotProfile?.selected.kind === "builtin" &&
+        b.mascotProfile.selected.bodyId === "cursor";
+      if (!omittedDefaultBody) {
+        if (b.mascotBody !== legacyBody) botsMigrated = true;
+        b.mascotBody = legacyBody;
+      }
       // transient state never survives a restart — and if a previous
       // process died mid-turn, bots.json still says busy/working; persist
       // the reset so the next load does not read it again
@@ -1727,7 +1743,7 @@ export class Store {
     profile: Partial<
       Pick<
         BotRecord,
-        "name" | "title" | "description" | "soul" | "color" | "mascotExpression" | "mascotBody" | "modelSelection" | "section" | "cwd" | "visibility" | "toolScope"
+        "name" | "title" | "description" | "soul" | "color" | "mascotExpression" | "mascotBody" | "mascotProfile" | "modelSelection" | "section" | "cwd" | "visibility" | "toolScope"
       >
     > = {},
     opts: {
@@ -1741,6 +1757,9 @@ export class Store {
     this.rememberSections([profile.section]);
     const name = profile.name?.trim() || pickBotName(this.bots.map((b) => b.name));
     const section = sectionKey(profile.section);
+    const mascotProfile = profile.mascotProfile === undefined
+      ? createMascotProfile(profile.mascotBody)
+      : mascotProfileSchema.parse(profile.mascotProfile);
     const bot: BotRecord = {
       id: newId(),
       threadId: newId(),
@@ -1752,7 +1771,10 @@ export class Store {
       notifications: true,
       color: profile.color ?? COLORS[this.bots.length % COLORS.length],
       ...(profile.mascotExpression ? { mascotExpression: profile.mascotExpression } : {}),
-      ...(profile.mascotBody ? { mascotBody: profile.mascotBody } : {}),
+      mascotProfile,
+      ...(profile.mascotProfile !== undefined || profile.mascotBody !== undefined
+        ? { mascotBody: legacyMascotBody(mascotProfile) }
+        : {}),
       // Restricted from its first frame: no one else is ever told it exists.
       ...(profile.visibility && profile.visibility !== "everyone" ? { visibility: structuredClone(profile.visibility) } : {}),
       ...(toolScope.scope ? { toolScope: toolScope.scope } : {}),
@@ -1968,6 +1990,12 @@ export class Store {
       if (!parsed.ok) throw new Error(parsed.error);
       patch = { ...patch, toolScope: parsed.scope };
     }
+    if (patch.mascotProfile !== undefined) {
+      patch = { ...patch, mascotBody: legacyMascotBody(patch.mascotProfile) };
+    } else if (patch.mascotBody !== undefined) {
+      const mascotProfile = selectBuiltinMascot(bot.mascotProfile, patch.mascotBody ?? "cursor");
+      patch = { ...patch, mascotProfile, mascotBody: legacyMascotBody(mascotProfile) };
+    }
     const wideningToolScope = Object.hasOwn(patch, "toolScope") && toolScopeWidens(bot.toolScope, patch.toolScope);
     const nextToolScope = patch.toolScope;
     if (wideningToolScope) {
@@ -1977,6 +2005,7 @@ export class Store {
     // Runtime revocations must become effective in memory even when disk is
     // unavailable. Profile edits use the separate atomic path below.
     Object.assign(bot, patch);
+    this.appearanceRevisions.recordChoice(bot, patch);
     const task = this.activeTask(id);
     if (task) {
       for (const key of ["resumeCursors", "rewound", "pinnedMessageId", "unread"] as const) {
@@ -2018,6 +2047,10 @@ export class Store {
     const bot = this.bot(id);
     if (!bot) return null;
     const next = { ...bot, ...patch };
+    if (patch.mascotBody !== undefined) {
+      next.mascotProfile = selectBuiltinMascot(bot.mascotProfile, patch.mascotBody ?? "cursor");
+      next.mascotBody = legacyMascotBody(next.mascotProfile);
+    }
     if (patch.soul !== undefined) {
       next.soulHash = soulHash(patch.soul);
       next.soulDrift = false;
@@ -2026,11 +2059,31 @@ export class Store {
     // record. A failed write leaves both memory and disk at the old profile.
     this.saveBots(this.bots.map((candidate) => candidate.id === id ? next : candidate));
     Object.assign(bot, next);
+    this.appearanceRevisions.recordChoice(bot, patch);
     if (patch.soul !== undefined) {
       try { writeSoulMirror(id, patch.soul); } catch (e) {
         console.warn(`[bot-folder] could not write SOUL.md mirror for ${id}: ${(e as Error).message}`);
       }
     }
+    this.emit({ type: "bot", botId: id });
+    return bot;
+  }
+
+  /** Save/select one immutable custom snapshot and switch the avatar to its mascot crop atomically. */
+  addOrSelectMascotShape(id: string, shape: CustomMascotShape): BotRecord | null {
+    const bot = this.bot(id);
+    if (!bot) return null;
+    const mascotProfile = addOrSelectCustomMascot(bot.mascotProfile, structuredClone(shape));
+    const next: BotRecord = {
+      ...bot,
+      mascotProfile,
+      mascotBody: legacyMascotBody(mascotProfile),
+      avatarUrl: undefined,
+      avatarCrop: "mascot",
+    };
+    this.saveBots(this.bots.map((candidate) => candidate.id === id ? next : candidate));
+    Object.assign(bot, next);
+    this.appearanceRevisions.record(bot);
     this.emit({ type: "bot", botId: id });
     return bot;
   }

@@ -1,0 +1,98 @@
+{
+  "reviewedAtUtc": "2026-10-21 13:02:42 UTC",
+  "repo": "C:\\Prj\\OpenMakiBot-cat-avatar-20261021",
+  "branch": "codex/feature/cat-avatar-preview",
+  "head": "0e24c4cf5d301a402c5637c0e0c940fa0c627cf7",
+  "base": "6b4d74983",
+  "note": "Final source review accepted the four-file organization look-stamp change. Hashes bind the reviewed working-tree bytes; see finalAcceptance for behavior, verification, UI boundary, and the limited Store migration caveat.",
+  "proofBlobComparison": {
+    "src/lib/custom-mascot-svg.ts": {
+      "proofBlobOid": "c880875b744222937a788e8085e67a63080c0ee2",
+      "currentBlobOid": "64237c78281ab205c2ae875af34e2efbfc13a4df",
+      "oldBytes": 17817,
+      "currentBytes": 17816,
+      "oldTrailingEolHex": "0a0a",
+      "currentTrailingEolHex": "0a",
+      "normalizedContentEqual": true,
+      "stagedMatchesWorkingTree": true
+    },
+    "src/lib/custom-mascot-svg.test.ts": {
+      "proofBlobOid": "8a34fe292f3149f31aa8e36b28fc119b60e710f9",
+      "currentBlobOid": "03fee9a9666750f826e34e40dc0c8a438533d477",
+      "oldBytes": 7485,
+      "currentBytes": 7484,
+      "oldTrailingEolHex": "0a0a",
+      "currentTrailingEolHex": "0a",
+      "normalizedContentEqual": true,
+      "stagedMatchesWorkingTree": true
+    }
+  },
+  "sourceSha256": {
+    "shared/custom-mascot-fitting.ts": "aafbdcec42691df4d014819a358f7052f2536d3f045d4ee84279a22fc65e425b",
+    "shared/custom-mascot.test.ts": "0f0e1a240c2eed307b4a9191a8ba5520933edf112070d4cb9baf9b2510bc0ff7",
+    "shared/mascot-profile.ts": "e84030e13a0ecd8bd48f4977c1fe4af1d95f5f9f244a22ec4339e662a025a15e",
+    "server/custom-mascot-validation.ts": "64eaecdb30b5ed0a2a0a5686e29dfbcd9300f2fa99b8f308afd99b5457b64dfe",
+    "src/components/CustomMascotCreator.tsx": "e2af1432113cbdafcfc9f9a41c66bd75d4dd940eeeeefe43f60a4ac989a8f00d",
+    "src/lib/custom-mascot-svg.ts": "ed054e454da376f11383d2baef5fc543f2da02f7eeef73a8d4b92422605eba69",
+    "src/components/CursorAvatar.tsx": "e683b56eac4eaf1a9d30e19fe39e5423351635f25559a39c632212c008912829",
+    "shared/cursor-face-data.ts": "6f8c6858763f11885e3157d7602e78626d22e53aa54de1c30bd718ff5105e23a",
+    "server/package-export.ts": "1fa7358caa91ed9e9df8cd5054b87314b56c7b084094ba4657c213082288bbe8",
+    "server/package-export.test.ts": "e72ee2672391825c164dbdb79e021084b99768a269cd95f1be86ed4a1e483e1d",
+    "server/package-import.test.ts": "9681a1da6f154349a87a2fd5db9044113c0954355ad63b8e80796d91759d8a18",
+    "shared/package-format.ts": "318496d2e76d0f7a156a3b96c8d6c60340e2be44f4d74d87618cfd095c784337",
+    "server/team-manifest.ts": "a2419893aadeeff49a8a3e8e902fc7f03ef90be331309969785287e1009a05e0",
+    "server/team-manifest.test.ts": "d50956655a88f8562c739c42b6c4cf061d3fee4105f5e874c6d525cbb5d11798",
+    "server/team-backup.ts": "2e292c0b86df8301a6fafc3805777ee383e0d8ed74528938bb01505ca8fa4027",
+    "server/team-backup.test.ts": "0a448e47ab18d097c7aac9818e8a10975c03b449e6056005729a0f7e6e65100a",
+    "server/store.ts": "184e4c21d4080ee3afa674aafd151e9e540358afe8517189773dc4684871b5f9",
+    "server/store.test.ts": "778a065020184ab0ab2da507c3b694a545a8378141ea261a56716348596d92b6",
+    "server/index.ts": "f7152fcfda67d02a9f01fb0207fdfc63586353384bd4c4d729e3c5b3937c925d",
+    "src/state/store.tsx": "ba4fff6360b6bc9210590c213992ab19a673ba4600258e24280ba476b6358bbe",
+    "src/state/store.test.ts": "1dfe52b87da80f447ea5a2c9b3f64c45b7f1fcd8d266e63bf293f7ecd0a0c949",
+    "server/index.test.ts": "6c78a471e3fb39bb08e2d7f0f12fc1299e155c44a8efa3735f89407a0586d2d9",
+    "server/new-bot-defaults.ts": "60d827aa7d006a53e2d5cc8c7576a647376f8e4bfeeef20c7ee93325fb860b97",
+    "server/new-bot-defaults.test.ts": "cd35bd72fb36d7154b779530a7e613a0db9ca793217e5cb70d47a2662fd97a9d",
+    "server/bot-profile.ts": "48d4a0f90d7370e0d0c6391b42e18a87464bc4baf0fc6cae904162d1b04b143c",
+    "shared/new-bot-defaults.ts": "14587965e9fd3dd745e758c943351f6cbb902f10f1d9ccbfd7729d910bfe91fc",
+    "shared/mascot-fixtures/bunny-outline.json": "3dccc918352998c277a7da1a6c064ce687e4874a6571824bb367c858d0d45213",
+    "src/lib/custom-mascot-svg.test.ts": "a66d7b360d64693e5fd0467dce4f8c9a3691f997b82cdb6ff0acf22baca69592",
+    "server/package-parts.ts": "5574e3701aea4b4f3ab5031774a562c5e6ff8f2943bbeed32b733c96dc8fc80e",
+    "server/package-import.ts": "74071b7d6e27852cd18ec1fa2f43e0de20b64a13ae31a3330b77c4438d1a3b12",
+    "server/org-library.test.ts": "868daa4ef782da9afcae604a6d92247a4fa5907637806fa4c233bf7799e7459c",
+    "server/package-parts.test.ts": "da7a6e3fcb21096c931730a76dd2bd32d1a06caf7598f1854acd9de31e61b108"
+  },
+  "priorTeamManifestReacceptance": {
+    "changedFile": "server/index.test.ts",
+    "changedLines": "5504-5506, 5522-5531",
+    "productionSourcesUnchanged": {
+      "server/index.ts": "f7152fcfda67d02a9f01fb0207fdfc63586353384bd4c4d729e3c5b3937c925d",
+      "server/team-manifest.ts": "a2419893aadeeff49a8a3e8e902fc7f03ef90be331309969785287e1009a05e0",
+      "server/package-import.ts": "2ad1a6b83e493786737c5733f8fa9d5a0d9ae3a3a866805c72ca6ff7dc87a7fc"
+    },
+    "targetTestCommand": "pnpm exec vitest run --no-file-parallelism --testNamePattern \"exports every visible bot and imports the team without creating a room\" server/index.test.ts",
+    "targetTestResult": "1 passed, 278 skipped by filter; test file passed",
+    "diffCheck": "git diff --check -- server/index.test.ts passed",
+    "conclusion": "The minimal test update expects mascotBody cursor in both exported appearances and asserts import returns legacy mascotBody cursor plus canonical selected builtin cursor. No production behavior changed; this protects round-trip selection."
+  },
+  "finalAcceptance": {
+    "reviewedHead": "0e24c4cf5d301a402c5637c0e0c940fa0c627cf7",
+    "reviewedTreeState": "Accepted four-file working-tree diff at this HEAD; sourceSha256 binds reviewed bytes.",
+    "changedFiles": {
+      "server/package-parts.ts": "5574e3701aea4b4f3ab5031774a562c5e6ff8f2943bbeed32b733c96dc8fc80e",
+      "server/package-import.ts": "74071b7d6e27852cd18ec1fa2f43e0de20b64a13ae31a3330b77c4438d1a3b12",
+      "server/org-library.test.ts": "868daa4ef782da9afcae604a6d92247a4fa5907637806fa4c233bf7799e7459c",
+      "server/package-parts.test.ts": "da7a6e3fcb21096c931730a76dd2bd32d1a06caf7598f1854acd9de31e61b108"
+    },
+    "activeBehaviorAccepted": "package-parts keeps historical mascotBody hash encodings: omitted release body hashes as null; explicit Cursor remains cursor. Release r and written w are independent snapshots and need not be equal; for an omitted release body, the Store may write canonical Cursor, so r=null and w=cursor is expected and stable per side.",
+    "customProfileSensitivity": "A fingerprint of mascotProfile is included only when the profile has saved shapes; changes to the shape catalog/profile affect the look part, while profiles without custom shapes retain the old hash shape.",
+    "independentReviewerValidation": {
+      "command": "pnpm exec vitest run --no-file-parallelism server/org-library.test.ts server/package-parts.test.ts",
+      "result": "31 passed across 2 files",
+      "diffCheck": "git diff --check passed"
+    },
+    "implementationOwnerValidation": "108 accepted tests reported by implementation owner; not independently rerun in this review.",
+    "uiFollowUp": "No UI/native-renderer/API-save source changed in this diff. Existing visual receipt is unchanged; this review makes no claim that its media exercised package-stamp hashing.",
+    "migrationCaveat": "Store startup intentionally migrates a bot lacking mascotProfile/body to canonical builtin Cursor and writes the legacy Cursor projection. A packageBase.w hash created before that migration may still encode an omitted body as null. No active packageBase update comparator was found in this checkout; this review does not claim every historical w hash equals its post-migration representation and adds no speculative comparator.",
+    "conclusion": "Accepted against active behavior; no new finding."
+  }
+}

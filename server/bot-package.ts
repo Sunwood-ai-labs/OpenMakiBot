@@ -2,6 +2,7 @@ import { stringify as stringifyYaml } from "yaml";
 
 import type { JsonValue } from "./schema.ts";
 import type { TeamManifestMember } from "./team-manifest.ts";
+import { mascotProfileSchema } from "../shared/mascot-profile.ts";
 import { cronScheduleLabel } from "../shared/cron-label.ts";
 import {
   BOTMRR_MARKDOWN_VERSION,
@@ -154,6 +155,7 @@ export function packageAgentAsMember(agent: BotPackageAgent): TeamManifestMember
       color: agent.appearance.color,
       ...(agent.appearance.mascotExpression ? { mascotExpression: agent.appearance.mascotExpression } : {}),
       ...(agent.appearance.mascotBody ? { mascotBody: agent.appearance.mascotBody } : {}),
+      ...(agent.appearance.mascotProfile ? { mascotProfile: mascotProfileSchema.parse(agent.appearance.mascotProfile) } : {}),
     },
   };
 }

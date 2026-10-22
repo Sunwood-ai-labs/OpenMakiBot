@@ -3,7 +3,7 @@
 // except `busy`, which never does (no turn survives one either).
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,10 +16,15 @@ import * as mdb from "./message-db.ts";
 import { peerAllowKey } from "./peer-approval-key.ts";
 import { canAccessTeam } from "./peer-roster.ts";
 import { Store, toWireTask, type BotRecord } from "./store.ts";
+import { createTeamManifest } from "./team-manifest.ts";
 import type { TeamSetupRequest } from "../shared/team-setup.ts";
 import { SECTION_CONTEXTS_FILE, readSectionContext, writeSectionContext } from "./section-context.ts";
 import { TeamComputers } from "./team-computers.ts";
 import { allowsTool } from "../shared/tool-scope.ts";
+import { FACE_BOX } from "../shared/cursor-face-data.ts";
+import { createCustomMascotFitContext, suggestCustomMascotAnchor } from "../shared/custom-mascot-fitting.ts";
+import type { CustomMascotPoint } from "../shared/mascot-profile.ts";
+import { validateCustomMascotDefinition } from "./custom-mascot-validation.ts";
 
 const selection = (): ModelSelection => ({ instanceId: "claude", model: "claude-sonnet-5" });
 
@@ -1625,6 +1630,242 @@ describe("Store", () => {
     expect(messages.map((m) => m.parentId)).toEqual([null, "m1"]);
     expect(reloaded.activeLeaf(bot.threadId)).toBe("m2");
     expect(reloaded.activePath(bot.threadId).map((m) => m.id)).toEqual(["m1", "m2"]);
+  });
+});
+
+describe("custom mascot profile persistence", () => {
+  beforeEach(() => {
+    rmSync(DATA_DIR, { recursive: true, force: true });
+  });
+
+  it("saves, snapshots, resets and reloads custom choices with one canonical profile", () => {
+    const store = new Store(selection);
+    const source = store.createBot({ name: "Shape source" });
+    const bot = store.createBot({ name: "Custom mascot owner", mascotBody: "star" });
+    store.patchBotProfile(bot.id, { avatarUrl: "/api/attachments/avatar.png", avatarCrop: "circle" });
+    const outline: CustomMascotPoint[] = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108];
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    store.addOrSelectMascotShape(source.id, shape);
+
+    const save = vi.spyOn(store as unknown as { saveBots(): void }, "saveBots");
+    const saved = store.addOrSelectMascotShape(bot.id, structuredClone(shape))!;
+    expect(save).toHaveBeenCalledTimes(1);
+    save.mockRestore();
+    expect(saved).toMatchObject({ avatarUrl: undefined, avatarCrop: "mascot", mascotBody: "cursor" });
+    expect(saved.mascotProfile).toMatchObject({ selected: { kind: "custom", shapeId: shape.id }, shapes: [shape] });
+    expect(store.addOrSelectMascotShape(bot.id, structuredClone(shape))?.mascotProfile?.shapes).toHaveLength(1);
+
+    store.patchBotProfile(bot.id, { mascotBody: "star" });
+    expect(saved.mascotProfile).toMatchObject({ selected: { kind: "builtin", bodyId: "star" }, shapes: [shape] });
+    const disk = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(disk[0]).toHaveProperty("mascotBody", "star");
+    store.deleteBot(source.id);
+    expect(new Store(selection).bot(bot.id)?.mascotProfile).toEqual(saved.mascotProfile);
+  });
+
+  it("migrates a legacy builtin body into the profile and preserves its explicit selection", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Legacy body", mascotBody: "circle" });
+    const bots = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    delete bots[0]!.mascotProfile;
+    bots[0]!.mascotBody = "circle";
+    writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(bots));
+
+    const restored = new Store(selection).bot(bot.id)!;
+    expect(restored.mascotProfile).toMatchObject({ version: 1, selected: { kind: "builtin", bodyId: "circle" }, shapes: [] });
+    const migrated = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(migrated[0]).toHaveProperty("mascotBody", "circle");
+    expect(migrated[0]).toHaveProperty("mascotProfile");
+    expect(existsSync(join(DATA_DIR, "mascot-profile-recovery"))).toBe(false);
+  });
+
+  it.each([
+    ["malformed", { version: 1, shapes: "private-profile-marker", selected: { kind: "builtin", bodyId: "star" } }],
+    ["future", { version: 2, shapes: [], selected: { kind: "builtin", bodyId: "star" }, privateValue: "private-profile-marker" }],
+  ])("preserves invalid %s profile bytes before normalizing", (_label, profile) => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Invalid saved mascot", mascotBody: "star" });
+    const file = join(DATA_DIR, "bots.json");
+    const records = JSON.parse(readFileSync(file, "utf8")) as Array<Record<string, unknown>>;
+    records.find((record) => record.id === bot.id)!.mascotProfile = profile;
+    const source = Buffer.from(`${JSON.stringify(records, null, 2)}\n`);
+    writeFileSync(file, source);
+
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const restored = new Store(selection);
+      expect(restored.bot(bot.id)?.mascotProfile).toMatchObject({
+        selected: { kind: "builtin", bodyId: "star" },
+        shapes: [],
+      });
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining(`bot ${bot.id}`));
+      expect(warning.mock.calls[0]?.[0]).not.toContain("private-profile-marker");
+    } finally {
+      warning.mockRestore();
+    }
+
+    const digest = createHash("sha256").update(source).digest("hex");
+    const recoveryDirectory = join(DATA_DIR, "mascot-profile-recovery");
+    const recoveryFile = join(recoveryDirectory, `bots-mascot-profile-${digest}.json`);
+    expect(readdirSync(recoveryDirectory)).toEqual([`bots-mascot-profile-${digest}.json`]);
+    expect(readFileSync(recoveryFile)).toEqual(source);
+    if (process.platform !== "win32") {
+      expect(statSync(recoveryDirectory).mode & 0o777).toBe(0o700);
+      expect(statSync(recoveryFile).mode & 0o777).toBe(0o600);
+    }
+
+    writeFileSync(file, source);
+    const repeatWarning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(new Store(selection).bot(bot.id)?.mascotProfile).toMatchObject({
+        selected: { kind: "builtin", bodyId: "star" },
+        shapes: [],
+      });
+      expect(repeatWarning).toHaveBeenCalledTimes(1);
+    } finally {
+      repeatWarning.mockRestore();
+    }
+    expect(readdirSync(recoveryDirectory)).toEqual([`bots-mascot-profile-${digest}.json`]);
+    expect(readFileSync(recoveryFile)).toEqual(source);
+  });
+
+  it("does not rewrite bots.json when preserving an invalid profile fails", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Unrecoverable mascot", mascotBody: "star" });
+    const file = join(DATA_DIR, "bots.json");
+    const records = JSON.parse(readFileSync(file, "utf8")) as Array<Record<string, unknown>>;
+    records.find((record) => record.id === bot.id)!.mascotProfile = { version: 99 };
+    const source = Buffer.from(`${JSON.stringify(records, null, 2)}\n`);
+    writeFileSync(file, source);
+    writeFileSync(join(DATA_DIR, "mascot-profile-recovery"), "blocks recovery directory creation");
+
+    expect(() => new Store(selection)).toThrow();
+    expect(readFileSync(file)).toEqual(source);
+  });
+
+  it("preserves absent and explicit cursor bodies through reload and team export", () => {
+    const store = new Store(selection);
+    const implicit = store.createBot({ name: "Implicit mascot" }, { seedMessages: false });
+    const explicit = store.createBot({ name: "Explicit mascot", mascotBody: "cursor" }, { seedMessages: false });
+    const persisted = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(persisted.find((bot) => bot.id === implicit.id)).not.toHaveProperty("mascotBody");
+    expect(persisted.find((bot) => bot.id === explicit.id)).toHaveProperty("mascotBody", "cursor");
+
+    const reloaded = new Store(selection);
+    const implicitAfterReload = reloaded.bot(implicit.id)!;
+    const explicitAfterReload = reloaded.bot(explicit.id)!;
+    expect(implicitAfterReload).not.toHaveProperty("mascotBody");
+    expect(explicitAfterReload).toHaveProperty("mascotBody", "cursor");
+
+    const exported = createTeamManifest(
+      { name: "Mascot presence", memberIds: [implicit.id, explicit.id] },
+      [implicitAfterReload, explicitAfterReload],
+    );
+    expect(exported.team.members[0]!.appearance).not.toHaveProperty("mascotBody");
+    expect(exported.team.members[1]!.appearance).toHaveProperty("mascotBody", "cursor");
+  });
+
+  it("preserves an explicit custom profile when a nullable legacy body is also patched", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Custom profile precedence" });
+    const outline: CustomMascotPoint[] = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108];
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    const selected = store.addOrSelectMascotShape(bot.id, shape)!;
+    const explicitProfile = structuredClone(selected.mascotProfile!);
+
+    const patched = store.patchBot(bot.id, { mascotProfile: explicitProfile, mascotBody: null })!;
+
+    expect(patched.mascotProfile).toEqual(explicitProfile);
+    expect(patched.mascotProfile?.selected).toEqual({ kind: "custom", shapeId: shape.id });
+    expect(patched.mascotBody).toBe("cursor");
+  });
+
+  it("migrates persisted Cat body IDs while preserving profile shape snapshots", () => {
+    const store = new Store(selection);
+    const legacyBodyBot = store.createBot({ name: "Legacy Cat body" });
+    const profileBot = store.createBot({ name: "Legacy Cat profile" });
+    const outline: CustomMascotPoint[] = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108];
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    store.addOrSelectMascotShape(profileBot.id, shape);
+
+    const bots = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<{
+      id: string;
+      mascotBody?: string | null;
+      mascotProfile?: { selected: unknown; shapes: unknown[] };
+    }>;
+    const legacyBodyRecord = bots.find((bot) => bot.id === legacyBodyBot.id)!;
+    delete legacyBodyRecord.mascotProfile;
+    legacyBodyRecord.mascotBody = "cat";
+    const legacyProfileRecord = bots.find((bot) => bot.id === profileBot.id)!;
+    legacyProfileRecord.mascotBody = "cat";
+    legacyProfileRecord.mascotProfile!.selected = { kind: "builtin", bodyId: "cat" };
+    writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(bots));
+
+    const restored = new Store(selection);
+    expect(restored.bot(legacyBodyBot.id)).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: [] },
+    });
+    expect(restored.bot(profileBot.id)).toMatchObject({
+      mascotBody: "kitten",
+      mascotProfile: { selected: { kind: "builtin", bodyId: "kitten" }, shapes: [shape] },
+    });
+    const migrated = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(migrated.find((bot) => bot.id === profileBot.id)).toHaveProperty("mascotBody", "kitten");
+  });
+});
+
+describe("Store bot appearance revisions", () => {
+  beforeEach(() => {
+    rmSync(DATA_DIR, { recursive: true, force: true });
+  });
+
+  it("tracks explicit appearance choices transiently, including same-value selections", () => {
+    const store = new Store(selection);
+    const bot = store.createBot({ name: "Appearance revision", mascotBody: "kitten" });
+    let revision = 0;
+    const checkBump = (choose: () => void) => {
+      choose();
+      revision += 1;
+      expect(store.appearanceRevisions.get(bot)).toBe(revision);
+    };
+
+    checkBump(() => { store.patchBot(bot.id, { avatarUrl: bot.avatarUrl }); });
+    checkBump(() => { store.patchBot(bot.id, { avatarCrop: bot.avatarCrop }); });
+    checkBump(() => { store.patchBot(bot.id, { mascotBody: bot.mascotBody }); });
+    checkBump(() => { store.patchBot(bot.id, { mascotProfile: bot.mascotProfile }); });
+    checkBump(() => { store.patchBot(bot.id, { color: bot.color }); });
+    checkBump(() => { store.patchBot(bot.id, { mascotExpression: bot.mascotExpression }); });
+    checkBump(() => { store.patchBotProfile(bot.id, { avatarUrl: bot.avatarUrl, avatarCrop: bot.avatarCrop }); });
+
+    const outline = Array.from({ length: 96 }, (_, index) => {
+      const angle = (index / 96) * Math.PI * 2;
+      return [FACE_BOX / 2 + Math.cos(angle) * 108, FACE_BOX / 2 + Math.sin(angle) * 108] as const;
+    });
+    const anchor = suggestCustomMascotAnchor(createCustomMascotFitContext(outline));
+    const shape = validateCustomMascotDefinition({ name: "Bunny", outline, anchor });
+    checkBump(() => { store.addOrSelectMascotShape(bot.id, shape); });
+    checkBump(() => { store.addOrSelectMascotShape(bot.id, shape); });
+
+    expect(bot).not.toHaveProperty("appearanceRevision");
+    const persisted = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8")) as Array<Record<string, unknown>>;
+    expect(persisted.find((record) => record.id === bot.id)).not.toHaveProperty("appearanceRevision");
+    const restoredStore = new Store(selection);
+    const restored = restoredStore.bot(bot.id);
+    if (!restored) throw new Error("appearance revision fixture did not reload");
+    expect(restoredStore.appearanceRevisions.get(restored)).toBe(0);
   });
 });
 

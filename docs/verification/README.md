@@ -44,6 +44,7 @@ Use only mapped, tested commands:
 - [Per-bot tool selection and local-model checks](tool-selection.md)
 - [OpenCode model variants through ACP](opencode-variants.md)
 - [Bot setup, model scope, and file continuity](bot-continuity.md)
+- [Custom mascot import, preview, reuse, and backup](custom-mascots.md)
 - [Reviewed Chief team setup and scoped deletion](team-setup.md)
 - [Profile proposal and credential-card lifecycle](proposal-cards.md)
 - [Full Access without duplicate approvals](full-access.md)

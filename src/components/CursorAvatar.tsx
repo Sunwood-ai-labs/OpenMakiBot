@@ -23,6 +23,13 @@ import React, { useEffect, useId, useMemo, useRef } from 'react'
 
 import { MASCOT_BODIES } from "../../shared/mascot-bodies"
 import {
+  customMascotDefinitionOf,
+  customMascotDefinitionSchema,
+  customMascotOutlinePathData,
+  type CustomMascotPoint,
+  type CustomMascotShape,
+} from "../../shared/mascot-profile"
+import {
   EXPRESSIONS,
   EXPRESSION_COUNT,
   FACE_BOX,
@@ -33,7 +40,7 @@ import {
   MOUTH_STROKE,
   mouthFrame,
   type Ring,
-} from "./cursor-face-data"
+} from "../../shared/cursor-face-data"
 
 export {
   EXPRESSIONS,
@@ -50,17 +57,35 @@ export type { Ring }
 
 /* ------------------------------------------------------------------- shape */
 
-export interface CursorSilhouette {
+interface CursorSilhouetteBase {
   /** Human-readable name, used for the accessible label. */
   name: string
-  /** Transform mapping the artwork into the 228.541-unit face box. '' for none. */
-  fit: string
-  /** SVG markup for the body. The token {{GRADIENT}} is replaced with the instance gradient. */
-  body: string
-  /** SVG markup defining the clip region — the union of the silhouette's filled shapes. */
-  clip: string
   /** Where the face sits inside the silhouette, in face-space units. */
   anchor: { x: number; y: number; scale: number }
+}
+
+export type BuiltinCursorSilhouette = CursorSilhouetteBase & {
+    /** Transform mapping built-in artwork into the face box. '' for none. */
+    fit: string
+    /** SVG markup for built-in bodies only. The token {{GRADIENT}} is replaced per avatar. */
+    body: string
+    /** SVG markup for built-in clip paths only. */
+    clip: string
+    outline?: never
+    }
+
+export type CustomCursorSilhouette = CursorSilhouetteBase & {
+    /** Canonical numeric path sampled from an accepted single SVG outline. */
+      outline: readonly CustomMascotPoint[]
+    fit?: never
+    body?: never
+    clip?: never
+    }
+
+export type CursorSilhouette = BuiltinCursorSilhouette | CustomCursorSilhouette
+
+function isCustomCursorSilhouette(silhouette: CursorSilhouette): silhouette is CustomCursorSilhouette {
+  return Array.isArray((silhouette as CustomCursorSilhouette).outline)
 }
 
 // The generator solves this body's face placement once; `MASCOT_BODIES.cursor`
@@ -69,6 +94,19 @@ export interface CursorSilhouette {
 // derived here rather than assigned directly.
 const { id: _cursorBodyId, ...cursorSilhouette } = MASCOT_BODIES.cursor;
 export const DEFAULT_SILHOUETTE: CursorSilhouette = cursorSilhouette;
+
+const customSilhouetteCache = new WeakMap<CustomMascotShape, CursorSilhouette | null>()
+
+export function customMascotSilhouette(shape: CustomMascotShape): CursorSilhouette | undefined {
+  const cached = customSilhouetteCache.get(shape)
+  if (cached !== undefined) return cached ?? undefined
+  const parsed = customMascotDefinitionSchema.safeParse(customMascotDefinitionOf(shape))
+  const silhouette = parsed.success && customMascotOutlinePathData(parsed.data.outline)
+    ? { name: parsed.data.name, anchor: parsed.data.anchor, outline: parsed.data.outline }
+    : null
+  customSilhouetteCache.set(shape, silhouette)
+  return silhouette ?? undefined
+}
 
 export const DEFAULT_GRADIENT: [string, string, string] = ["#9FE6B5","#3FAE6E","#1C7A4C"]
 
@@ -1488,7 +1526,10 @@ export const CursorAvatar = React.forwardRef<CursorAvatarHandle, CursorAvatarPro
 
     const dimension = size.constructor === Number ? `${size}px` : size
     const label = title === undefined ? `${silhouette.name} mascot` : title
-    const body = silhouette.body.replace(/\{\{GRADIENT\}\}/g, `url(#${uid}-grad)`)
+    const custom = isCustomCursorSilhouette(silhouette)
+    const customPath = custom ? customMascotOutlinePathData(silhouette.outline) : ""
+    const body = custom ? "" : silhouette.body.replace(/\{\{GRADIENT\}\}/g, `url(#${uid}-grad)`)
+    const fit = custom ? "" : silhouette.fit
 
     return (
       <svg
@@ -1509,11 +1550,15 @@ export const CursorAvatar = React.forwardRef<CursorAvatarHandle, CursorAvatarPro
           </linearGradient>
           {/* The fit goes on the clipPath itself: a <g> inside one is ignored by browsers,
               which is also why silhouette.clip is pre-flattened to bare shapes. */}
-          <clipPath
-            id={`${uid}-clip`}
-            transform={silhouette.fit || undefined}
-            dangerouslySetInnerHTML={{ __html: silhouette.clip }}
-          />
+          {custom ? (
+            <clipPath id={`${uid}-clip`}><path d={customPath} /></clipPath>
+          ) : (
+            <clipPath
+              id={`${uid}-clip`}
+              transform={fit || undefined}
+              dangerouslySetInnerHTML={{ __html: silhouette.clip }}
+            />
+          )}
         </defs>
         <g transform={flip ? `translate(${FACE_BOX} 0) scale(-1 1)` : undefined}>
           {/* Ribbons sit behind the mascot, confetti in front of it. */}
@@ -1523,7 +1568,11 @@ export const CursorAvatar = React.forwardRef<CursorAvatarHandle, CursorAvatarPro
               same motion but is not faded with them, since it replaces them. */}
           <g ref={bodyGroup}>
           <g ref={bodyContent}>
-          <g transform={silhouette.fit || undefined} dangerouslySetInnerHTML={{ __html: body }} />
+          {custom ? (
+            <path d={customPath} fill={`url(#${uid}-grad)`} />
+          ) : (
+            <g transform={fit || undefined} dangerouslySetInnerHTML={{ __html: body }} />
+          )}
           <g clipPath={`url(#${uid}-clip)`}>
             <g transform={anchorTransform(silhouette.anchor)}>
               <path ref={eye0} fill={eyeColor} />

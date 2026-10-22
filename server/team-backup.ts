@@ -6,6 +6,7 @@ import type { BotVisibility } from "../shared/wire.ts";
 import type { BotRecord, GroupRecord, Message, Store, TaskRecord } from "./store.ts";
 import type { Routine, RoutineManager } from "./routines.ts";
 import { redactSecretsInText } from "./redact.ts";
+import { validateMascotProfile } from "./custom-mascot-validation.ts";
 import {
   listMemoryLogs, listMemoryTopics, readMemoryFile, readMemoryLog, readMemoryTopic,
   writeMemoryFile, writeMemoryLog, writeMemoryTopic,
@@ -111,6 +112,7 @@ export function createTeamBackup(store: Store, routines: Routine[], name: string
       key: bot.id, name: bot.name, title: bot.title, description: bot.description, soul: bot.soul,
       section: bot.section, color: bot.color,
       mascotExpression: bot.mascotExpression ?? undefined, mascotBody: bot.mascotBody ?? undefined,
+      mascotProfile: bot.mascotProfile ? structuredClone(bot.mascotProfile) : undefined,
       chiefOfStaff: Boolean(bot.chiefOfStaff), hidden: Boolean(bot.hidden), playbooks: bot.playbooks ?? [],
       // Grants are workspace-private authority: they travel in this backup
       // so the team's shape is not lost, but the import below still lands
@@ -138,6 +140,9 @@ export function createTeamBackup(store: Store, routines: Routine[], name: string
  * only the fresh records below and cannot touch any pre-existing bot/chat. */
 export function importTeamBackup(store: Store, routines: RoutineManager, input: unknown, selection: ModelSelection, options: { visibility?: BotVisibility } = {}) {
   const backup = parseTeamBackup(input);
+  const mascotProfiles = new Map(backup.bots.flatMap((bot) => bot.mascotProfile
+    ? [[bot.key, validateMascotProfile(bot.mascotProfile)] as const]
+    : []));
   const bots: BotRecord[] = [];
   const groups: GroupRecord[] = [];
   const createdRoutines: Routine[] = [];
@@ -179,6 +184,7 @@ export function importTeamBackup(store: Store, routines: RoutineManager, input: 
         name: takeImportName(source.name, takenNames), title: source.title, description: source.description, soul: source.soul,
         color: source.color, mascotExpression: source.mascotExpression,
         mascotBody: botMascotBody(source.mascotBody),
+        ...(mascotProfiles.has(source.key) ? { mascotProfile: mascotProfiles.get(source.key)! } : {}),
         modelSelection: selection, section: sectionFor(source.section),
         // who may see the imported team is the importing admin's choice
         ...(options.visibility ? { visibility: options.visibility } : {}),
