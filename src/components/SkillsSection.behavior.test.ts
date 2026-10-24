@@ -101,16 +101,29 @@ describe("Skills library review and assignment controls", () => {
   });
 
   it("requires the same source review before enabling a per-bot library skill", async () => {
-    fixture.values = [[{ ...skill(), origin: "library" }], ["order-audit"], [], "", [], false, "", "", null, null, "", false, ""];
+    // Hook call order: useManagedSkills owns 0-8 and the assignment guard ref (9); the section owns 10-13.
+    fixture.values = [[{ ...skill(), origin: "library" }], ["order-audit"], [], "", [], false, "", "", null, { current: false }, null, "", false, ""];
     fixture.request.mockImplementation(async (_url, options) => options?.method ? {} : { text: source });
     named(render(true), "Enable order-audit").props.onClick!();
     await flush();
     expect(fixture.request).toHaveBeenCalledTimes(1);
     expect(fixture.request).toHaveBeenCalledWith("/api/skills-library/order-audit");
-    const tree = render(true);
-    expect(tree.find((node) => node.type === "pre")!.props.children).toBe(source);
-    button(tree, "Enable reviewed skill").props.onClick!();
+    const review = render(true).find((node) => typeof node.type === "function" && node.type.name === "SkillReviewDialog")!;
+    expect(review.props.text).toBe(source);
+    (review.props.onEnable as () => void)();
     await flush();
     expect(fixture.request).toHaveBeenCalledWith("/api/skills-library/order-audit", expect.objectContaining({ method: "PATCH", body: '{"enabled":true}' }));
+  });
+
+  it("shows a skill from this computer with this bot's switch, and no way to delete the one copy every bot shares", async () => {
+    const imported = { name: "pdf", description: "Works with PDFs", enabled: true, source: "~/.claude/skills/pdf", warnings: [], origin: "imported" };
+    fixture.values = [[imported], [], [], "", [], false, "", "", null, { current: false }, null, "", false, ""];
+    fixture.request.mockImplementation(async (_url, options) => options?.method ? {} : { text: source });
+    const tree = render(true);
+    expect(tree.find((node) => node.props["aria-label"] === "Remove pdf")).toBeUndefined();
+    expect(tree.some((node) => node.props.children === "this computer")).toBe(true);
+    named(tree, "Disable pdf").props.onClick!();
+    await flush();
+    expect(fixture.request).toHaveBeenCalledWith("/api/bots/bot/skills/pdf", expect.objectContaining({ method: "PATCH", body: '{"enabled":false}' }));
   });
 });
