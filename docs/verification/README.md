@@ -178,6 +178,10 @@ steer messages from external interfaces. It also verifies bounded request
 lineage snapshots, Chief continuations and exact-execution Stop without
 interrupting a newer request.
 
+The [LINE Chief relay fixture](line-relay.md) checks the standalone signed
+webhook listener, pinned guarded sends, durable deduplication and local fake
+push delivery without contacting LINE.
+
 The [iOS thread checks](ios-threads.md) cover the native thread tree, folder
 search and draft isolation using disposable simulators and an offline fixture.
 
