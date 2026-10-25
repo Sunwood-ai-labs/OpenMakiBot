@@ -57,6 +57,12 @@ test('external credentials require a guard even when GitHub permissions are read
   }
 });
 
+test('inherited workflow credentials require every receiving job to be guarded', () => {
+  const source = prefix + `permissions: {contents: read}\nenv:\n  TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps: []\n`;
+  assert.throws(() => validateWorkflow('ci.yml', source), /repository guard/);
+  validateWorkflow('ci.yml', source.replace('    runs-on:', "    if: github.repository == 'milind-soni/OpenMausBot'\n    runs-on:"));
+});
+
 test('the actual fork CI keeps every protected check and tests each platform', () => {
   const workflow = parse(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   validateForkCi(workflow);
@@ -68,7 +74,7 @@ test('the actual fork CI keeps every protected check and tests each platform', (
     assert.ifError(check.error);
     assert.equal(check.status, result === 'success' ? 0 : 1, check.stderr);
   }
-  const withoutMac = structuredClone(workflow);
-  withoutMac.jobs.static.steps.find((step) => step.id === 'fork-scope').run = 'echo vitest_os=["ubuntu-latest","windows-latest"]';
-  assert.throws(() => validateForkCi(withoutMac), /must actually run/);
+  const withoutForkMatrix = structuredClone(workflow);
+  withoutForkMatrix.jobs.static.outputs.vitest_matrix = '${{ steps.scope.outputs.vitest_matrix }}';
+  assert.throws(() => validateForkCi(withoutForkMatrix), /fork shard matrix override missing/);
 });

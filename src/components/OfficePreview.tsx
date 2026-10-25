@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Select } from './Select';
 import { t } from '@/lib/i18n';
 import type { OfficePreviewResult } from '@/lib/file-preview';
 
@@ -44,7 +45,7 @@ export default function OfficePreview({ data, kind, onError }: { data: Uint8Arra
   const sheet = result.sheets[selected];
   const columns = Math.max(1, ...sheet.rows.map((row) => row.length));
   return <>
-    <div className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-2 text-xs"><label htmlFor="preview-sheet">{t('filePreview.sheet')}</label><select id="preview-sheet" value={selected} onChange={(event) => setSelected(Number(event.target.value))} className="max-w-64 rounded-md border border-hairline bg-inset px-3 py-1.5 text-ink">{result.sheets.map((item, index) => <option key={index} value={index}>{item.name}</option>)}</select></div>
+    <div className="flex shrink-0 items-center gap-3 border-b border-hairline px-4 py-2 text-xs"><label htmlFor="preview-sheet">{t('filePreview.sheet')}</label><Select id="preview-sheet" size="sm" className="max-w-64" value={selected} onChange={(event) => setSelected(Number(event.target.value))}>{result.sheets.map((item, index) => <option key={index} value={index}>{item.name}</option>)}</Select></div>
     <div className="min-h-0 flex-1 overflow-auto bg-card"><table className="w-full border-collapse text-left text-xs"><caption className="sr-only">{sheet.name}</caption><thead className="sticky top-0 z-10 bg-inset"><tr><th className="border-b border-r border-hairline px-3 py-2" /><>{Array.from({ length: columns }, (_, index) => <th key={index} scope="col" className="min-w-28 border-b border-r border-hairline px-3 py-2 text-center font-medium text-ink-secondary">{columnName(index)}</th>)}</></tr></thead><tbody>{sheet.rows.map((row, index) => <tr key={index} className="hover:bg-raised/40"><th scope="row" className="sticky left-0 border-b border-r border-hairline bg-inset px-3 py-2 text-right font-normal text-ink-secondary">{index + 1}</th>{Array.from({ length: columns }, (_, column) => <td key={column} className="max-w-96 whitespace-pre-wrap break-words border-b border-r border-hairline/50 px-3 py-2">{row[column] || ''}</td>)}</tr>)}</tbody></table></div>
     <p className="border-t border-hairline px-4 py-2 text-[11px] text-ink-secondary">{t('filePreview.sheetNote')}{sheet.truncated && ` ${t('filePreview.sheetLimited')}`}</p>
   </>;

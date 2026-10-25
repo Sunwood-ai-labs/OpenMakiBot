@@ -18,8 +18,6 @@ function hasWrite(permissions) {
 function guarded(file, name, condition, expected = guard) {
   assert(typeof condition === 'string', `${file}/${name}: missing repository guard`);
   assert(condition === expected || condition.startsWith(`${expected} && `), `${file}/${name}: missing repository guard`);
-  // An OR inside the right-hand conjunct is safe (release/CLA event filters),
-  // but an OR at the top level can bypass the repository restriction.
   let depth = 0;
   let quote = '';
   for (let i = 0; i < condition.length; i++) {
@@ -64,7 +62,7 @@ export function validateWorkflow(file, source) {
       guarded(file, name, job.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot'");
       assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch'], 'upstream sync must remain manual');
       assert.deepEqual(job.permissions ?? workflow.permissions, { contents: 'write', 'pull-requests': 'write' });
-    } else if (privileged || usesExternalSecret(job) || upstreamOnly.includes(file) || (file === 'docker.yml' && name === 'publish')) {
+    } else if (privileged || usesExternalSecret({ env: workflow.env, job }) || upstreamOnly.includes(file) || (file === 'docker.yml' && name === 'publish')) {
       guarded(file, name, job.if);
     }
   }
@@ -81,11 +79,23 @@ export function validateForkCi(workflow) {
   assert.equal(legacy.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot' && !cancelled()", 'ci.yml: platform checks must report failures');
   assert.equal(legacy.steps[0]?.env?.CI_RESULT, '${{ needs.gate.result }}', 'ci.yml: platform checks must read the CI result');
   assert.equal(workflow.jobs.static.outputs.vitest_os, '${{ steps.fork-scope.outputs.vitest_os || steps.scope.outputs.vitest_os }}', 'ci.yml: fork platform coverage missing');
+  assert.equal(workflow.jobs.static.outputs.vitest_matrix, '${{ steps.fork-scope.outputs.vitest_matrix || steps.scope.outputs.vitest_matrix }}', 'ci.yml: fork shard matrix override missing');
+  assert.equal(workflow.jobs.static.outputs.android_source, "${{ steps.fork-scope.outputs.android_source || 'false' }}", 'ci.yml: Android retirement status missing');
+  assert.equal(workflow.jobs.static.outputs.ios_source, "${{ steps.fork-scope.outputs.ios_source || 'false' }}", 'ci.yml: iOS retirement status missing');
+  assert.equal(workflow.jobs.vitest['runs-on'], '${{ matrix.runner || matrix.os }}', 'ci.yml: Vitest must use the fork-selected runner');
+  assert.equal(workflow.jobs.vitest.name, 'vitest (${{ matrix.runner || matrix.os }}, shard ${{ matrix.shard }}/${{ matrix.shards }})', 'ci.yml: Vitest name must identify its actual runner');
   const scope = workflow.jobs.static.steps.find((step) => step.id === 'fork-scope');
   assert.equal(scope?.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot'", 'ci.yml: fork platform coverage guard missing');
-  assert(scope.run.includes(JSON.stringify(platforms)), 'ci.yml: every protected platform must actually run');
-  for (const [job, expected] of [['control-plane', 'control-plane check + workerd tests + dry run'], ['package-linux', 'package + smoke (Ubuntu 24.04 x64)'], ['android', 'Kotlin tests + Android build'], ['ios', 'Swift tests + iOS build']]) {
+  assert.equal(scope.run, 'node scripts/ci-fork-scope.mjs', 'ci.yml: expected the audited fork scope helper');
+  for (const [job, expected] of [['control-plane', 'control-plane check + workerd tests + dry run'], ['package-linux', 'package + smoke (Ubuntu 24.04 x64)']]) {
     assert.equal(workflow.jobs[job]?.name, expected, `ci.yml: protected ${job} check name changed`);
+  }
+  for (const [job, expected] of [['android', 'Kotlin tests + Android build'], ['ios', 'Swift tests + iOS build']]) {
+    const compatibility = workflow.jobs[job];
+    assert.equal(compatibility?.name, expected, `ci.yml: protected ${job} check name changed`);
+    assert.equal(compatibility?.needs, 'static', `ci.yml: ${job} retirement check must inspect source presence`);
+    assert.equal(compatibility?.if, `github.repository == 'Sunwood-ai-labs/OpenMakiBot' && needs.static.outputs.${job}_source == 'true'`, `ci.yml: ${job} must skip only while native source is absent`);
+    assert.match(compatibility?.steps?.[0]?.run ?? '', /native verification must be restored/i, `ci.yml: ${job} must fail when native source returns`);
   }
 }
 
@@ -104,6 +114,10 @@ export function checkRepository(root) {
     assert(Object.hasOwn(triggers, 'workflow_dispatch'), `${file}: manual sync CI dispatch required`);
   }
   validateForkCi(workflows.get('ci.yml'));
+  const forkScope = read('scripts/ci-fork-scope.mjs');
+  for (const required of ['["macos-latest", "ubuntu-latest", "windows-latest"]', 'vitestMatrix(platforms)', 'resolve("android")', 'resolve("ios")']) {
+    assert(forkScope.includes(required), `scripts/ci-fork-scope.mjs: missing ${required}`);
+  }
   assert(read('README.md').startsWith('# OpenMakiBot\n'), 'README must identify the fork');
   for (const term of ['fork/main', 'fork/develop', 'origin/main', 'codex/pr/', 'codex/sync/', 'docs/verification/README.md']) {
     assert(read('AGENTS.md').includes(term), `AGENTS.md: missing ${term}`);
