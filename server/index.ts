@@ -143,6 +143,7 @@ import {
   type Runtime,
 } from "./container-computer.ts";
 import { attachForTurn, saveBotAttachment } from "./bot-attachment.ts";
+import { attachmentRequestProvenance } from "./attachment-provenance.ts";
 import {
   cacheUntilConfigChanges,
   ensureDirs,
@@ -2024,7 +2025,7 @@ const directTurnDispatchClaims = new Map<string, DirectTurnDispatchClaim>();
 const directTurnGenerationByThread = new Map<string, string>();
 // Latest direct request per thread, kept past Stop until completion or failure cleanup; unknown continuations deliberately lose proof.
 const directRequestOwners = new Map<string, {
-  generation: string; messageId?: string; generations: Set<string>; turnId: string | null; stopped?: boolean;
+  botId: string; generation: string; messageId?: string; generations: Set<string>; turnId: string | null; stopped?: boolean;
   automation?: RoutineRunTrigger;
   origin?: WorkOrigin;
 }>();
@@ -8130,7 +8131,7 @@ async function startTurn(
     (requestMessageId ? previousRequest.messageId === requestMessageId : opts?.cardContinuation) ? previousRequest.origin : undefined;
   const requestOrigin = requestWorkOrigin({ trigger: opts?.automationSource, guest: guestConfined, handed: opts?.origin, continued,
     line: !continuation && requestMessageId === userMessage.id ? userMessage : undefined });
-  directRequestOwners.set(threadId, { generation: dispatchClaimId, messageId: requestMessageId,
+  directRequestOwners.set(threadId, { botId, generation: dispatchClaimId, messageId: requestMessageId,
     generations: requestGenerations, turnId: null, ...(opts?.automationSource ? { automation: opts.automationSource } : {}), origin: requestOrigin });
   const notesRefused = CLOUD_PERSONAL && cloudHomeLendingRefusal(cloudLendingTurn({ botId, threadId, generation: dispatchClaimId })) !== null;
   if (notesRefused) noteForeignTurn(botId, threadId, dispatchClaimId);
@@ -14095,11 +14096,14 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             stillLive: () => internalCapabilityIsActive({ ...internalCapability, ...(vm ? { localVmTarget: vm } : {}) }) &&
               connectorThread(from.id, threadId) !== null,
             publish: (saved) => {
+              const provenance = attachmentRequestProvenance(internalCapability, from.id, threadId,
+                directTurnGenerationByThread.get(threadId), directRequestOwners.get(threadId));
               store.appendMessage(threadId, {
                 role: "bot",
                 kind: "text",
                 text: "",
                 attachments: [saved.attachment],
+                ...provenance,
                 ...(source.group ? { from: { botId: from.id, name: from.name, color: from.color } } : {}),
               });
             },
