@@ -15,6 +15,7 @@ export const HOST_E2E: Readonly<Record<string, string>> = {
   "server/group-local-vm.e2e.test.ts": "This computer behind the control gate and the macOS permission failure, which Linux has not",
   "server/headless-cli.e2e.test.ts": "the omb command line as a real process on each OS",
   "server/host-lazy-claim.e2e.test.ts": "Auto on the person's own desktop, which only macOS and Windows have",
+  "server/line-relay.e2e.test.ts": "durable relay state and loopback listener cleanup on each OS",
   "server/long-running-chief.e2e.test.ts": "a teammate's screen call on the person's own desktop, macOS and Windows only",
   "server/room-roots.e2e.test.ts": "the host desktop fallback, macOS and Windows only",
   "server/runtime-roots.e2e.test.ts": "the host desktop fallback, macOS and Windows only",

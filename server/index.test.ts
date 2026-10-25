@@ -12200,9 +12200,10 @@ describe("bot memory API", () => {
       expect((await attach({ path: "song.mp3" })).status).toBe(200);
 
       const dump = await api("GET", `/api/threads/${bot.threadId}/export?format=json`);
-      const messages = (dump.body.messages as Array<{ id: string; role: string; kind: string; text?: string; attachments?: Array<{ kind: string; path: string; mime: string; name?: string }> }>)
+      const messages = (dump.body.messages as Array<{ id: string; role: string; kind: string; text?: string; requestMessageId?: string; turnId?: string; attachments?: Array<{ kind: string; path: string; mime: string; name?: string }> }>)
         .filter((message) => message.attachments?.length);
       expect(messages).toHaveLength(2);
+      expect(messages.every(message => !message.requestMessageId && !message.turnId)).toBe(true);
       expect(messages[0]).toMatchObject({
         role: "bot",
         kind: "text",
@@ -12375,6 +12376,70 @@ describe("bot memory API", () => {
       expect((await serve(join(workspace, "chart.png"))).status).toBe(403);
       expect((await serve(join(workspace, "notes.txt"))).status).toBe(403);
     } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("keeps attach_file output on the active direct request", async () => {
+    const created = await api("POST", "/api/bots", {
+      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      requireAvailableModel: true,
+    });
+    expect(created.status).toBe(201);
+    const bot = created.body.bot;
+    const sendId = randomUUID();
+    const workspace = workspaceOf(bot.id);
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(join(workspace, "request-owned.png"), Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("fixture pixels"),
+    ]));
+    try {
+      const sent = await api("POST", `/api/bots/${bot.id}/messages`, {
+        text: "Attach the fixture image.", threadId: bot.threadId, sendId,
+      });
+      expect(sent.status).toBe(202);
+      const requestPath = `/api/bots/${bot.id}/requests/${sendId}?threadId=${bot.threadId}`;
+      let activeTurnId = "";
+      await expect.poll(async () => {
+        const snapshot = await api("GET", requestPath);
+        activeTurnId = snapshot.body.activeTurnId ?? "";
+        return activeTurnId;
+      }, { timeout: 15_000 }).not.toBe("");
+
+      const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+      const attached = await fetch(`${BASE}/api/internal/attach-file`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ path: "request-owned.png" }),
+      });
+      expect(attached.status).toBe(200);
+
+      const snapshot = await api("GET", requestPath);
+      expect(snapshot.body.phase).toBe("working");
+      const messages = snapshot.body.messages as Array<{ requestMessageId?: string; turnId?: string; attachments?: unknown[] }>;
+      const attachmentMessage = messages.find((message) => message.attachments?.length);
+      expect(attachmentMessage).toMatchObject({ requestMessageId: sent.body.message.id, turnId: activeTurnId });
+
+      const stopped = await api("POST", `/api/bots/${bot.id}/requests/${sendId}/interrupt`, {
+        threadId: bot.threadId,
+        messageId: sent.body.message.id,
+        expectedActiveLeafId: snapshot.body.activeLeafId,
+        expectedTurnId: activeTurnId,
+        expectedExecutionId: snapshot.body.executionId,
+      });
+      expect(stopped.status).toBe(200);
+      const afterStop = await fetch(`${BASE}/api/internal/attach-file`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ path: "request-owned.png" }),
+      });
+      expect(afterStop.status).toBe(401);
+      const afterStopSnapshot = await api("GET", requestPath);
+      expect((afterStopSnapshot.body.messages as typeof messages).filter((message) => message.attachments?.length)).toHaveLength(1);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id)?.busy, { timeout: 5_000 }).toBe(false);
       await api("DELETE", `/api/bots/${bot.id}`);
     }
   });
