@@ -128,6 +128,23 @@ describe("the anchored menu in a document", () => {
     expect(document.activeElement).toBe(rows[0]);
   });
 
+  it("passes keyboard activation and the stable trigger to the selected item", async () => {
+    const onSelect = vi.fn();
+    await act(async () => {
+      root.render(createElement(SidebarPopoverMenu, {
+        items: [item("Computer", { onSelect })],
+        ariaLabel: "More",
+        renderTrigger: () => "More",
+      }));
+    });
+    await key(trigger(), "ArrowDown");
+    await flush();
+    const computer = sheet()!.querySelector<HTMLElement>('[role="menuitem"]')!;
+    await act(async () => computer.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 })));
+    expect(onSelect).toHaveBeenCalledWith({ trigger: trigger(), detail: 0 });
+    expect(document.activeElement).toBe(trigger());
+  });
+
   it("opens the submenu with the inline end arrow and closes only it with Escape", async () => {
     await act(async () => trigger().click());
     const support = [...sheet()!.querySelectorAll<HTMLElement>('[role="menuitem"]')][1]!;

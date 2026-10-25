@@ -21,9 +21,14 @@ export interface SidebarMenuItem {
   value?: string;
   keepOpen?: boolean;
   submenu?: SidebarMenuItem[];
-  onSelect: () => void;
+  onSelect: (selection?: SidebarMenuSelection) => void;
   tourId?: string;
 }
+
+export type SidebarMenuSelection = {
+  trigger: HTMLButtonElement | null;
+  detail: number;
+};
 
 const OPEN_DELAY_MS = 80;
 const CLOSE_DELAY_MS = 250;
@@ -85,7 +90,7 @@ function MenuRows({
   items: SidebarMenuItem[];
   roomy: boolean;
   openSubmenu?: string | null;
-  onItem: (item: SidebarMenuItem, element: HTMLElement) => void;
+  onItem: (item: SidebarMenuItem, element: HTMLElement, detail: number) => void;
   onSubmenuHover?: (item: SidebarMenuItem, element: HTMLElement) => void;
   onSubmenuLeave?: () => void;
 }) {
@@ -103,7 +108,7 @@ function MenuRows({
             disabled={item.disabled}
             aria-haspopup={item.submenu ? "menu" : undefined}
             aria-expanded={item.submenu ? openSubmenu === item.key : undefined}
-            onClick={(event) => onItem(item, event.currentTarget)}
+            onClick={(event) => onItem(item, event.currentTarget, event.detail)}
             onPointerEnter={(event) => {
               if (item.submenu) onSubmenuHover?.(item, event.currentTarget);
               else onSubmenuLeave?.();
@@ -266,13 +271,13 @@ export function SidebarPopoverMenu({
     if (focusRow) subRowRef.current?.focus();
   };
 
-  const selectItem = (item: SidebarMenuItem, row: HTMLElement) => {
+  const selectItem = (item: SidebarMenuItem, row: HTMLElement, detail: number) => {
     if (item.submenu) {
       if (submenu === item.key) closeSub();
       else openSub(item, row, true);
       return;
     }
-    item.onSelect();
+    item.onSelect({ trigger: triggerRef.current, detail });
     if (!item.keepOpen) close(anchored);
   };
 
@@ -372,8 +377,8 @@ export function SidebarPopoverMenu({
       <MenuRows
         items={openItem.submenu}
         roomy={roomy}
-        onItem={(item) => {
-          item.onSelect();
+        onItem={(item, _row, detail) => {
+          item.onSelect({ trigger: triggerRef.current, detail });
           if (!item.keepOpen) close(true);
         }}
       />
