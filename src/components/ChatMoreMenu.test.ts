@@ -1,7 +1,9 @@
+// @vitest-environment happy-dom
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bot, Task } from "@/state/store";
+import { rememberComputerPanelOpen } from "@/lib/computer-panel-focus";
 import type { SidebarMenuItem } from "./SidebarPopoverMenu";
 
 const fixture = vi.hoisted(() => {
@@ -20,6 +22,7 @@ vi.mock("@/state/store", async (importOriginal) => {
   return { ...original, useStore: () => ({ state: { ...original.initialState, inspectorOpen: fixture.inspectorOpen }, dispatch: fixture.dispatch }) };
 });
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => fixture.advanced, setAdvancedMode: vi.fn() }));
+vi.mock("@/lib/computer-panel-focus", () => ({ rememberComputerPanelOpen: vi.fn() }));
 vi.mock("@/lib/thread-preferences", () => ({ useShowThreads: () => fixture.advanced && fixture.threadsChosen }));
 vi.mock("@/lib/chat-find", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/chat-find")>(),
@@ -66,6 +69,7 @@ beforeEach(() => {
   fixture.inspectorOpen = false;
   fixture.dispatch.mockClear();
   fixture.find.mockClear();
+  vi.mocked(rememberComputerPanelOpen).mockClear();
 });
 
 describe("ChatMoreMenu, the round ⋯ for the bot panel", () => {
@@ -139,6 +143,15 @@ describe("ChatMoreMenu, the round ⋯ for the bot panel", () => {
     inspector.onSelect();
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "toggleInspector" });
     expect(menu.trigger).toContain("text-accent");
+  });
+
+  it("records keyboard focus intent before opening Computer from the phone menu", () => {
+    const trigger = document.createElement("button");
+    const menu = menuOf(createElement(ChatMoreMenu, { bot, phoneHeader: true }));
+    const computer = menu.items.find((item) => item.key === "computer")!;
+    computer.onSelect({ trigger, detail: 0 });
+    expect(rememberComputerPanelOpen).toHaveBeenCalledWith({ botId: bot.id, opener: trigger, tabs: true });
+    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "toggleComputer" });
   });
 });
 

@@ -1,9 +1,10 @@
 import { directMessageSent, roomMessageSent } from "@/lib/product-events";
 import { useComposerDictation } from "@/lib/use-composer-dictation";
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
-import { ArrowUp, BookOpen, Clock, Mic, Paperclip, Sparkles, Square, Target, X } from "lucide-react";
+import { ArrowUp, BookOpen, Clock, Mic, Sparkles, Square, Target, X } from "lucide-react";
 import { useStore, visibleMessages, currentTaskBot, type Bot, type Group, type Message } from "@/state/store";
 import { cn } from "@/lib/cn";
+import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { useMenuMotion } from "./MenuMotion";
 import { activeLocale, t } from "@/lib/i18n";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
@@ -35,8 +36,6 @@ import { PointedChips } from "./app/PointedChips";
 import { takePointedChips } from "@/lib/pointed-chips";
 import { splitTranscriptCitations, type CitationAttachment } from "@/lib/citations";
 import { LocalComputerAutoWarning } from "./LocalComputerAutoWarning";
-import { PlaceChip } from "./PlaceChip";
-import { ApprovalModeSelector } from "./ApprovalModeSelector";
 import { CommandAllowlistDialog } from "./CommandAllowlistDialog";
 import { approvalModeFor, type ApprovalMode } from "../../shared/approval-mode";
 import {
@@ -63,7 +62,7 @@ import { goalCoordinatorForComposer, groupComposerHint, jevRoomRoutingOn, openTa
 import { PendingApprovalActions, PendingApprovalPanel, pendingApprovals } from "./PendingApproval";
 import { CallButton } from "./CallView";
 import { GroupCallButton } from "./GroupCallView";
-import { ComposerPlusMenu, GoalToggle } from "./ComposerPlusMenu";
+import { ComposerTools, type ComposerToolsProps } from "./ComposerTools";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { ComposerReplyStrip } from "./ReplyQuote";
 import { escapeCancelsReply } from "@/lib/replies";
@@ -119,6 +118,8 @@ export function Composer({
   const { threads, currentBotId } = useThreadRefs();
   const { capabilities } = useDesktopCapabilities();
   const advanced = useAdvancedMode();
+  // On a phone the composer is a dock: a round + (attach and every other tool), then one pill with the field, the mic and the voice button.
+  const singleRow = useMediaQuery(PHONE_LAYOUT);
   const sendKey = useSendKey();
   const sendLabel = sendKeyLabel(sendKey);
   const remoteClient = window.ogb?.remoteClient?.active === true;
@@ -687,6 +688,20 @@ export function Composer({
     trustedModesAvailable: trustedThreadAccess,
     onManageCommandAllowlist: ownerOrAdmin === true ? () => setCommandAllowlistTarget({ botId: modeBot.id, botName: modeBot.name, threadId: modeBot.threadId }) : undefined,
   } : undefined;
+  const composerTools = {
+    advanced,
+    onAttach: () => fileInput.current?.click(),
+    goal,
+    approval: approvalChoice && modeBot && { name: modeBot.name, choice: approvalChoice },
+    callBotId: bot && !group ? bot.id : undefined,
+    approvalChoice,
+    place: modeBot && !remoteClient && advanced ? {
+      bot: modeBot,
+      task: composerTask,
+      disabled: Boolean(modeBot.busy),
+      onPin: (surface) => dispatch({ type: "updateTask", botId: modeBot.id, threadId: modeBot.threadId, patch: { surface } }),
+    } : undefined,
+  } satisfies Omit<ComposerToolsProps, "layout">;
 
   return (
     <div className="pointer-events-none relative px-5 pb-3">
@@ -820,9 +835,13 @@ export function Composer({
             data-composer-backdrop
             className="pointer-events-none absolute -left-5 -right-5 -bottom-3 top-1/2 bg-app"
           />}
-        <div data-tour="composer" className="@container/composer relative z-[1] rounded-3xl bg-composer px-2 py-1.5 ring-1 ring-composer-ring">
+        <div data-tour="composer" className={cn("@container/composer relative z-[1]", singleRow ? "flex items-end gap-2" : "rounded-3xl bg-composer px-2 py-1.5 ring-1 ring-composer-ring")}>
+        {singleRow && !locked && (
+          <ComposerTools {...composerTools} layout="phone" />
+        )}
+        <div className={singleRow ? "min-w-0 flex-1 rounded-[26px] bg-composer px-3 py-1.5 ring-1 ring-composer-ring" : "contents"}>
         {replyTo && <ComposerReplyStrip message={replyTo} fallbackName={bot?.name} onClear={onClearReply} />}
-        <div data-composer-row className="flex items-end gap-1 @max-[30rem]/composer:flex-wrap">
+        <div data-composer-row className={cn("flex items-end gap-1", !singleRow && "@max-[30rem]/composer:flex-wrap")}>
           <input
             ref={fileInput}
             type="file"
@@ -834,39 +853,11 @@ export function Composer({
               e.target.value = "";
             }}
           />
-          {!locked && (
-            <div className="flex flex-wrap items-center gap-1">
-              {!advanced && <ComposerPlusMenu
-                onAttach={() => fileInput.current?.click()}
-                goal={goal}
-                approval={approvalChoice && modeBot && { name: modeBot.name, choice: approvalChoice }}
-                callBotId={bot && !group ? bot.id : undefined}
-              />}
-              {advanced && <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                aria-label={t("composer.attach")}
-                title={t("composer.attach")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-secondary hover:bg-control hover:text-ink"
-              >
-                <Paperclip size={17} />
-              </button>}
-              {/* Simple mode keeps the chip only while Finish together is on, so the + menu's choice stays visible. */}
-              {goal && (advanced || goal.on) && <GoalToggle on={goal.on} onToggle={goal.onToggle} />}
-              {advanced && approvalChoice && <ApprovalModeSelector {...approvalChoice} />}
-              {modeBot && !remoteClient && advanced && (
-                <PlaceChip
-                  bot={modeBot}
-                  task={composerTask}
-                  live={Boolean(modeBot.busy)}
-                  disabled={Boolean(modeBot.busy)}
-                  onPin={(surface) => dispatch({ type: "updateTask", botId: modeBot.id, threadId: modeBot.threadId, patch: { surface } })}
-                />
-              )}
-            </div>
+          {!locked && !singleRow && (
+            <ComposerTools {...composerTools} layout="desktop" />
           )}
           <MentionTextarea
-          wrapperClassName="@max-[30rem]/composer:order-first @max-[30rem]/composer:basis-full"
+          wrapperClassName={singleRow ? undefined : "@max-[30rem]/composer:order-first @max-[30rem]/composer:basis-full"}
           inputRef={inputRef}
           peers={group ? members ?? [] : state.bots.filter((member) => member.id !== bot?.id)}
           everyone={Boolean(group && !group.dm)}
@@ -983,7 +974,7 @@ export function Composer({
           aria-label={t("composer.placeholder.bot", { name: group ? group.name : (bot?.name ?? "") })}
             className="block max-h-[9rem] min-h-6 w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-[15px] leading-6 placeholder:text-ink-secondary focus:outline-none"
           />
-          <div data-composer-actions className="flex items-center gap-1 @max-[30rem]/composer:ml-auto">
+          <div data-composer-actions className={cn("flex items-center gap-1", !singleRow && "@max-[30rem]/composer:ml-auto")}>
           {busy && !locked && (
           <button
             onClick={interruptTurn}
@@ -1002,14 +993,14 @@ export function Composer({
               "flex size-8 shrink-0 items-center justify-center rounded-full",
               recording
                 ? "animate-pulse bg-danger/20 text-danger"
-                : advanced ? "text-ink-secondary hover:bg-raised hover:text-ink" : "bg-ink/[0.07] text-ink hover:bg-ink/[0.12]",
+                : advanced || singleRow ? "text-ink-secondary hover:bg-raised hover:text-ink" : "bg-ink/[0.07] text-ink hover:bg-ink/[0.12]",
             )}
             title={recording ? t("composer.dictation.stopHint") : t("composer.dictation.hint")}
           >
-            <Mic size={advanced ? 18 : 16} />
+            <Mic size={advanced || singleRow ? 18 : 16} />
           </button>
         )}
-        {bot && !group && <CallButton bot={bot} placement="composer" fill={advanced ? undefined : MAUS_COLORS[bot.color] ?? MAUS_COLORS.green} />}
+        {bot && !group && <CallButton bot={bot} placement="composer" fill={advanced || singleRow ? undefined : MAUS_COLORS[bot.color] ?? MAUS_COLORS.green} inverse={singleRow} />}
         {group && !advanced && <GroupCallButton group={group} members={members ?? []} placement="composer" fill="var(--color-accent)" />}
         {hasContent && !locked && (
           <button
@@ -1040,6 +1031,7 @@ export function Composer({
           </button>
           )}
           </div>
+        </div>
         </div>
         </div>
         </div>

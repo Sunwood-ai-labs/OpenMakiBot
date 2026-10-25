@@ -1,8 +1,9 @@
 import { createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch } from "react";
 import { useAdvancedMode } from "@/lib/interface-mode";
+import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { ThreadLinkContext } from "@/components/ThreadLinkMenu";
 import { useShowThreads } from "@/lib/thread-preferences";
-import { AlertTriangle, ChevronLeft, ChevronRight, Crown, Monitor, RefreshCw, Square, Webhook } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Crown, RefreshCw, Webhook } from "lucide-react";
 import { WorkingDots } from "@/components/WorkingIndicator";
 import { CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction } from "@/components/MessageActions";
 import { ReactAction, ReactionChips } from "@/components/Reactions";
@@ -10,7 +11,6 @@ import { useBotMessageMenu, userMessageMenu } from "@/components/message-menu";
 import { useSpeech } from "@/lib/tts/useSpeech";
 import { localSystemVoiceActive } from "@/lib/local-voice";
 import { computerStartLine } from "@/lib/computer-start";
-import { rememberComputerPanelOpen } from "@/lib/computer-panel-focus";
 import { useCaptionChrome, useDesktopCapabilities } from "@/components/DesktopCapabilities";
 import {
   api,
@@ -18,7 +18,6 @@ import {
   useStore,
   formatTime,
   openNotificationTarget,
-  openThread,
   visibleMessages,
   type Action,
   type Bot,
@@ -73,8 +72,7 @@ import { MessageBoundary } from "./MessageBoundary";
 import { RichMessageRow, UserLineNote, richRowKind } from "./RichMessageRow";
 import { Composer } from "./Composer";
 import { ChatErrorBanner, ChatNotice } from "./ChatErrorBanner";
-import { ThreadContextWarning } from "./ContextWarning";
-import { EngineLimitNotice, useLimitResetContinue } from "./LimitResetContinue";
+import { useLimitResetContinue } from "./LimitResetContinue";
 import { ChatFindBar } from "./ChatFindBar";
 import { ReplyQuote } from "./ReplyQuote";
 import { ConnectorCard } from "./ConnectorCard";
@@ -87,18 +85,16 @@ import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole } from "./BotRole";
 import { BotActivityPicker } from "./TaskPicker"; import { ChatHeadConversation } from "./ChatHeadConversation";
-import { ModelPicker } from "./ModelPicker";
-import { ChatHeaderMenu } from "./ChatMoreMenu"; import { TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
+import { ChatHeaderControls } from "./ChatHeaderControls";
+import { TeamPrivateFirstLine, TeamPrivateHeader, TeamSharedHeader } from "./TeamPrivateChatsLine";
 import { useChatFindRequests } from "@/lib/chat-find";
 import { CitationSelectionToolbar, SentCitations } from "./CitationUI";
 import { SpeakButton } from "./SpeakButton";
 import { CallOverlay } from "./CallView";
 import { LiveCallBar } from "./LiveCallBar";
-import { LiveCallChip } from "./LiveCallPill";
 import { effectivePlace, toolPlace, type EffectivePlace } from "@/lib/place";
 import { cn } from "@/lib/cn";
 import { activeLocale, t } from "@/lib/i18n";
-import { COMPACT_BUBBLE } from "@/lib/compact-chip";
 import { groupTranscript, isStatusActivity } from "@/lib/activity-runs";
 import { StatusActivityRow } from "@/components/StatusActivityRow";
 import { CancelledTurnRow } from "./CancelledTurnRow";
@@ -890,6 +886,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const composerDockRef = useRef<HTMLDivElement>(null);
   const composerDock = useComposerDockPad(composerDockRef);
   const advanced = useAdvancedMode();
+  const phone = useMediaQuery(PHONE_LAYOUT);
   const canWrite = useCanWriteIn(bot.threadId);
 
   const computerStarting = computerStartLine(state.computerStarts[bot.id], bot.name);
@@ -1072,11 +1069,11 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
         className={cn(
           // A container query never matches the container itself, so the row that wraps is the child below.
           "@container/chathead px-5 py-3",
-          "pl-11 md:pl-5",
+          "pl-11 md:pl-5 max-md:pl-14 max-md:pr-3",
         )}
       >
-        <div data-chathead-row className="flex items-center justify-between @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1 @min-[30rem]/chathead:grid @min-[30rem]/chathead:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(max-content,1fr)]">
-        <div data-chathead-identity className="flex min-w-0 items-center gap-2 @max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-2 @min-[30rem]/chathead:justify-self-center" style={headerNoDragStyle}>
+        <div data-chathead-row className={cn("flex items-center justify-between", phone ? "gap-2" : "@max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:gap-y-1 @min-[30rem]/chathead:grid @min-[30rem]/chathead:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(max-content,1fr)]")}>
+        <div data-chathead-identity className={cn("flex min-w-0 items-center gap-2", phone ? "flex-1" : "@max-[30rem]/chathead:basis-full @min-[30rem]/chathead:col-start-2 @min-[30rem]/chathead:justify-self-center")} style={headerNoDragStyle}>
           {advanced ? (
             <div data-chathead-pill className={cn(CHATHEAD_PILL, "pr-1")}>
               <button
@@ -1130,7 +1127,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               <ChevronRight size={14} aria-hidden="true" className="-ml-2.5 w-0 shrink-0 text-ink-secondary opacity-0 transition-[width,margin,opacity] duration-150 group-hover:ml-0 group-hover:w-3.5 group-hover:opacity-100 group-focus-visible:ml-0 group-focus-visible:w-3.5 group-focus-visible:opacity-100" />
             </button>
           )}{!advanced && !remoteClient && <ChatHeadConversation bot={profile} />}
-          <ChatHeadRole bot={bot} /><span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>{privateChat && <TeamPrivateHeader />}{sharedChat && team && <TeamSharedHeader team={team} />}
+          {!phone && <ChatHeadRole bot={bot} />}<span role="status" className="sr-only" data-chathead-status>{bot.busy ? t("sidebar.preview.working") : ""}</span>{privateChat && <TeamPrivateHeader />}{sharedChat && team && <TeamSharedHeader team={team} />}
           {!bot.busy && bot.waitingForTeammates && <span className="truncate text-[12px] text-ink-secondary" role="status">Teammates working</span>}
           {(advanced || remoteClient) && awayFromMainThread(profile, showThreads) && (
             <button
@@ -1143,42 +1140,19 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             </button>
           )}
         </div>
-        <div
-          data-chathead-controls
-          className="flex shrink-0 items-center gap-2 @max-[30rem]/chathead:ml-auto @max-[30rem]/chathead:flex-wrap @max-[30rem]/chathead:justify-end @min-[30rem]/chathead:col-start-3 @min-[30rem]/chathead:justify-self-end"
-          style={controlsShiftStyle}
-        >
-          {(bot.busy || bot.waitingForTeammates) && (
-            <button
-              onClick={() => dispatch({ type: "interrupt", botId: bot.id, threadId: bot.threadId })}
-              className={cn(
-                "flex items-center gap-1.5 rounded-full border border-hairline/40 bg-raised/60 px-2.5 py-1 text-[13px] text-ink-secondary hover:bg-raised hover:text-ink",
-                COMPACT_BUBBLE,
-              )}
-              title={t("chat.stopTurn")}
-            >
-              <Square size={12} className="fill-current" />
-              <span className="@max-4xl/chathead:hidden">{t("chat.stop")}</span>
-            </button>
-          )}
-          <ThreadContextWarning bot={bot} messages={messages} />
-          <EngineLimitNotice engine={bot.modelSelection?.instanceId} />
-          {/* Simple mode moves the model, the computer and ⋯ into the bot panel; a remote client's panel has neither. */}
-          {advanced && !remoteClient && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
-          <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {(advanced || remoteClient) && <button
-            data-tour="computer"
-            onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
-            className={cn(
-              "relative rounded-md p-1.5 hover:bg-raised",
-              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
-            )}
-            title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
-          >
-            <Monitor size={18} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
-          </button>}
-          {(advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
-        </div>
+        <ChatHeaderControls
+          bot={bot}
+          messages={messages}
+          state={state}
+          dispatch={dispatch}
+          advanced={advanced}
+          phone={phone}
+          remoteClient={remoteClient}
+          busy={busy}
+          place={place}
+          showThreads={showThreads}
+          controlsShiftStyle={controlsShiftStyle}
+        />
         </div>
       </div>
 

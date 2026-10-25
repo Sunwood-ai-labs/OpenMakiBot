@@ -31,12 +31,54 @@ function parseBase(source) {
 /** Every `[data-skin="x"] { … }` block, as id → {token: value}, over the
  * inherited base so a skin is measured as it actually renders. */
 function parseSkins(source) {
-  const base = parseBase(source);
+  const { desktop, phone } = splitPhone(source);
+  const base = parseBase(desktop);
   const skins = new Map();
-  for (const [, id, body] of source.matchAll(/\[data-skin="([a-z-]+)"\]\s*\{([^}]*)\}/g)) {
+  for (const [, id, body] of desktop.matchAll(/\[data-skin="([a-z-]+)"\]\s*\{([^}]*)\}/g)) {
     skins.set(id, { ...base, ...declarations(body) });
   }
+  // The phone block re-declares some tokens of a skin under a width query, so
+  // that skin is measured twice: as it renders on desktop and as "<id> (phone)".
+  for (const [, id, body] of phone.matchAll(/\[data-skin="([a-z-]+)"\]\)?\s*\{([^}]*)\}/g)) {
+    const desktop = skins.get(id);
+    if (!desktop) continue;
+    const phoneId = id + " (phone)";
+    skins.set(phoneId, { ...(skins.get(phoneId) ?? desktop), ...declarations(body) });
+  }
   return skins;
+}
+
+/** The `@media (max-width: 767.98px) { … }` block, cut out of the source so its
+ * skin selectors are not mistaken for a second definition of the skin. */
+function splitPhone(source) {
+  const media = /@media\s*\(\s*max-width:\s*767\.98px\s*\)\s*\{/g;
+  const desktop = [];
+  const phone = [];
+  let cursor = 0;
+  let match;
+  while ((match = media.exec(source)) !== null) {
+    const start = match.index;
+    const open = source.indexOf("{", start);
+    let depth = 0;
+    let end = open;
+    for (let i = open; i < source.length; i++) {
+      if (source[i] === "{") depth++;
+      else if (source[i] === "}" && --depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+    const block = source.slice(start, end);
+    if (/\[data-skin="[a-z-]+"\]\)?\s*\{/.test(block)) {
+      desktop.push(source.slice(cursor, start));
+      phone.push(block);
+      cursor = end;
+    }
+    media.lastIndex = end;
+  }
+  if (phone.length === 0) return { desktop: source, phone: "" };
+  desktop.push(source.slice(cursor));
+  return { desktop: desktop.join(""), phone: phone.join("\n") };
 }
 
 function parseHex(value) {
@@ -167,12 +209,12 @@ for (const [id, tokens] of skins) {
     continue;
   }
   for (const { fg, bg, ratio } of problems) {
-    const floor = BASELINE_FLOORS.get(`${id}|${fg}|${bg}`);
+    const floor = BASELINE_FLOORS.get(`${id.replace(/ \(phone\)$/, "")}|${fg}|${bg}`);
     if (floor === undefined || ratio < floor - BASELINE_DRIFT) skinFailed = true;
   }
   console.log(`${skinFailed ? "✗" : "~"} ${id}${skinFailed ? "" : " (known upstream gaps)"}`);
   for (const { fg, bg, ratio, min } of problems) {
-    const floor = BASELINE_FLOORS.get(`${id}|${fg}|${bg}`);
+    const floor = BASELINE_FLOORS.get(`${id.replace(/ \(phone\)$/, "")}|${fg}|${bg}`);
     const baseline = floor === undefined ? "" : `; baseline ${floor.toFixed(2)}:1`;
     console.log(`    ${fg} on ${bg}: ${ratio.toFixed(2)}:1 (needs ${min}:1${baseline})`);
   }
