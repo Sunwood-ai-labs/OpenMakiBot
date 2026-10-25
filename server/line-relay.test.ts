@@ -1,10 +1,11 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
+import { Resvg } from "@resvg/resvg-js";
 import { createLineRelay, lineRelayConfigFromEnv, type LineRelay, type LineRelayApprovalMode, type LineRelayConfig } from "./line-relay.ts";
 
 const USER_ID = `U${"a".repeat(32)}`;
@@ -12,7 +13,7 @@ const SECRET = "fixture-channel-secret";
 const TOKEN = "fixture-access-token";
 const BOT_ID = "bot-chief";
 const THREAD_ID = "thread-dedicated";
-const linePushMessageSchema = z.object({ type: z.enum(["text", "flex"]) }).passthrough();
+const linePushMessageSchema = z.object({ type: z.enum(["text", "flex", "image"]) }).passthrough();
 const linePushBodySchema = z.object({ messages: z.array(linePushMessageSchema) }).passthrough();
 
 type TestEvent = {
@@ -34,7 +35,10 @@ type AppFixture = {
   botChecks: number;
   approvalMode: LineRelayApprovalMode;
   expectedApprovalModes: string[];
+  requestPhase: "working" | "waiting" | "settled" | "untracked";
   finalText: string;
+  finalAttachments: Array<{ path: string; mime: string; bytes: Buffer; kind?: string; requestMessageId?: string; turnId?: string }>;
+  attachmentRequests: string[];
 };
 
 type SinkFixture = {
@@ -88,7 +92,8 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 async function makeApp(approvalMode: LineRelayApprovalMode = "ask"): Promise<AppFixture> {
   const fixture: AppFixture = {
     url: "", server: createServer(), posts: [], currentLeaf: null, busyOnce: false,
-    bot503Once: false, botChecks: 0, approvalMode, expectedApprovalModes: [], finalText: "Final answer from Chief",
+    bot503Once: false, botChecks: 0, approvalMode, expectedApprovalModes: [], requestPhase: "settled", finalText: "Final answer from Chief",
+    finalAttachments: [], attachmentRequests: [],
   };
   fixture.server = createServer((req, res) => {
     void (async () => {
@@ -109,6 +114,23 @@ async function makeApp(approvalMode: LineRelayApprovalMode = "ask"): Promise<App
       }
       if (req.method === "GET" && url.pathname === `/api/threads/${THREAD_ID}/messages`) {
         sendJson(res, 200, { messages: [], activeLeafId: fixture.currentLeaf });
+        return;
+      }
+      const attachmentRoute = url.pathname.match(/^\/api\/attachments\/([\w.-]+)$/);
+      if (req.method === "GET" && attachmentRoute) {
+        const attachment = fixture.finalAttachments.find((candidate) => candidate.path.split(/[\\/]/).at(-1) === attachmentRoute[1]);
+        fixture.attachmentRequests.push(attachmentRoute[1]!);
+        if (!attachment) {
+          sendJson(res, 404, { error: "no such attachment" });
+          return;
+        }
+        res.writeHead(200, {
+          "content-type": attachment.mime,
+          "content-length": String(attachment.bytes.byteLength),
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+        });
+        res.end(attachment.bytes);
         return;
       }
       if (req.method === "POST" && url.pathname === `/api/bots/${BOT_ID}/messages/guarded`) {
@@ -144,12 +166,22 @@ async function makeApp(approvalMode: LineRelayApprovalMode = "ask"): Promise<App
       if (req.method === "GET" && request) {
         const sendId = request[1];
         const messageId = fixture.posts.find((body) => body.sendId === sendId) ? `request-${fixture.posts.findIndex((body) => body.sendId === sendId) + 1}` : "";
+        const attachmentMessages = fixture.finalAttachments.map((attachment, index) => ({
+          id: `attached-${index}`,
+          role: "bot",
+          kind: "text",
+          text: "Attached a synthetic image.",
+          requestMessageId: attachment.requestMessageId ?? messageId,
+          turnId: attachment.turnId ?? "turn-final",
+          attachments: [{ kind: attachment.kind ?? "image", path: attachment.path, mime: attachment.mime, name: "fixture.png" }],
+        }));
         sendJson(res, 200, {
           messageId,
           activeLeafId: "final-leaf",
-          phase: "settled",
+          phase: fixture.requestPhase,
           messages: [
             { id: messageId, role: "user", kind: "text", sendId, requestPending: false },
+            ...attachmentMessages,
             { id: "final-message", role: "bot", kind: "text", text: fixture.finalText, requestMessageId: messageId, turnId: "turn-final", turnTerminal: true, turnSucceeded: true },
           ],
         });
@@ -225,6 +257,38 @@ function event(eventId: string, text: string, userId = USER_ID): TestEvent {
     source: { type: "user", userId },
     message: { id: `message-${eventId}`, type: "text", text },
   };
+}
+
+function addFixtureImage(
+  app: AppFixture,
+  directory: string,
+  provenance: { kind?: string; requestMessageId?: string; turnId?: string } = {},
+): { name: string; bytes: Buffer } {
+  const bytes = Buffer.from(new Resvg('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32"><rect width="64" height="32" fill="#456789"/></svg>').render().asPng());
+  const name = `${randomUUID()}.png`;
+  const path = join(directory, "attachments", name);
+  app.finalAttachments.push({ path, mime: "image/png", bytes, ...provenance });
+  return { name, bytes };
+}
+
+async function requestRelayMedia(
+  relay: LineRelay,
+  path: string,
+  host: string,
+  method = "GET",
+): Promise<{ statusCode: number | undefined; headers: IncomingMessage["headers"]; body: Buffer }> {
+  const address = relay.address();
+  if (!address) throw new Error("relay listener is not running");
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({ host: address.host, port: address.port, path, method, headers: { host } }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on("data", (chunk: Buffer | string) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+      response.once("error", reject);
+      response.once("end", () => resolve({ statusCode: response.statusCode, headers: response.headers, body: Buffer.concat(chunks) }));
+    });
+    request.once("error", reject);
+    request.end();
+  });
 }
 
 describe("LINE Chief relay boundaries", () => {
@@ -347,6 +411,241 @@ describe("LINE Chief relay boundaries", () => {
     expect(app.posts).toHaveLength(1);
     expect(app.posts[0]).toMatchObject({ text: inbound.message.text, expectedApprovalMode: "full" });
     expect(sink.deliveries).toEqual(["Final answer from Chief"]);
+  }, 10_000);
+
+  it("does not push success-shaped output when the exact request remains untracked", async () => {
+    const app = await makeApp();
+    app.requestPhase = "untracked";
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-untracked-final-test-"));
+    tempDirs.push(directory);
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.hostname === "api.line.me" ? fetch(`${sink.url}${url.pathname}`, init) : fetch(input, init);
+    };
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json")),
+      fetchImpl,
+      pollIntervalMs: 10,
+    });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event("untracked-success-event-000001", "Check this result."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+
+    expect(app.posts).toHaveLength(1);
+    expect(sink.deliveries).toEqual([
+      "Chiefの依頼結果を安全に確認できませんでした。OpenMakiBotで対象タスクの会話を確認してください。LINEから承認操作はしていません。",
+    ]);
+    expect(sink.deliveries).not.toContain(app.finalText);
+  }, 10_000);
+
+  it("persists exact owned image URLs and retry payloads across a relay restart", async () => {
+    const app = await makeApp();
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-media-retry-test-"));
+    tempDirs.push(directory);
+    const ownedImage = addFixtureImage(app, directory);
+    addFixtureImage(app, directory, { turnId: "older-turn" });
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const statePath = join(directory, "relay-state.json");
+    const publicOrigin = "https://line-relay.fixture.invalid:10000";
+    let loseFirstResponse = true;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname !== "api.line.me") return fetch(input, init);
+      const response = await fetch(`${sink.url}${url.pathname}`, init);
+      if (loseFirstResponse && response.status === 200) {
+        loseFirstResponse = false;
+        throw new Error("simulated lost LINE response after acceptance");
+      }
+      return response;
+    };
+    const relayConfig = config(app.url, statePath, { publicOrigin });
+    const relay = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event("image-retry-event-00000001", "Send the attached image."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+    const firstRequest = sink.requests[0]!;
+    const firstPayload = linePushBodySchema.parse(firstRequest.body);
+    const imageMessage = firstPayload.messages.find((message) => message.type === "image");
+    expect(firstPayload.messages.map((message) => message.type)).toEqual(["text", "image"]);
+    expect(firstRequest.body).toMatchObject({ to: USER_ID });
+    expect(imageMessage).toMatchObject({
+      type: "image",
+      originalContentUrl: expect.stringMatching(/^https:\/\/line-relay\.fixture\.invalid:10000\/line\/media\/[A-Za-z0-9_-]{43}\/original$/),
+      previewImageUrl: expect.stringMatching(/^https:\/\/line-relay\.fixture\.invalid:10000\/line\/media\/[A-Za-z0-9_-]{43}\/preview$/),
+    });
+    const originalUrl = new URL(String(imageMessage?.originalContentUrl));
+    const previewUrl = new URL(String(imageMessage?.previewImageUrl));
+    expect(originalUrl.pathname.split("/")[3]).not.toBe(previewUrl.pathname.split("/")[3]);
+    expect(app.attachmentRequests).toEqual([ownedImage.name]);
+
+    const address = relay.address()!;
+    const originalResponse = await requestRelayMedia(relay, originalUrl.pathname, originalUrl.host);
+    expect(originalResponse.statusCode).toBe(200);
+    expect(originalResponse.headers["content-type"]).toBe("image/png");
+    expect(originalResponse.body).toEqual(ownedImage.bytes);
+    const previewResponse = await requestRelayMedia(relay, previewUrl.pathname, previewUrl.host);
+    expect(previewResponse.statusCode).toBe(200);
+    expect(previewResponse.headers["content-type"]).toBe("image/png");
+    expect(previewResponse.body.byteLength).toBeLessThanOrEqual(1_000_000);
+    expect((await requestRelayMedia(relay, `${originalUrl.pathname}?download=1`, originalUrl.host)).statusCode).toBe(404);
+    expect((await requestRelayMedia(relay, originalUrl.pathname, "wrong-host.invalid:10000")).statusCode).toBe(404);
+    expect((await requestRelayMedia(relay, originalUrl.pathname.replace(/\/original$/, "/preview"), originalUrl.host)).statusCode).toBe(404);
+    expect((await requestRelayMedia(relay, originalUrl.pathname, originalUrl.host, "HEAD")).statusCode).toBe(404);
+    await relay.close();
+
+    const restarted = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
+    relays.push(restarted);
+    await restarted.start();
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(2);
+    expect(sink.requests[1]?.retryKey).toBe(firstRequest.retryKey);
+    expect(sink.requests[1]?.body).toEqual(firstRequest.body);
+    expect(app.attachmentRequests).toEqual([ownedImage.name]);
+    expect((await requestRelayMedia(restarted, originalUrl.pathname, originalUrl.host)).body).toEqual(ownedImage.bytes);
+    expect(address.host).toBe("127.0.0.1");
+  }, 15_000);
+
+  it("delivers long text batches before the image batch", async () => {
+    const app = await makeApp();
+    app.finalText = "A".repeat(25_001);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-long-image-test-"));
+    tempDirs.push(directory);
+    addFixtureImage(app, directory);
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.hostname === "api.line.me" ? fetch(`${sink.url}${url.pathname}`, init) : fetch(input, init);
+    };
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json"), { publicOrigin: "https://line-relay.fixture.invalid:10000" }),
+      fetchImpl,
+      pollIntervalMs: 10,
+    });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event("long-image-event-00000001", "Send the attached image."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 7000 }).toBe(2);
+    const batches = sink.requests.map((request) => linePushBodySchema.parse(request.body).messages);
+    expect(batches.map((batch) => batch.map((message) => message.type))).toEqual([
+      ["text", "text", "text", "text", "text"],
+      ["text", "image"],
+    ]);
+    expect(batches.flat().filter((message) => message.type === "text").map((message) => message.text).join("")).toBe(app.finalText);
+    expect(batches.flat().filter((message) => message.type === "image")).toHaveLength(1);
+  }, 12_000);
+
+  it("does not retry a media batch when its persisted cache object is missing", async () => {
+    const app = await makeApp();
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-missing-cache-test-"));
+    tempDirs.push(directory);
+    addFixtureImage(app, directory);
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const statePath = join(directory, "relay-state.json");
+    const publicOrigin = "https://line-relay.fixture.invalid:10000";
+    let loseFirstResponse = true;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname !== "api.line.me") return fetch(input, init);
+      const response = await fetch(`${sink.url}${url.pathname}`, init);
+      if (loseFirstResponse && response.status === 200) {
+        loseFirstResponse = false;
+        throw new Error("simulated lost LINE response after acceptance");
+      }
+      return response;
+    };
+    const relayConfig = config(app.url, statePath, { publicOrigin });
+    const relay = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event("missing-cache-event-0000001", "Send the attached image."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+    const firstRequest = sink.requests[0]!;
+    const registryPath = `${statePath}.media/registry.json`;
+    const registry = JSON.parse(readFileSync(registryPath, "utf8")) as {
+      entries: Record<string, { variant: string; objectName: string }>;
+    };
+    const original = Object.values(registry.entries).find((entry) => entry.variant === "original");
+    expect(original).toBeDefined();
+    const objectPath = join(`${statePath}.media`, "objects", original!.objectName);
+    rmSync(objectPath);
+    await relay.close();
+
+    const restarted = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 10 });
+    relays.push(restarted);
+    await restarted.start();
+    await expect.poll(() => JSON.parse(readFileSync(statePath, "utf8")).records["missing-cache-event-0000001"].state, { timeout: 5000 })
+      .toMatchObject({ kind: "manual", reason: "media_unavailable" });
+    expect(sink.requests).toHaveLength(1);
+    expect(sink.requests[0]).toEqual(firstRequest);
+  }, 12_000);
+
+  it("does not silently drop an owned image when the public HTTPS origin is unset", async () => {
+    const app = await makeApp();
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-media-origin-missing-test-"));
+    tempDirs.push(directory);
+    addFixtureImage(app, directory);
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const eventId = "media-origin-missing-event-1";
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.hostname === "api.line.me" ? fetch(`${sink.url}${url.pathname}`, init) : fetch(input, init);
+    };
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json")),
+      fetchImpl,
+      pollIntervalMs: 10,
+    });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event(eventId, "Attach the image."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+    const messages = linePushBodySchema.parse(sink.requests[0]?.body).messages;
+    expect(messages.every((message) => message.type === "text")).toBe(true);
+    expect(sink.deliveries).toEqual(["Final answer from Chief\n\n添付ファイルをLINEに送信できませんでした。OpenMakiBotでタスクの添付を確認してください。"]);
+    expect(app.attachmentRequests).toEqual([]);
+    const saved = JSON.parse(readFileSync(join(directory, "relay-state.json"), "utf8")) as {
+      records: Record<string, { state: { kind: string; reason?: string } }>;
+    };
+    expect(saved.records[eventId]?.state).toMatchObject({ kind: "manual", reason: "media_unavailable" });
+  }, 10_000);
+
+  it("refuses an original attachment above the 10 MB boundary", async () => {
+    const app = await makeApp();
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-media-oversize-test-"));
+    tempDirs.push(directory);
+    const name = `${randomUUID()}.png`;
+    app.finalAttachments.push({ path: join(directory, "attachments", name), mime: "image/png", bytes: Buffer.alloc(10_000_001) });
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.hostname === "api.line.me" ? fetch(`${sink.url}${url.pathname}`, init) : fetch(input, init);
+    };
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json"), { publicOrigin: "https://line-relay.fixture.invalid:10000" }),
+      fetchImpl,
+      pollIntervalMs: 10,
+    });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event("image-oversize-event-00001", "Send the attached image."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+    expect(linePushBodySchema.parse(sink.requests[0]?.body).messages.every((message) => message.type === "text")).toBe(true);
+    expect(sink.deliveries.at(-1)).toContain("添付ファイルをLINEに送信できませんでした");
+    expect(app.attachmentRequests).toEqual([name]);
   }, 10_000);
 
   it("formats a table final as one Flex message at the LINE push boundary", async () => {
@@ -751,7 +1050,12 @@ describe("LINE Chief relay boundaries", () => {
     };
 
     expect(lineRelayConfigFromEnv(env).approvalMode).toBe("ask");
+    expect(lineRelayConfigFromEnv(env).publicOrigin).toBeUndefined();
     expect(lineRelayConfigFromEnv({ ...env, OMB_LINE_APPROVAL_MODE: "full" }).approvalMode).toBe("full");
     expect(() => lineRelayConfigFromEnv({ ...env, OMB_LINE_APPROVAL_MODE: "automatic" })).toThrow("approvalMode");
+    expect(lineRelayConfigFromEnv({ ...env, OMB_LINE_PUBLIC_ORIGIN: "https://media.example.test/" }).publicOrigin).toBe("https://media.example.test");
+    expect(() => lineRelayConfigFromEnv({ ...env, OMB_LINE_PUBLIC_ORIGIN: "http://media.example.test" })).toThrow("publicOrigin");
+    expect(() => lineRelayConfigFromEnv({ ...env, OMB_LINE_PUBLIC_ORIGIN: "https://media.example.test/path" })).toThrow("publicOrigin");
+    expect(() => lineRelayConfigFromEnv({ ...env, OMB_LINE_PUBLIC_ORIGIN: "https://user@media.example.test" })).toThrow("publicOrigin");
   });
 });

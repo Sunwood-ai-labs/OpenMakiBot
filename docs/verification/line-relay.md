@@ -1,16 +1,18 @@
 # LINE Chief relay fixture
 
-Run the focused unit checks and isolated end-to-end fixture:
+Run the formatter, relay, media-store, and image-preview unit checks together
+with the isolated end-to-end fixture:
 
 ```sh
-pnpm exec vitest run server/line-message-format.test.ts server/line-relay.test.ts
 pnpm test:line-relay
 ```
 
 This relay supports a self-hosted, headless server. A system service or
 container must share the server's network namespace; desktop-managed servers
-are unsupported. The relay binds to loopback, so expose only `POST /webhook`
-through an HTTPS reverse proxy and keep `/api` private.
+are unsupported. The relay binds to loopback. An HTTPS reverse proxy can map
+the public webhook path to `POST /webhook`. For optional image replies, expose
+only `GET /line/media/<capability>/(original|preview)` on the configured public
+origin. Keep `/api` and the relay health route private.
 
 The end-to-end case launches the repository verification server from
 `scripts/control-omb.ts` in a disposable home with the fake CLI. A local fake
@@ -41,6 +43,14 @@ The relay's fake LINE sink verifies that a table final is pushed as one Flex
 message. Retry tests keep the same Flex payload and retry key across a relay
 restart, while a legacy pending batch without a format marker remains the same
 plain-text request.
+
+Image tests use synthetic JPEG and PNG files. They check exact request and
+turn ownership, bounded private attachment downloads, preview dimensions and
+pixels, malformed-image rejection, storage quotas, expiry, and capability
+route restrictions. Fake HTTP tests check image delivery, a long text answer
+before its image, and byte-identical retry bodies and keys after restart.
+Missing or corrupted cache objects stop the image push. These checks do not
+fetch or publish the user's attachments.
 
 This fixture proves the relay against local fakes only. It does not prove a
 configured LINE Official Account, billing plan, internet-facing HTTPS proxy,

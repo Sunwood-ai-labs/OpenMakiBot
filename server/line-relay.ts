@@ -4,13 +4,16 @@ import { open, readFile, unlink, mkdir } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 import { z } from "zod";
 import { writeFileAtomic } from "./atomic.ts";
-import { formatLineMessage } from "./line-message-format.ts";
+import { formatLineMessage, type LineMessage } from "./line-message-format.ts";
+import { createLineRelayMediaStore, lineImageAttachmentName, type LineRelayMediaStore, type LineMediaUrls } from "./line-relay-media.ts";
 
 const MAX_WEBHOOK_BYTES = 256 * 1024;
 const MAX_ACTIVE_EVENTS = 1000;
 const MAX_RETAINED_EVENTS = 10_000;
 const EVENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_LINE_TEXT_CODE_UNITS = 5000;
+const MAX_LINE_PUSH_MESSAGES = 5;
+const MAX_APP_ATTACHMENT_BYTES = 10_000_000;
 const MAX_APP_RESPONSE_BYTES = 1024 * 1024 + 64 * 1024;
 const RETRY_KEY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const APP_REQUEST_TIMEOUT_MS = 10_000;
@@ -32,6 +35,15 @@ const appUrlSchema = z.string().url().refine((value) => {
 }, "appUrl must be a loopback HTTP origin");
 
 const lineRelayApprovalModeSchema = z.enum(["ask", "full"]);
+const linePublicOriginSchema = z.string().url().refine((value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password && !url.search && !url.hash &&
+      (url.pathname === "/" || url.pathname === "") && new URL(value).origin.length + 80 <= 2000;
+  } catch {
+    return false;
+  }
+}, "publicOrigin must be a fixed HTTPS origin").transform((value) => new URL(value).origin);
 
 const lineRelayConfigSchema = z.object({
   appUrl: appUrlSchema,
@@ -39,6 +51,7 @@ const lineRelayConfigSchema = z.object({
   botId: idSchema,
   threadId: idSchema,
   approvalMode: lineRelayApprovalModeSchema.default("ask"),
+  publicOrigin: linePublicOriginSchema.optional(),
   statePath: z.string().min(1).refine(isAbsolute, "statePath must be absolute"),
   channelSecret: z.string().min(1),
   accessToken: z.string().min(1),
@@ -56,11 +69,78 @@ const bindingSchema = z.object({
   threadId: idSchema,
 }).strict();
 
-const pushBatchSchema = z.object({
+const legacyPushBatchSchema = z.object({
   retryKey: z.string().uuid(),
   messages: z.array(z.string().min(1).max(MAX_LINE_TEXT_CODE_UNITS)).min(1).max(5),
   format: z.literal("table-flex-v1").optional(),
 }).strict();
+
+const flexSpanSchema = z.object({
+  type: z.literal("span"),
+  text: z.string().max(MAX_LINE_TEXT_CODE_UNITS),
+  weight: z.enum(["regular", "bold"]).optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+}).strict();
+type PersistedFlexSpan = z.infer<typeof flexSpanSchema>;
+type PersistedFlexPlainText = { type: "text"; text: string; wrap: true; size: "md" };
+type PersistedFlexSpannedText = { type: "text"; contents: PersistedFlexSpan[]; wrap: true; size: "md" };
+type PersistedFlexBox = {
+  type: "box";
+  layout: "vertical";
+  contents: PersistedFlexComponent[];
+  spacing?: "sm" | "md";
+  paddingAll?: "md";
+  backgroundColor?: string;
+  cornerRadius?: "md";
+};
+type PersistedFlexSeparator = { type: "separator"; margin: "sm"; color: string };
+type PersistedFlexComponent = PersistedFlexPlainText | PersistedFlexSpannedText | PersistedFlexBox | PersistedFlexSeparator;
+const flexComponentSchema: z.ZodType<PersistedFlexComponent> = z.lazy(() => z.union([
+  z.object({ type: z.literal("text"), text: z.string().max(MAX_LINE_TEXT_CODE_UNITS), wrap: z.literal(true), size: z.literal("md") }).strict(),
+  z.object({ type: z.literal("text"), contents: z.array(flexSpanSchema).max(1000), wrap: z.literal(true), size: z.literal("md") }).strict(),
+  z.object({
+    type: z.literal("box"),
+    layout: z.literal("vertical"),
+    contents: z.array(flexComponentSchema).max(50),
+    spacing: z.enum(["sm", "md"]).optional(),
+    paddingAll: z.literal("md").optional(),
+    backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    cornerRadius: z.literal("md").optional(),
+  }).strict(),
+  z.object({ type: z.literal("separator"), margin: z.literal("sm"), color: z.string().regex(/^#[0-9A-Fa-f]{6}$/) }).strict(),
+]));
+const flexBubbleSchema = z.object({
+  type: z.literal("bubble"),
+  size: z.literal("mega"),
+  body: z.object({
+    type: z.literal("box"),
+    layout: z.literal("vertical"),
+    contents: z.array(flexComponentSchema).max(50),
+    spacing: z.enum(["sm", "md"]).optional(),
+    paddingAll: z.literal("md").optional(),
+    backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+    cornerRadius: z.literal("md").optional(),
+  }).strict(),
+}).strict();
+const versionedPushMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), text: z.string().min(1).max(MAX_LINE_TEXT_CODE_UNITS) }).strict(),
+  z.object({ type: z.literal("flex"), altText: z.string().min(1).max(400), contents: flexBubbleSchema }).strict(),
+  z.object({
+    type: z.literal("image"),
+    originalContentUrl: z.string().url().max(2000),
+    previewImageUrl: z.string().url().max(2000),
+  }).strict(),
+]);
+const versionedPushPayloadSchema = z.object({
+  version: z.literal(1),
+  publicOrigin: linePublicOriginSchema,
+  messages: z.array(versionedPushMessageSchema).min(1).max(MAX_LINE_PUSH_MESSAGES),
+}).strict();
+const versionedPushBatchSchema = z.object({
+  retryKey: z.string().uuid(),
+  payload: versionedPushPayloadSchema,
+}).strict();
+const pushBatchSchema = z.union([legacyPushBatchSchema, versionedPushBatchSchema]);
 
 const recordBaseSchema = z.object({
   eventId: z.string().min(1).max(120),
@@ -119,6 +199,15 @@ type RelayState = z.infer<typeof relayStateSchema>;
 type PushBatch = z.infer<typeof pushBatchSchema>;
 type OutboxResume = z.infer<typeof outboxResumeSchema>;
 type TargetStatus = "available" | "unavailable" | "retry";
+type ManualReason =
+  | "target_unavailable"
+  | "conversation_changed"
+  | "approval_mode_changed"
+  | "request_untracked"
+  | "final_not_proven"
+  | "media_unavailable"
+  | "media_origin_changed"
+  | `guarded_send_http_${number}`;
 
 const webhookEnvelopeSchema = z.object({ events: z.array(z.unknown()).max(1000) }).passthrough();
 const webhookEventSchema = z.object({
@@ -155,6 +244,12 @@ const requestMessageSchema = z.object({
   turnSucceeded: z.boolean().optional(),
   requestPending: z.boolean().optional(),
   requestCancelled: z.boolean().optional(),
+  attachments: z.array(z.object({
+    kind: z.string().min(1).max(40),
+    path: z.string().min(1).max(4096),
+    mime: z.string().min(1).max(120),
+    name: z.string().max(500).optional(),
+  }).passthrough()).max(10).optional(),
 }).passthrough();
 const requestSnapshotSchema = z.object({
   messageId: idSchema,
@@ -163,6 +258,51 @@ const requestSnapshotSchema = z.object({
   messages: z.array(requestMessageSchema),
 }).passthrough();
 const guardedErrorSchema = z.object({ code: z.string().optional() }).passthrough();
+
+type RequestMessage = z.infer<typeof requestMessageSchema>;
+type OwnedImageAttachment = Readonly<{
+  messageId: string;
+  attachmentIndex: number;
+  requestMessageId: string;
+  turnId: string;
+  name: string;
+  mime: "image/jpeg" | "image/png";
+}>;
+
+function ownedImageAttachments(messages: readonly RequestMessage[], requestMessageId: string, turnId: string): {
+  images: OwnedImageAttachment[];
+  unsupportedMedia: boolean;
+} {
+  const images: OwnedImageAttachment[] = [];
+  let unsupportedMedia = false;
+  for (const message of messages) {
+    if (message.role !== "bot" || message.kind !== "text" || message.requestMessageId !== requestMessageId || message.turnId !== turnId) continue;
+    for (const [attachmentIndex, attachment] of (message.attachments ?? []).entries()) {
+      const isImage = attachment.kind === "image" || attachment.mime.startsWith("image/");
+      const isVideo = attachment.mime.startsWith("video/");
+      if (!isImage && !isVideo) continue;
+      if (attachment.kind !== "image" || (attachment.mime !== "image/jpeg" && attachment.mime !== "image/png")) {
+        unsupportedMedia = true;
+        continue;
+      }
+      const name = lineImageAttachmentName({ path: attachment.path, mime: attachment.mime });
+      if (!name) {
+        unsupportedMedia = true;
+        continue;
+      }
+      images.push({
+        messageId: message.id,
+        attachmentIndex,
+        requestMessageId,
+        turnId,
+        name,
+        mime: attachment.mime,
+      });
+      if (images.length > 10) unsupportedMedia = true;
+    }
+  }
+  return { images, unsupportedMedia };
+}
 
 type RelayFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -190,6 +330,7 @@ function parseLineRelayConfig(env: NodeJS.ProcessEnv): ResolvedLineRelayConfig {
     botId: env.OMB_LINE_BOT_ID,
     threadId: env.OMB_LINE_THREAD_ID,
     approvalMode: env.OMB_LINE_APPROVAL_MODE,
+    publicOrigin: env.OMB_LINE_PUBLIC_ORIGIN,
     statePath: env.OMB_LINE_STATE_PATH,
     channelSecret: env.OMB_LINE_CHANNEL_SECRET,
     accessToken: env.OMB_LINE_CHANNEL_ACCESS_TOKEN,
@@ -222,7 +363,7 @@ function timingSafeSignature(channelSecret: string, body: Buffer, signature: str
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-function textBatches(text: string): PushBatch[] {
+function textChunks(text: string): string[] {
   const chunks: string[] = [];
   let chunk = "";
   let codeUnits = 0;
@@ -236,9 +377,30 @@ function textBatches(text: string): PushBatch[] {
     codeUnits += character.length;
   }
   if (chunk) chunks.push(chunk);
+  return chunks;
+}
+
+function textBatches(text: string): PushBatch[] {
+  const chunks = textChunks(text);
   const batches: PushBatch[] = [];
-  for (let index = 0; index < chunks.length; index += 5) {
-    batches.push({ retryKey: randomUUID(), messages: chunks.slice(index, index + 5), format: "table-flex-v1" });
+  for (let index = 0; index < chunks.length; index += MAX_LINE_PUSH_MESSAGES) {
+    batches.push({ retryKey: randomUUID(), messages: chunks.slice(index, index + MAX_LINE_PUSH_MESSAGES), format: "table-flex-v1" });
+  }
+  return batches;
+}
+
+function versionedBatches(text: string, images: readonly LineMediaUrls[], publicOrigin: string): PushBatch[] {
+  const messages: Array<LineMessage | { type: "image"; originalContentUrl: string; previewImageUrl: string }> =
+    (text.trim() ? textChunks(text) : []).map((chunk) => formatLineMessage(chunk));
+  for (const image of images) messages.push({ type: "image", ...image });
+  const batches: PushBatch[] = [];
+  for (let index = 0; index < messages.length; index += MAX_LINE_PUSH_MESSAGES) {
+    const payload = versionedPushPayloadSchema.parse({
+      version: 1,
+      publicOrigin,
+      messages: messages.slice(index, index + MAX_LINE_PUSH_MESSAGES),
+    });
+    batches.push({ retryKey: randomUUID(), payload });
   }
   return batches;
 }
@@ -332,6 +494,32 @@ async function readJsonBody(req: IncomingMessage, maximumBytes: number): Promise
   });
 }
 
+async function readBoundedResponseBody(response: Response, maximumBytes: number): Promise<Buffer | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      size += chunk.byteLength;
+      if (size > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks, size);
+  } catch {
+    await reader.cancel().catch(() => undefined);
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function respond(res: ServerResponse, status: number, body: unknown): void {
   const encoded = JSON.stringify(body);
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(encoded), "cache-control": "no-store" });
@@ -347,6 +535,26 @@ function makeFetch(fetchImpl?: RelayFetch): RelayFetch {
   return fetchImpl ?? ((input, init) => fetch(input, init));
 }
 
+function manualNotice(reason: ManualReason): string {
+  switch (reason) {
+    case "request_untracked":
+    case "final_not_proven":
+      return "Chiefの依頼結果を安全に確認できませんでした。OpenMakiBotで対象タスクの会話を確認してください。LINEから承認操作はしていません。";
+    case "approval_mode_changed":
+      return "設定した承認モードとChiefの専用タスクが一致しません。OpenMakiBotで対象タスクを確認してください。リレーは承認や権限変更を行いません。";
+    case "conversation_changed":
+      return "依頼後にChiefの会話が変わったため、LINEへの返信を止めました。OpenMakiBotで対象タスクを確認してください。";
+    case "target_unavailable":
+      return "Chiefの専用タスクを確認できませんでした。OpenMakiBotで対象タスクを確認してください。";
+    case "media_unavailable":
+      return "添付ファイルをLINEに送信できませんでした。OpenMakiBotでタスクの添付を確認してください。";
+    case "media_origin_changed":
+      return "保留中の画像返信URLとリレー設定が一致しないため、送信を止めました。OpenMakiBotでリレー設定を確認してください。";
+    default:
+      return "Chiefへの依頼を安全に完了できませんでした。OpenMakiBotで対象タスクの状態を確認してください。LINEから承認操作はしていません。";
+  }
+}
+
 export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
   const config: ResolvedLineRelayConfig = lineRelayConfigSchema.parse({ ...options.config, appUrl: canonicalOrigin(options.config.appUrl) });
   const appUrl = canonicalOrigin(config.appUrl);
@@ -356,6 +564,9 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
   const log = options.log ?? ((entry) => console.info(JSON.stringify({ component: "line-relay", ...entry })));
   const statePath = config.statePath;
   const lockPath = `${statePath}.lock`;
+  const mediaStore: LineRelayMediaStore | null = config.publicOrigin
+    ? createLineRelayMediaStore({ directory: `${statePath}.media`, publicOrigin: config.publicOrigin })
+    : null;
   const server: Server = createServer((req, res) => {
     void handleHttpRequest(req, res).catch(() => {
       if (!res.headersSent) respond(res, 500, { error: "relay request failed" });
@@ -368,6 +579,7 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
   let state: RelayState | null = null;
   let lock: Awaited<ReturnType<typeof acquireStateLock>> | null = null;
   let timer: NodeJS.Timeout | null = null;
+  let mediaCleanupTimer: NodeJS.Timeout | null = null;
   let started = false;
   let closeRequested = false;
   let startPromise: Promise<void> | null = null;
@@ -453,6 +665,38 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
     }
   };
 
+  const fetchImageAttachment = async (name: string, mime: "image/jpeg" | "image/png"): Promise<Buffer | null> => {
+    if (closeRequested) return null;
+    try {
+      const url = new URL(`/api/attachments/${encodeURIComponent(name)}`, appUrl);
+      if (url.origin !== appUrl || url.search || url.hash) return null;
+      const response = await fetchRequest(url, {
+        method: "GET",
+        headers: { origin: appUrl },
+        redirect: "error",
+        signal: AbortSignal.timeout(APP_REQUEST_TIMEOUT_MS),
+      });
+      if (response.status !== 200 || response.headers.get("content-type") !== mime) {
+        await response.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      const rawLength = response.headers.get("content-length");
+      if (!rawLength || !/^\d+$/.test(rawLength)) {
+        await response.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      const expectedBytes = Number(rawLength);
+      if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0 || expectedBytes > MAX_APP_ATTACHMENT_BYTES) {
+        await response.body?.cancel().catch(() => undefined);
+        return null;
+      }
+      const bytes = await readBoundedResponseBody(response, MAX_APP_ATTACHMENT_BYTES);
+      return bytes && bytes.byteLength === expectedBytes ? bytes : null;
+    } catch {
+      return null;
+    }
+  };
+
   const validateCapabilities = async (): Promise<void> => {
     const response = await appRequest("/api/health");
     const health = response?.status === 200 ? responseJsonSchema(healthSchema, response.body) : null;
@@ -512,10 +756,20 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
     }));
   };
 
-  const markManual = async (record: EventRecord, reason: string): Promise<void> => {
-    await putOutbox(record,
-      "Chiefへの依頼を安全に完了できませんでした。対象タスクと承認待ちをOpenMakiBotで確認してください。LINEから承認操作はしていません。",
-      { kind: "manual", reason }, false);
+  const putVersionedOutbox = async (record: EventRecord, batches: PushBatch[], resume: OutboxResume, createdAt = Date.now()): Promise<void> => {
+    if (!batches.length) {
+      await updateRecord(record.eventId, (current) => ({ ...current, state: { kind: "manual", reason: "empty_reply" } }));
+      log({ eventId: record.eventId, outcome: "manual_empty_reply" });
+      return;
+    }
+    await updateRecord(record.eventId, (current) => ({
+      ...current,
+      state: { kind: "outbox", recipient: config.userId, batches, batchIndex: 0, createdAt, requiresTarget: true, resume },
+    }));
+  };
+
+  const markManual = async (record: EventRecord, reason: ManualReason): Promise<void> => {
+    await putOutbox(record, manualNotice(reason), { kind: "manual", reason }, false);
     log({ eventId: record.eventId, outcome: `manual_${reason}` });
   };
 
@@ -609,9 +863,47 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
     const latestOutcome = snapshot.messages.findLast((message) => message.turnSucceeded !== undefined);
     if (!userRequest || userRequest.sendId !== record.sendId || userRequest.requestCancelled === true ||
         userRequest.requestPending !== false || latestTerminal?.requestMessageId !== snapshot.messageId ||
-        latestTerminal.turnSucceeded !== true || latestOutcome?.turnSucceeded !== true || latestOutcome.turnId !== latestTerminal.turnId) {
+        !latestTerminal.turnId || latestTerminal.turnSucceeded !== true || latestOutcome?.turnSucceeded !== true || latestOutcome.turnId !== latestTerminal.turnId) {
       await markManual(record, "final_not_proven");
       return;
+    }
+    const { images, unsupportedMedia } = ownedImageAttachments(snapshot.messages, snapshot.messageId, latestTerminal.turnId);
+    if (images.length || unsupportedMedia) {
+      try {
+        if (unsupportedMedia || !config.publicOrigin || !mediaStore) throw new Error("LINE media delivery is not available");
+        const mediaUrls: LineMediaUrls[] = [];
+        for (const image of images) {
+          const bytes = await fetchImageAttachment(image.name, image.mime);
+          if (!bytes) throw new Error("LINE image bytes are unavailable");
+          const urls = await mediaStore.registerImage({
+            original: { bytes, mime: image.mime },
+            source: {
+              botId: config.botId,
+              threadId: config.threadId,
+              messageId: image.messageId,
+              attachmentIndex: image.attachmentIndex,
+              requestMessageId: image.requestMessageId,
+              turnId: image.turnId,
+            },
+          });
+          mediaUrls.push(urls);
+        }
+        const batches = versionedBatches(latestTerminal.text ?? "", mediaUrls, config.publicOrigin);
+        const createdAt = Date.now();
+        await mediaStore.retainForQueue(
+          mediaUrls.flatMap((image) => [image.originalContentUrl, image.previewImageUrl]),
+          createdAt + RETRY_KEY_WINDOW_MS,
+          createdAt,
+        );
+        await putVersionedOutbox(record, batches, { kind: "completed" }, createdAt);
+        return;
+      } catch {
+        const finalText = latestTerminal.text?.trim() ? latestTerminal.text : "";
+        const notice = manualNotice("media_unavailable");
+        await putOutbox(record, finalText ? `${finalText}\n\n${notice}` : notice, { kind: "manual", reason: "media_unavailable" });
+        log({ eventId: record.eventId, outcome: "manual_media_unavailable" });
+        return;
+      }
     }
     await putOutbox(record, latestTerminal.text ?? "", { kind: "completed" });
   };
@@ -635,6 +927,26 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
       await updateRecord(record.eventId, (current) => ({ ...current, state: record.state.resume }));
       return;
     }
+    let messages: unknown[];
+    if ("payload" in batch) {
+      if (!config.publicOrigin || !mediaStore || batch.payload.publicOrigin !== config.publicOrigin) {
+        await updateRecord(record.eventId, (current) => ({ ...current, state: { kind: "manual", reason: "media_origin_changed" } }));
+        log({ eventId: record.eventId, outcome: "manual_media_origin_changed" });
+        return;
+      }
+      const mediaUrls = batch.payload.messages.flatMap((message) => message.type === "image"
+        ? [message.originalContentUrl, message.previewImageUrl]
+        : []);
+      try { await mediaStore.retainForSend(mediaUrls); }
+      catch {
+        await updateRecord(record.eventId, (current) => ({ ...current, state: { kind: "manual", reason: "media_unavailable" } }));
+        log({ eventId: record.eventId, outcome: "manual_media_unavailable" });
+        return;
+      }
+      messages = batch.payload.messages;
+    } else {
+      messages = batch.messages.map((text) => batch.format === "table-flex-v1" ? formatLineMessage(text) : { type: "text", text });
+    }
     let response: Response;
     try {
       response = await fetchRequest(LINE_PUSH_URL, {
@@ -646,7 +958,7 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
         },
         body: JSON.stringify({
           to: record.state.recipient,
-          messages: batch.messages.map((text) => batch.format === "table-flex-v1" ? formatLineMessage(text) : { type: "text", text }),
+          messages,
         }),
         redirect: "error",
         signal: AbortSignal.timeout(LINE_REQUEST_TIMEOUT_MS),
@@ -709,6 +1021,7 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
   };
 
   const handleHttpRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    if (await mediaStore?.handleHttpRequest(req, res)) return;
     if (req.method === "GET" && req.url === "/health") {
       const records = state ? Object.values(state.records) : [];
       respond(res, 200, {
@@ -795,6 +1108,8 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
       const initial: RelayState = { version: 1, binding: bindingFor(config), nextSequence: 1, records: {} };
       await persistState(initial);
       state = initial;
+      await mediaStore?.load();
+      await mediaStore?.cleanup();
       return;
     }
     const parsed = relayStateSchema.safeParse(raw);
@@ -803,6 +1118,8 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
       throw new Error("LINE relay state belongs to a different app, LINE user, Chief bot, or thread");
     }
     state = parsed.data;
+    await mediaStore?.load();
+    await mediaStore?.cleanup();
   };
 
   const closeListener = async (): Promise<void> => {
@@ -835,6 +1152,10 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
       started = true;
       timer = setInterval(() => void drainOne(), pollIntervalMs);
       timer.unref();
+      if (mediaStore) {
+        mediaCleanupTimer = setInterval(() => void mediaStore.cleanup().catch(() => undefined), 60 * 60 * 1000);
+        mediaCleanupTimer.unref();
+      }
       void drainOne();
     } catch (error) {
       let closeError: unknown;
@@ -864,6 +1185,8 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
     closePromise = (async () => {
       if (timer) clearInterval(timer);
       timer = null;
+      if (mediaCleanupTimer) clearInterval(mediaCleanupTimer);
+      mediaCleanupTimer = null;
       started = false;
       await startPromise?.catch(() => undefined);
       await closeListener();

@@ -11,14 +11,17 @@ Required environment variables:
   OMB_LINE_BOT_ID                  Visible active Chief bot ID
   OMB_LINE_THREAD_ID               Pre-created dedicated Chief thread ID
   OMB_LINE_APPROVAL_MODE           Optional: ask (default) or full
+  OMB_LINE_PUBLIC_ORIGIN           Optional: fixed HTTPS origin for outbound JPEG/PNG images
   OMB_LINE_STATE_PATH              Absolute path for durable relay state
   OMB_LINE_CHANNEL_SECRET          LINE Messaging API channel secret
   OMB_LINE_CHANNEL_ACCESS_TOKEN    LINE Messaging API channel access token
   OMB_LINE_RELAY_PORT              Optional loopback port (default: 8765)
 
+Route /line/webhook and /line/media/<capability>/(original|preview) on the public HTTPS origin to this relay. Without OMB_LINE_PUBLIC_ORIGIN, replies remain text-only and an image attachment produces a manual notice.
+
 Choose the same approval mode for the dedicated task in OpenMakiBot. Full requires an explicit operator choice on that task; the relay never changes task permissions or answers approval cards.
 
-Use --help to show this message. Keep /api private; only the LINE webhook route is public.`;
+Use --help to show this message. Keep /api private; expose only the LINE webhook and capability image paths.`;
 
 function printError(error: unknown): void {
   process.stderr.write(`${error instanceof Error ? error.message : "LINE relay startup failed"}\n`);
