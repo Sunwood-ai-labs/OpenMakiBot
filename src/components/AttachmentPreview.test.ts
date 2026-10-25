@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "@/lib/i18n";
+import { OutsideWorkspaceFile } from "./OutsideWorkspaceFile";
 
 beforeEach(() => setLocale("en"));
 
@@ -10,7 +11,6 @@ import {
   AttachedFileChips,
   AttachedImageGallery,
   MarkdownImagePreview,
-  OutsideWorkspaceFile,
   canonicalDownloadFilename,
   contentDispositionFilename,
   imageGalleryLayout,
