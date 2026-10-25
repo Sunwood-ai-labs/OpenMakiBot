@@ -32,6 +32,8 @@ describe("Cerebras provider", () => {
     const instance = await CerebrasDriver.create({ instanceId: "empty", displayName: "Cerebras", enabled: true,
       config: CerebrasDriver.defaultConfig(), environment: {} });
     expect(await instance.snapshot()).toMatchObject({ state: "unavailable", reason: expect.stringContaining("Cerebras API key") });
+    expect((await instance.snapshot()).reason).toContain("Settings → API keys");
+    expect(CerebrasDriver.install?.signInCommand).toContain("Settings → API keys");
     expect(fetcher).not.toHaveBeenCalled();
     await instance.dispose();
   });
@@ -94,7 +96,7 @@ describe("Cerebras provider", () => {
     const instance = await create();
     const recorder = recordEvents(instance.adapter);
     await instance.adapter.sendTurn({ threadId: "nudge", text: "open the top story on HN" });
-    expect(await recorder.until(event => event.type === "turn.completed")).toMatchObject({ ok: true });
+    expect(await recorder.until(event => event.type === "turn.completed")).toMatchObject({ ok: requests !== 2 });
     expect(bodies).toHaveLength(requests);
     if (requests === 2) expect(bodies[1]!.messages.at(-1)).toMatchObject({ role: "user", content: expect.stringContaining("called no tool") });
     recorder.stop(); await instance.dispose();

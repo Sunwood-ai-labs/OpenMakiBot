@@ -6,7 +6,7 @@ import { loadFilePreview } from '@/lib/load-file-preview';
 import { t } from '@/lib/i18n';
 import { InlineFileCard } from './InlineFileCard';
 import { acquirePreviewSlot } from '@/lib/preview-queue';
-import { canonicalDownloadFilename, useLocalFileSave, type MessageAttachmentContext } from './AttachmentPreview';
+import { OutsideWorkspaceFile, canonicalDownloadFilename, saveFailureText, useLocalFileSave, type MessageAttachmentContext } from './AttachmentPreview';
 
 const PdfPreview = lazy(() => import('./PdfPreview'));
 const OfficePreview = lazy(() => import('./OfficePreview'));
@@ -118,7 +118,10 @@ function FilePreviewDialog({ path, name, message, resource, onClose }: { path: s
         <button type="button" onClick={onClose} aria-label={t('filePreview.close')} className="rounded-lg p-2 hover:bg-raised"><X size={20} /></button>
       </header>
       {error ? <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center" role="alert"><FileText size={36} className="text-ink-secondary" /><p>{error}</p><button type="button" onClick={retry} className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2"><RotateCcw size={15} />{t('filePreview.retry')}</button></div> : file ? kind === 'video' ? <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4"><video src={file.url} tabIndex={0} controls playsInline preload="metadata" aria-label={file.name} onError={() => setError(t('filePreview.videoFailed'))} className="max-h-full max-w-full" /></div> : kind === 'image' ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-inset p-4"><img src={file.url} alt={file.name} onError={() => setError(t('filePreview.invalidFile'))} className="max-h-full max-w-full object-contain" /></div> : <PreviewBoundary onError={setError}><Suspense fallback={<PreviewLoading />}>{kind === 'pdf' ? <PdfPreview data={file.data} onError={setError} /> : <OfficePreview data={file.data} kind={kind} onError={setError} />}</Suspense></PreviewBoundary> : <PreviewLoading />}
-      {save.state === 'failed' && <p role="alert" className="p-3 text-sm text-danger">{save.reason}</p>}
+      {save.state === 'failed' && <div role="alert" className="space-y-1 p-3 text-sm text-danger">
+        <p>{saveFailureText(save)}</p>
+        {save.outsideWorkspace && <OutsideWorkspaceFile filePath={path} />}
+      </div>}
     </div>
   </div>, document.body);
 }

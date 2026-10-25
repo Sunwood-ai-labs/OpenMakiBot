@@ -7,6 +7,11 @@ pnpm exec vitest run server/line-relay.test.ts
 pnpm test:line-relay
 ```
 
+This relay supports a self-hosted, headless server. A system service or
+container must share the server's network namespace; desktop-managed servers
+are unsupported. The relay binds to loopback, so expose only `POST /webhook`
+through an HTTPS reverse proxy and keep `/api` private.
+
 The end-to-end case launches the repository verification server from
 `scripts/control-omb.ts` in a disposable home with the fake CLI. A local fake
 LINE HTTP sink receives pushes through an injected test fetch. No LINE

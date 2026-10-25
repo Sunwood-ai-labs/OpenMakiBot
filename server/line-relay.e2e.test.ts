@@ -11,7 +11,7 @@ import { createLineRelay, type LineRelay, type LineRelayConfig } from "./line-re
 const lineUserId = `U${"1234567890abcdef".repeat(2)}`;
 const channelSecret = "fixture-line-channel-secret";
 const accessToken = "fixture-line-access-token";
-const linePushUrl = "https://api.line.me/v2/bot/message/push";
+const linePushUrl = new URL("https://api.line.me/v2/bot/message/push");
 
 const objectSchema = z.record(z.string(), z.unknown());
 const createdBotSchema = z.object({
@@ -156,12 +156,14 @@ async function makeFixture(replies: string[], options: { scriptedRoom?: boolean 
 
 async function startRelay(fixture: E2eFixture, config: LineRelayConfig): Promise<RelayResource> {
   fixture.relayConfig = config;
+  const appOrigin = new URL(fixture.session.info.url).origin;
   const relay = createLineRelay({
     config,
     pollIntervalMs: 10,
     fetchImpl: async (input, init) => {
       const url = input instanceof URL ? input : new URL(input);
-      if (url.href === linePushUrl) return fetch(`${fixture.sinkUrl}${url.pathname}`, init);
+      if (url.origin === linePushUrl.origin) return fetch(`${fixture.sinkUrl}${url.pathname}${url.search}`, init);
+      if (url.origin !== appOrigin) throw new Error("LINE relay attempted a request outside the fixture origins");
       return fetch(input, init);
     },
     log: (entry) => fixture.relayLogs.push(entry),

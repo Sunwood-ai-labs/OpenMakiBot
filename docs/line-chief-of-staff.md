@@ -17,6 +17,18 @@
 
 OpenMakiBotのチェックアウトから起動し、アプリと同じ実行ユーザー・ネットワーク名前空間で動かします。`OMB_LINE_CHANNEL_SECRET`と`OMB_LINE_CHANNEL_ACCESS_TOKEN`は、シェル履歴やチャットへ値を貼らず、既存のシークレット保管先から読み込んでください。
 
+ソースを含まないNode 24以上のコンテナーで起動する場合は、チェックアウトから単体ファイルを作り、コンテナーへ読み取り専用でmountします。リレーはアプリと同じ実行ユーザー・ネットワーク名前空間で動かします。
+
+```sh
+pnpm build:line-relay
+```
+
+コンテナー内では、mountしたファイルをNodeで起動します。
+
+```sh
+node /opt/openmakibot-line/line-relay.mjs
+```
+
 ```sh
 umask 077
 install -d -m 700 /var/lib/openmausbot-line
