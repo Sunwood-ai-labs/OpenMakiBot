@@ -75,6 +75,23 @@ Deleting or renaming a test file in the weights fails
 refreshed. A refresh moves some files to other shards; a failure that appears
 only after one is a real ordering dependency between test files.
 
+## Linux Vitest runner on the fork
+
+The fork keeps the platform key `ubuntu-latest` for shard selection, the
+20-minute timeout, and `OMB_VITEST_E2E=all`, but dispatches those eight Vitest
+shards to `ubuntu-24.04`. The other platform runners and the separate browser
+jobs keep their existing labels. Linux Vitest uses the image verified by the
+controlled comparison below.
+
+On 2026-10-25, upstream baseline `03a6e88` passed its full Vitest run on
+Ubuntu 24.04 (`40131374371`). A controlled same-fork comparison on Ubuntu
+26.04.1 (`40148796684`) found the same 11 failures in three selected Linux
+fixtures for both baseline `03a6e88` and candidate `f42b9bc`. Repeating that same
+fork workflow and Node 24.21.0 with only the runner changed to Ubuntu 24.04
+passed both source snapshots ([run 40149684605](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40149684605)).
+The paired runs reproduce a runner-image compatibility difference for these
+fixtures. This pin preserves all eight Linux shards and their full E2E coverage.
+
 ## macOS runners
 
 The account runs at most five macOS jobs at a time, and a PR used to queue
@@ -220,6 +237,11 @@ reserves failed with `listen EACCES 127.0.0.1:497xx`.
 
 ## Required check
 
-The `main-ci-gate` ruleset requires the single `CI` check (it replaced the
+Upstream's `main-ci-gate` ruleset requires the single `CI` check (it replaced the
 three legacy `typecheck + test (<os>)` names in September 2026). Renaming the
 `gate` job needs the ruleset updated first, or every PR waits forever.
+
+OpenMakiBot retains its protected platform check names, including
+`typecheck + test (ubuntu-latest)`. Those compatibility checks require the full
+CI gate to pass; the logical Ubuntu name remains stable while its Vitest jobs
+identify and run on the pinned Ubuntu 24.04 image.

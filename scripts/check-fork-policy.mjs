@@ -82,6 +82,8 @@ export function validateForkCi(workflow) {
   assert.equal(workflow.jobs.static.outputs.vitest_matrix, '${{ steps.fork-scope.outputs.vitest_matrix || steps.scope.outputs.vitest_matrix }}', 'ci.yml: fork shard matrix override missing');
   assert.equal(workflow.jobs.static.outputs.android_source, "${{ steps.fork-scope.outputs.android_source || 'false' }}", 'ci.yml: Android retirement status missing');
   assert.equal(workflow.jobs.static.outputs.ios_source, "${{ steps.fork-scope.outputs.ios_source || 'false' }}", 'ci.yml: iOS retirement status missing');
+  assert.equal(workflow.jobs.vitest['runs-on'], '${{ matrix.runner || matrix.os }}', 'ci.yml: Vitest must use the fork-selected runner');
+  assert.equal(workflow.jobs.vitest.name, 'vitest (${{ matrix.runner || matrix.os }}, shard ${{ matrix.shard }}/${{ matrix.shards }})', 'ci.yml: Vitest name must identify its actual runner');
   const scope = workflow.jobs.static.steps.find((step) => step.id === 'fork-scope');
   assert.equal(scope?.if, "github.repository == 'Sunwood-ai-labs/OpenMakiBot'", 'ci.yml: fork platform coverage guard missing');
   assert.equal(scope.run, 'node scripts/ci-fork-scope.mjs', 'ci.yml: expected the audited fork scope helper');

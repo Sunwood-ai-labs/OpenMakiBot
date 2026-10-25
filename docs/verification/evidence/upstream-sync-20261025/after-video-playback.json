@@ -1,13 +1,21 @@
 {
-  "observedStart": {
-    "currentTime": 0,
-    "paused": true
-  },
-  "observedPlaying": {
-    "currentTime": 0.2648,
-    "paused": false
-  },
-  "observedFinal": [
+  "start": [
+    {
+      "currentTime": 0,
+      "duration": 3,
+      "error": null,
+      "paused": true
+    }
+  ],
+  "playing": [
+    {
+      "currentTime": 0.2286,
+      "duration": 3,
+      "error": null,
+      "paused": false
+    }
+  ],
+  "end": [
     {
       "currentTime": 3,
       "duration": 3,

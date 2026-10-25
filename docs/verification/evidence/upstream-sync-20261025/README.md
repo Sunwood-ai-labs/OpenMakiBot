@@ -69,3 +69,11 @@ The inherited SheetJS dependency remains pinned to
 `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`. Neither the fork-base
 lock nor the regenerated lock records an integrity hash for this existing
 tarball URL.
+
+## CI compatibility repairs
+
+The workbook sheet picker now uses the shared Select component. The outside-workspace action and message-local file link live in separate components with direct imports. The line-size ratchet was lowered after extraction.
+
+The repaired source passed 161 focused preview and ratchet tests, the Select guard, targeted lint, and a full production build including both TypeScript checks. An independent source review passed. The After images above were recaptured from that production build in a disposable fixture; PDF page 2, workbook Checks, PPTX slide 2, and video playback were confirmed again. Independent image review passed, and the fixture exited through normal cleanup. The [source hashes](source-hashes.json) bind those captures to the repaired preview components.
+
+Hosted CI still requires confirmation. The earlier integration run also reported Linux Cloud/home fixture failures; a controlled baseline-versus-candidate comparison is being investigated separately.

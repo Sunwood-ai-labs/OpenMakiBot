@@ -6,7 +6,8 @@ import { loadFilePreview } from '@/lib/load-file-preview';
 import { t } from '@/lib/i18n';
 import { InlineFileCard } from './InlineFileCard';
 import { acquirePreviewSlot } from '@/lib/preview-queue';
-import { OutsideWorkspaceFile, canonicalDownloadFilename, saveFailureText, useLocalFileSave, type MessageAttachmentContext } from './AttachmentPreview';
+import { canonicalDownloadFilename, saveFailureText, useLocalFileSave, type MessageAttachmentContext } from './AttachmentPreview';
+import { OutsideWorkspaceFile } from './OutsideWorkspaceFile';
 
 const PdfPreview = lazy(() => import('./PdfPreview'));
 const OfficePreview = lazy(() => import('./OfficePreview'));

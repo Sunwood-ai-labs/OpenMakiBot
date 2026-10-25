@@ -1,0 +1,34 @@
+{
+  "upstream": "03a6e88bc13ad2c2fb5c16a80d1a0b732b88d588",
+  "base": "f42b9bcd36a3ab5f60edf72ad08c2c90c7599dcd",
+  "build": "pnpm build exit0",
+  "mode": "verify-file-preview --built",
+  "sources": [
+    {
+      "path": "src/components/OfficePreview.tsx",
+      "sha256": "45044215039E76EB4411DDB5C7D305D49619690BAAEAE3C9859A815460D067C9"
+    },
+    {
+      "path": "src/components/AttachmentPreview.tsx",
+      "sha256": "CE9F84524F5E4E17293016404B8095B06072660D90508BBB479B2AF16BC6DB4C"
+    },
+    {
+      "path": "src/components/ChatMarkdown.tsx",
+      "sha256": "5C14344C849434F38B996A7D336DF77A217390863087401BFF150019FDDF807A"
+    },
+    {
+      "path": "src/components/FilePreview.tsx",
+      "sha256": "AE93F3BD8369FAC6DF937BA97BED6BB8425D760915CD9E40E6F69660C0CCD957"
+    },
+    {
+      "path": "src/components/OutsideWorkspaceFile.tsx",
+      "sha256": "CD00437C894E659BF040345C1A81CB992EB2D9A259F9E57FD0714EDE61173D83"
+    },
+    {
+      "path": "src/components/MarkdownLocalFileLink.tsx",
+      "sha256": "32D9241EFB524C4D3F4D006421E6F23BC08D240F5DE9CC292677B059767DD3D9"
+    }
+  ],
+  "fixturePid": 40108,
+  "cleaned": true
+}
