@@ -1,7 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { z } from "zod";
 import { vitestMatrix } from "./ci-scope.mjs";
 
 const workflow = parse(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
@@ -73,9 +77,55 @@ describe("CI concurrency", () => {
     expect(workflow.jobs.vitest["timeout-minutes"]).toBe("${{ matrix.os == 'ubuntu-latest' && 20 || 30 }}");
   });
 
+  it("uses the fork matrix runner and pins only Linux Vitest shards to the observed Ubuntu 24.04 target", () => {
+    expect(workflow.jobs.vitest["runs-on"]).toBe("${{ matrix.runner || matrix.os }}");
+    expect(workflow.jobs.vitest.name).toBe("vitest (${{ matrix.runner || matrix.os }}, shard ${{ matrix.shard }}/${{ matrix.shards }})");
+
+    const directory = mkdtempSync(join(tmpdir(), "omb-ci-fork-scope-"));
+    try {
+      const outputPath = join(directory, "github-output.txt");
+      const result = spawnSync(process.execPath, [fileURLToPath(new URL("./ci-fork-scope.mjs", import.meta.url))], {
+        cwd: fileURLToPath(new URL("../", import.meta.url)),
+        env: { ...process.env, GITHUB_OUTPUT: outputPath },
+        encoding: "utf8",
+        timeout: 5_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+
+      const output = readFileSync(outputPath, "utf8");
+      const platforms = ["macos-latest", "ubuntu-latest", "windows-latest"];
+      const fields = Object.fromEntries(output.trimEnd().split(/\r?\n/).map((line) => {
+        const separator = line.indexOf("=");
+        return [line.slice(0, separator), line.slice(separator + 1)];
+      }));
+      expect(JSON.parse(fields.vitest_os)).toEqual(platforms);
+      const { include: actualInclude } = z.object({ include: z.array(z.object({
+        os: z.string(), shard: z.number().int().positive(), shards: z.number().int().positive(),
+        e2e: z.enum(["all", "host"]), runner: z.string(),
+      })) }).parse(JSON.parse(fields.vitest_matrix));
+      expect(actualInclude).toHaveLength(20);
+
+      const platformShardCounts = [
+        { os: "macos-latest", shards: 4, runner: "macos-latest", e2e: "host" },
+        { os: "ubuntu-latest", shards: 8, runner: "ubuntu-24.04", e2e: "all" },
+        { os: "windows-latest", shards: 8, runner: "windows-latest", e2e: "host" },
+      ];
+      for (const { os, shards, runner, e2e } of platformShardCounts) {
+        const selected = actualInclude.filter((entry) => entry.os === os);
+        expect(selected.map((entry) => entry.shard)).toEqual(Array.from({ length: shards }, (_, index) => index + 1));
+        expect(selected.every((entry) => entry.shards === shards)).toBe(true);
+        expect(new Set(selected.map((entry) => entry.e2e))).toEqual(new Set([e2e]));
+        expect(new Set(selected.map((entry) => entry.runner))).toEqual(new Set([runner]));
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it("runs each selected platform's own shards, and its e2e files, from ci-scope's matrix", () => {
     expect(workflow.jobs.static.outputs.vitest_matrix).toBe("${{ steps.fork-scope.outputs.vitest_matrix || steps.scope.outputs.vitest_matrix }}");
-    expect(workflow.jobs.vitest.name).toBe("vitest (${{ matrix.os }}, shard ${{ matrix.shard }}/${{ matrix.shards }})");
+    expect(workflow.jobs.vitest.name).toBe("vitest (${{ matrix.runner || matrix.os }}, shard ${{ matrix.shard }}/${{ matrix.shards }})");
     const run = (workflow.jobs.vitest.steps as { name?: string; run?: string; env?: Record<string, string> }[])
       .find((step) => step.name === "Run tests")!;
     expect(run.run).toContain("--shard=${{ matrix.shard }}/${{ matrix.shards }} ");
