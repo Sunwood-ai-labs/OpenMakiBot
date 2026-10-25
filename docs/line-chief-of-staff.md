@@ -9,7 +9,7 @@
 ## 準備
 
 1. LINE Official Accountを作成し、LINE Official Account ManagerでMessaging APIを有効にします。チャネルは自動で作成されるため、LINE Developers ConsoleでChannel secretとChannel access tokenを確認します。シークレット保管先に保存し、Webhookを有効にしてください。Official Accountを自分のLINEアカウントで友だち追加します。
-2. OpenMakiBotで、表示中のChief botに専用タスクを作ります。承認モードは **Ask** にします。既存のタスクを人と共有せず、このタスクをLINE専用にしてください。リレーはタスクの作成や権限変更をしません。
+2. OpenMakiBotで、表示中のChief botにLINE専用タスクを作ります。既定の承認モードは **Ask** です。**Full** を使う場合は、専用タスクをOpenMakiBotでFullに設定し、リレーの`OMB_LINE_APPROVAL_MODE`にも`full`を指定してください。設定とタスクのモードが一致しない場合、リレーは起動しません。リレーはタスクの権限を変更せず、承認カードにも回答しません。
 3. 次のIDを確認します。
    - `OMB_LINE_USER_ID`: LINE Developers Consoleのチャネル「Basic settings」に表示される、利用者本人のUser ID。`U`と32桁の16進数で構成されます。LINE IDや表示名ではありません。User IDが表示されない場合は、Business IDとLINEアカウントを連携します。別の人を登録する場合は、その人からOfficial AccountへのWebhookイベントに含まれる`source.userId`を、信頼できる管理経路で確認してください。
    - `OMB_LINE_BOT_ID`と`OMB_LINE_THREAD_ID`: ローカルのアプリから`GET /api/bots?messages=0`を読み、Chief botとその専用タスクのIDを確認します。APIはローカルの管理用です。公開プロキシに追加しないでください。
@@ -47,10 +47,14 @@ export OMB_LINE_CHANNEL_SECRET="$(cat /run/secrets/line-channel-secret)"
 export OMB_LINE_CHANNEL_ACCESS_TOKEN="$(cat /run/secrets/line-channel-access-token)"
 # 任意。既定値は8765
 export OMB_LINE_RELAY_PORT=8765
+# 任意。既定値はaskです。Fullに設定した専用タスクを使う場合だけfullを指定します。
+# export OMB_LINE_APPROVAL_MODE=full
 pnpm line-relay
 ```
 
 `OMB_LINE_APP_URL`はループバックのHTTPオリジンだけを受け付けます。リレーは`127.0.0.1`にだけbindし、`GET /health`で稼働状態を確認できます。設定のIDやURLを変える場合は、新しいstateファイルを用意してください。既存ファイルは元のアプリ、LINE利用者、bot、threadに固定されます。リレーはstateファイルを再起動後も使うため、永続ボリュームへ保存してください。
+
+Flex形式を記録した未完了の送信データがある間は、古いリレーバイナリへ戻さないでください。古い版はその形式情報を読み込めません。戻す前に`GET /health`の`queued`が`0`であることを確認してください。
 
 LINE Developers ConsoleのWebhook URLは、公開HTTPS URLにします。Caddyがアプリ・リレーと同じネットワーク名前空間にある構成なら、たとえば次のように**このパスだけ**をリレーへ転送します。既存のアプリ用ハンドラーより前に置きます。
 
@@ -68,6 +72,8 @@ Webhook URLは`https://your-host.example/line/webhook`です。`/api`、`/health
 
 - Webhook署名を検証してから本文を解析し、イベントIDで重複を抑止します。受信イベントは永続化後にWebhookへ成功応答します。
 - 受信文は指定済みのChiefタスクに、既存のguarded API経由で送ります。スレッドの状態が変わった場合やタスクが実行中の場合は、別の会話へ送らず再確認または安全な失敗にします。
+- リレーは`OMB_LINE_APPROVAL_MODE`の値をguarded APIへ渡します。既定値は`ask`です。設定したモードと専用タスクのモードが一致しない場合、リレーは起動を拒否します。
+- 表形式の回答は縦型Flexカードに変換します。列見出しと値、表の前後にある文章を残します。変換できない表は元のテキストで送ります。
 - ChiefがLINE外の承認・質問・接続待ちで止まった場合、カードや秘密情報はLINEへ送りません。OpenMakiBotで内容を確認し、そこで操作してください。リレーが承認を行うことはありません。
 - 長い回答はLINEのテキスト上限に合わせて分割し、Push APIで送ります。Push送信はLINE Official Accountの月間送信枠・料金対象です。送信先のプランと残量は[LINE公式の料金案内](https://developers.line.biz/en/docs/messaging-api/pricing/)で確認してください。再送には[LINEのretry key](https://developers.line.biz/en/docs/messaging-api/retrying-api-request/)を使います。
 - Channel secretとChannel access tokenはチャットへ貼らず、シェル履歴にも残さないでください。stateには未完了イベントの本文が保存されるので、所有者のみ読めるディレクトリへ置き、バックアップも同じ扱いにしてください。

@@ -1,17 +1,19 @@
 import { createHmac } from "node:crypto";
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createLineRelay, lineRelayConfigFromEnv, type LineRelay, type LineRelayConfig } from "./line-relay.ts";
+import { createLineRelay, lineRelayConfigFromEnv, type LineRelay, type LineRelayApprovalMode, type LineRelayConfig } from "./line-relay.ts";
 
 const USER_ID = `U${"a".repeat(32)}`;
 const SECRET = "fixture-channel-secret";
 const TOKEN = "fixture-access-token";
 const BOT_ID = "bot-chief";
 const THREAD_ID = "thread-dedicated";
+const linePushMessageSchema = z.object({ type: z.enum(["text", "flex"]) }).passthrough();
+const linePushBodySchema = z.object({ messages: z.array(linePushMessageSchema) }).passthrough();
 
 type TestEvent = {
   type: "message";
@@ -30,6 +32,8 @@ type AppFixture = {
   busyOnce: boolean;
   bot503Once: boolean;
   botChecks: number;
+  approvalMode: LineRelayApprovalMode;
+  expectedApprovalModes: string[];
   finalText: string;
 };
 
@@ -81,10 +85,10 @@ function readBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-async function makeApp(): Promise<AppFixture> {
+async function makeApp(approvalMode: LineRelayApprovalMode = "ask"): Promise<AppFixture> {
   const fixture: AppFixture = {
     url: "", server: createServer(), posts: [], currentLeaf: null, busyOnce: false,
-    bot503Once: false, botChecks: 0, finalText: "Final answer from Chief",
+    bot503Once: false, botChecks: 0, approvalMode, expectedApprovalModes: [], finalText: "Final answer from Chief",
   };
   fixture.server = createServer((req, res) => {
     void (async () => {
@@ -109,6 +113,12 @@ async function makeApp(): Promise<AppFixture> {
       }
       if (req.method === "POST" && url.pathname === `/api/bots/${BOT_ID}/messages/guarded`) {
         const body = await readBody(req) as Record<string, unknown> | null;
+        const requestedMode = body?.expectedApprovalMode ?? "ask";
+        fixture.expectedApprovalModes.push(typeof requestedMode === "string" ? requestedMode : "invalid");
+        if (requestedMode !== fixture.approvalMode) {
+          sendJson(res, 409, { code: "guarded_permissions" });
+          return;
+        }
         if (body?.sendId && String(body.sendId).startsWith("line-preflight-") &&
             body.expectedActiveLeafId !== fixture.currentLeaf) {
           sendJson(res, 409, { code: "guarded_branch" });
@@ -158,7 +168,7 @@ async function makeSink(): Promise<SinkFixture> {
   };
   fixture.server = createServer((req, res) => {
     void (async () => {
-      const body = await readBody(req) as { to?: string; messages?: Array<{ type: string; text: string }> } | null;
+      const body = await readBody(req) as { to?: string; messages?: Array<{ type: string; text?: string }> } | null;
       const retryKey = typeof req.headers["x-line-retry-key"] === "string" ? req.headers["x-line-retry-key"] : undefined;
       fixture.requests.push({ retryKey, body });
       const acceptedId = retryKey ? fixture.accepted.get(retryKey) : undefined;
@@ -168,7 +178,9 @@ async function makeSink(): Promise<SinkFixture> {
       }
       const requestId = `line-request-${fixture.accepted.size + 1}`;
       if (retryKey) fixture.accepted.set(retryKey, requestId);
-      for (const message of body?.messages ?? []) fixture.deliveries.push(message.text);
+      for (const message of body?.messages ?? []) {
+        if (message.type === "text" && message.text !== undefined) fixture.deliveries.push(message.text);
+      }
       sendJson(res, 200, { sentMessages: [{ id: "sent-1" }] }, { "x-line-request-id": requestId });
     })().catch(() => sendJson(res, 500, { error: "fixture failed" }));
   });
@@ -309,6 +321,110 @@ describe("LINE Chief relay boundaries", () => {
     expect(app.posts).toEqual([]);
   });
 
+  it("uses the configured Full mode for both the guarded preflight and message", async () => {
+    const app = await makeApp("full");
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-full-mode-test-"));
+    tempDirs.push(directory);
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.hostname === "api.line.me" ? fetch(`${sink.url}${url.pathname}`, init) : fetch(input, init);
+    };
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json"), { approvalMode: "full" }),
+      fetchImpl,
+      pollIntervalMs: 10,
+    });
+    relays.push(relay);
+    await relay.start();
+
+    const inbound = event("full-mode-event-00000001", "Check the fixture in Full mode.");
+    expect((await signedWebhook(relay, inbound)).status).toBe(200);
+    await expect.poll(() => sink.deliveries.length, { timeout: 5000 }).toBe(1);
+
+    expect(app.expectedApprovalModes).toEqual(["full", "full"]);
+    expect(app.posts).toHaveLength(1);
+    expect(app.posts[0]).toMatchObject({ text: inbound.message.text, expectedApprovalMode: "full" });
+    expect(sink.deliveries).toEqual(["Final answer from Chief"]);
+  }, 10_000);
+
+  it("formats a table final as one Flex message at the LINE push boundary", async () => {
+    const app = await makeApp();
+    app.finalText = [
+      "Progress summary.",
+      "",
+      "| Task | Owner |",
+      "| --- | --- |",
+      "| Deploy | Ada |",
+      "",
+      "All checks passed.",
+    ].join("\n");
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-flex-push-test-"));
+    tempDirs.push(directory);
+    const fetchImpl: typeof fetch = (input, init) => {
+      const url = new URL(String(input));
+      return url.hostname === "api.line.me" ? fetch(`${sink.url}${url.pathname}`, init) : fetch(input, init);
+    };
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json")),
+      fetchImpl,
+      pollIntervalMs: 10,
+    });
+    relays.push(relay);
+    await relay.start();
+
+    expect((await signedWebhook(relay, event("flex-push-event-00000001", "Review the table reply."))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+
+    const payload = linePushBodySchema.parse(sink.requests[0]?.body);
+    expect(payload.messages).toHaveLength(1);
+    expect(payload.messages[0]).toMatchObject({
+      type: "flex",
+      altText: "表形式の内容を縦型カードで表示",
+      contents: { type: "bubble" },
+    });
+    expect(sink.deliveries).toEqual([]);
+  }, 10_000);
+
+  it("refuses to start when the configured mode differs from the dedicated task", async () => {
+    const app = await makeApp("ask");
+    servers.push(app.server);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-mode-mismatch-test-"));
+    tempDirs.push(directory);
+    const relay = createLineRelay({
+      config: config(app.url, join(directory, "relay-state.json"), { approvalMode: "full" }),
+    });
+    relays.push(relay);
+
+    await expect(relay.start()).rejects.toThrow("The configured Chief task must use Full approval mode");
+    expect(app.expectedApprovalModes).toEqual(["full"]);
+    expect(app.posts).toEqual([]);
+    expect(relay.address()).toBeNull();
+  });
+
+  it("keeps the relay state binding when the operator changes approval mode", async () => {
+    const app = await makeApp("ask");
+    servers.push(app.server);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-mode-binding-test-"));
+    tempDirs.push(directory);
+    const statePath = join(directory, "relay-state.json");
+    const askRelay = createLineRelay({ config: config(app.url, statePath) });
+    relays.push(askRelay);
+    await askRelay.start();
+    await askRelay.close();
+
+    app.approvalMode = "full";
+    const fullRelay = createLineRelay({ config: config(app.url, statePath, { approvalMode: "full" }) });
+    relays.push(fullRelay);
+    await fullRelay.start();
+
+    expect(app.expectedApprovalModes).toEqual(["ask", "full"]);
+    expect(fullRelay.address()).not.toBeNull();
+  });
+
   it("keeps the state lock through an in-flight startup check when close is requested", async () => {
     const app = await makeApp();
     servers.push(app.server);
@@ -432,8 +548,16 @@ describe("LINE Chief relay boundaries", () => {
     const app = await makeApp();
     const sink = await makeSink();
     servers.push(app.server, sink.server);
+    app.finalText = [
+      "Progress summary.",
+      "",
+      "| Task | Owner |",
+      "| --- | --- |",
+      "| Deploy | Ada |",
+    ].join("\n");
     const directory = mkdtempSync(join(tmpdir(), "line-relay-retry-test-"));
     tempDirs.push(directory);
+    const statePath = join(directory, "relay-state.json");
     let loseFirst = true;
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = new URL(String(input));
@@ -445,15 +569,98 @@ describe("LINE Chief relay boundaries", () => {
       }
       return response;
     };
-    const relay = createLineRelay({ config: config(app.url, join(directory, "relay-state.json")), fetchImpl, pollIntervalMs: 10 });
+    const relayConfig = config(app.url, statePath);
+    const relay = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
     relays.push(relay);
     await relay.start();
 
     expect((await signedWebhook(relay, event("push-retry-event-1", "Send once"))).status).toBe(200);
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+    const firstRequest = sink.requests[0];
+    expect(linePushBodySchema.parse(firstRequest?.body).messages[0]).toMatchObject({ type: "flex" });
+    await relay.close();
+
+    const restarted = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
+    relays.push(restarted);
+    await restarted.start();
     await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(2);
-    expect(sink.requests[1].retryKey).toBe(sink.requests[0].retryKey);
-    expect(sink.requests[1].body).toEqual(sink.requests[0].body);
-    expect(sink.deliveries).toEqual(["Final answer from Chief"]);
+    expect(sink.requests[1]?.retryKey).toBe(firstRequest?.retryKey);
+    expect(sink.requests[1]?.body).toEqual(firstRequest?.body);
+    expect(sink.deliveries).toEqual([]);
+  }, 10_000);
+
+  it("retries a legacy pending outbox as the same plain-text body and retry key after restart", async () => {
+    const app = await makeApp();
+    const sink = await makeSink();
+    servers.push(app.server, sink.server);
+    const directory = mkdtempSync(join(tmpdir(), "line-relay-legacy-outbox-test-"));
+    tempDirs.push(directory);
+    const statePath = join(directory, "relay-state.json");
+    const retryKey = "00000000-0000-4000-8000-000000000001";
+    const tableText = [
+      "Progress summary.",
+      "",
+      "| Task | Owner |",
+      "| --- | --- |",
+      "| Deploy | Ada |",
+    ].join("\n");
+    const now = Date.now();
+    writeFileSync(statePath, JSON.stringify({
+      version: 1,
+      binding: { appUrl: app.url, userId: USER_ID, botId: BOT_ID, threadId: THREAD_ID },
+      nextSequence: 2,
+      records: {
+        "legacy-outbox-event": {
+          eventId: "legacy-outbox-event",
+          digest: "a".repeat(64),
+          sequence: 1,
+          receivedAt: now,
+          eventTimestamp: now,
+          sourceUserId: USER_ID,
+          text: tableText,
+          sendId: `line-${"b".repeat(64)}`,
+          state: {
+            kind: "outbox",
+            recipient: USER_ID,
+            batches: [{ retryKey, messages: [tableText] }],
+            batchIndex: 0,
+            createdAt: now,
+            requiresTarget: false,
+            resume: { kind: "completed" },
+          },
+        },
+      },
+    }), { mode: 0o600 });
+
+    let loseFirst = true;
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.hostname !== "api.line.me") return fetch(input, init);
+      const response = await fetch(`${sink.url}${url.pathname}`, init);
+      if (loseFirst && response.status === 200) {
+        loseFirst = false;
+        throw new Error("simulated lost LINE response");
+      }
+      return response;
+    };
+    const relayConfig = config(app.url, statePath);
+    const relay = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
+    relays.push(relay);
+    await relay.start();
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(1);
+    const firstRequest = sink.requests[0];
+    const expectedBody = { to: USER_ID, messages: [{ type: "text", text: tableText }] };
+    expect(firstRequest?.retryKey).toBe(retryKey);
+    expect(firstRequest?.body).toEqual(expectedBody);
+    await relay.close();
+
+    const restarted = createLineRelay({ config: relayConfig, fetchImpl, pollIntervalMs: 1000 });
+    relays.push(restarted);
+    await restarted.start();
+    await expect.poll(() => sink.requests.length, { timeout: 5000 }).toBe(2);
+    expect(sink.requests[1]?.retryKey).toBe(retryKey);
+    expect(sink.requests[1]?.body).toEqual(expectedBody);
+    expect(sink.deliveries).toEqual([tableText]);
   }, 10_000);
 
   it("chunks long replies by UTF-16 code units without splitting supplementary characters", async () => {
@@ -530,5 +737,21 @@ describe("LINE Chief relay boundaries", () => {
     } catch (error) {
       expect(String(error)).not.toContain(secret);
     }
+  });
+
+  it("defaults to Ask and rejects unsupported approval modes from the environment", () => {
+    const env = {
+      OMB_LINE_APP_URL: "http://127.0.0.1:8799",
+      OMB_LINE_USER_ID: USER_ID,
+      OMB_LINE_BOT_ID: BOT_ID,
+      OMB_LINE_THREAD_ID: THREAD_ID,
+      OMB_LINE_STATE_PATH: join(tmpdir(), "relay-state.json"),
+      OMB_LINE_CHANNEL_SECRET: SECRET,
+      OMB_LINE_CHANNEL_ACCESS_TOKEN: TOKEN,
+    };
+
+    expect(lineRelayConfigFromEnv(env).approvalMode).toBe("ask");
+    expect(lineRelayConfigFromEnv({ ...env, OMB_LINE_APPROVAL_MODE: "full" }).approvalMode).toBe("full");
+    expect(() => lineRelayConfigFromEnv({ ...env, OMB_LINE_APPROVAL_MODE: "automatic" })).toThrow("approvalMode");
   });
 });

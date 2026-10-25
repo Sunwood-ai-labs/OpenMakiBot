@@ -4,6 +4,7 @@ import { open, readFile, unlink, mkdir } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 import { z } from "zod";
 import { writeFileAtomic } from "./atomic.ts";
+import { formatLineMessage } from "./line-message-format.ts";
 
 const MAX_WEBHOOK_BYTES = 256 * 1024;
 const MAX_ACTIVE_EVENTS = 1000;
@@ -30,18 +31,23 @@ const appUrlSchema = z.string().url().refine((value) => {
   }
 }, "appUrl must be a loopback HTTP origin");
 
+const lineRelayApprovalModeSchema = z.enum(["ask", "full"]);
+
 const lineRelayConfigSchema = z.object({
   appUrl: appUrlSchema,
   userId: userIdSchema,
   botId: idSchema,
   threadId: idSchema,
+  approvalMode: lineRelayApprovalModeSchema.default("ask"),
   statePath: z.string().min(1).refine(isAbsolute, "statePath must be absolute"),
   channelSecret: z.string().min(1),
   accessToken: z.string().min(1),
   port: z.number().int().min(0).max(65535),
 }).strict();
 
-export type LineRelayConfig = z.infer<typeof lineRelayConfigSchema>;
+export type LineRelayApprovalMode = z.infer<typeof lineRelayApprovalModeSchema>;
+export type LineRelayConfig = z.input<typeof lineRelayConfigSchema>;
+type ResolvedLineRelayConfig = z.output<typeof lineRelayConfigSchema>;
 
 const bindingSchema = z.object({
   appUrl: appUrlSchema,
@@ -53,6 +59,7 @@ const bindingSchema = z.object({
 const pushBatchSchema = z.object({
   retryKey: z.string().uuid(),
   messages: z.array(z.string().min(1).max(MAX_LINE_TEXT_CODE_UNITS)).min(1).max(5),
+  format: z.literal("table-flex-v1").optional(),
 }).strict();
 
 const recordBaseSchema = z.object({
@@ -176,12 +183,13 @@ function canonicalOrigin(value: string): string {
   return new URL(value).origin;
 }
 
-function parseLineRelayConfig(env: NodeJS.ProcessEnv): LineRelayConfig {
+function parseLineRelayConfig(env: NodeJS.ProcessEnv): ResolvedLineRelayConfig {
   const parsed = lineRelayConfigSchema.safeParse({
     appUrl: env.OMB_LINE_APP_URL,
     userId: env.OMB_LINE_USER_ID,
     botId: env.OMB_LINE_BOT_ID,
     threadId: env.OMB_LINE_THREAD_ID,
+    approvalMode: env.OMB_LINE_APPROVAL_MODE,
     statePath: env.OMB_LINE_STATE_PATH,
     channelSecret: env.OMB_LINE_CHANNEL_SECRET,
     accessToken: env.OMB_LINE_CHANNEL_ACCESS_TOKEN,
@@ -194,11 +202,11 @@ function parseLineRelayConfig(env: NodeJS.ProcessEnv): LineRelayConfig {
   return { ...parsed.data, appUrl: canonicalOrigin(parsed.data.appUrl) };
 }
 
-export function lineRelayConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LineRelayConfig {
+export function lineRelayConfigFromEnv(env: NodeJS.ProcessEnv = process.env): ResolvedLineRelayConfig {
   return parseLineRelayConfig(env);
 }
 
-function bindingFor(config: LineRelayConfig): RelayState["binding"] {
+function bindingFor(config: ResolvedLineRelayConfig): RelayState["binding"] {
   return {
     appUrl: canonicalOrigin(config.appUrl),
     userId: config.userId,
@@ -230,7 +238,7 @@ function textBatches(text: string): PushBatch[] {
   if (chunk) chunks.push(chunk);
   const batches: PushBatch[] = [];
   for (let index = 0; index < chunks.length; index += 5) {
-    batches.push({ retryKey: randomUUID(), messages: chunks.slice(index, index + 5) });
+    batches.push({ retryKey: randomUUID(), messages: chunks.slice(index, index + 5), format: "table-flex-v1" });
   }
   return batches;
 }
@@ -340,8 +348,9 @@ function makeFetch(fetchImpl?: RelayFetch): RelayFetch {
 }
 
 export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
-  const config = lineRelayConfigSchema.parse({ ...options.config, appUrl: canonicalOrigin(options.config.appUrl) });
+  const config: ResolvedLineRelayConfig = lineRelayConfigSchema.parse({ ...options.config, appUrl: canonicalOrigin(options.config.appUrl) });
   const appUrl = canonicalOrigin(config.appUrl);
+  const approvalModeName = config.approvalMode === "ask" ? "Ask" : "Full";
   const fetchRequest = makeFetch(options.fetchImpl);
   const pollIntervalMs = options.pollIntervalMs ?? 1000;
   const log = options.log ?? ((entry) => console.info(JSON.stringify({ component: "line-relay", ...entry })));
@@ -453,7 +462,7 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
       sendId: `line-preflight-${randomUUID()}`,
       text: "LINE relay preflight",
       expectedActiveLeafId: `line-stale-${randomUUID()}`,
-      expectedApprovalMode: "ask",
+      expectedApprovalMode: config.approvalMode,
     });
     if (!probe) throw new Error("Chief relay could not verify local guarded-send access; check app reachability and retry");
     if (probe.status === 401 || probe.status === 403) {
@@ -461,7 +470,11 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
     }
     const probeCode = responseJsonSchema(guardedErrorSchema, probe.body)?.code;
     if (probe.status === 409 && probeCode === "guarded_permissions") {
-      throw new Error("The configured Chief task must use Ask approval mode; create a dedicated Ask task and retry");
+      const askPermissions = config.approvalMode === "ask" ? " without remembered permissions" : "";
+      const taskInstruction = config.approvalMode === "ask"
+        ? "create or select a dedicated Ask task"
+        : "set the dedicated task to Full in OpenMakiBot";
+      throw new Error(`The configured Chief task must use ${approvalModeName} approval mode${askPermissions}; ${taskInstruction} and retry`);
     }
     if (probe.status !== 409 || (probeCode !== "guarded_branch" && probeCode !== "spend_cap")) {
       throw new Error("Chief relay could not verify the guarded-send route without sending a message");
@@ -531,7 +544,7 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
       sendId: record.sendId,
       text: record.text,
       expectedActiveLeafId: record.state.expectedActiveLeafId,
-      expectedApprovalMode: "ask",
+      expectedApprovalMode: config.approvalMode,
     });
     if (!response) return;
     if (response.status >= 500) return;
@@ -633,7 +646,7 @@ export function createLineRelay(options: CreateLineRelayOptions): LineRelay {
         },
         body: JSON.stringify({
           to: record.state.recipient,
-          messages: batch.messages.map((text) => ({ type: "text", text })),
+          messages: batch.messages.map((text) => batch.format === "table-flex-v1" ? formatLineMessage(text) : { type: "text", text }),
         }),
         redirect: "error",
         signal: AbortSignal.timeout(LINE_REQUEST_TIMEOUT_MS),

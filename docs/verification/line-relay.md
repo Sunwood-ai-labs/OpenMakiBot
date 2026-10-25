@@ -3,7 +3,7 @@
 Run the focused unit checks and isolated end-to-end fixture:
 
 ```sh
-pnpm exec vitest run server/line-relay.test.ts
+pnpm exec vitest run server/line-message-format.test.ts server/line-relay.test.ts
 pnpm test:line-relay
 ```
 
@@ -29,6 +29,18 @@ retry behavior preserves the original request after a lost response. Unit
 checks cover transient app failure, failed durable writes,
 state binding, busy-task retry IDs, retry-key stability, and UTF-16 text
 chunking including supplementary characters.
+
+The fixture also checks the Ask default, explicit Full mode on a dedicated
+task, and refusal to start when the relay mode does not match the task. Full
+mode is configured only in the disposable fixture; the relay does not change
+the task's approval mode.
+
+Formatter tests check vertical Flex cards, preserved columns and surrounding
+text, and unchanged-text fallback when parsing or size limits are uncertain.
+The relay's fake LINE sink verifies that a table final is pushed as one Flex
+message. Retry tests keep the same Flex payload and retry key across a relay
+restart, while a legacy pending batch without a format marker remains the same
+plain-text request.
 
 This fixture proves the relay against local fakes only. It does not prove a
 configured LINE Official Account, billing plan, internet-facing HTTPS proxy,

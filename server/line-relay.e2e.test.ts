@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
-import { createLineRelay, type LineRelay, type LineRelayConfig } from "./line-relay.ts";
+import { createLineRelay, type LineRelay, type LineRelayApprovalMode, type LineRelayConfig } from "./line-relay.ts";
 
 const lineUserId = `U${"1234567890abcdef".repeat(2)}`;
 const channelSecret = "fixture-line-channel-secret";
@@ -24,7 +24,11 @@ const taskSwitchSchema = z.object({
   bot: z.object({ threadId: z.string() }).passthrough(),
 }).passthrough();
 const listedBotsSchema = z.object({
-  bots: z.array(z.object({ id: z.string(), threadId: z.string() }).passthrough()),
+  bots: z.array(z.object({
+    id: z.string(),
+    threadId: z.string(),
+    tasks: z.array(z.object({ threadId: z.string(), approvalMode: z.string().optional() }).passthrough()).optional(),
+  }).passthrough()),
 }).passthrough();
 const messageSchema = z.object({
   id: z.string(),
@@ -227,13 +231,16 @@ async function runControl(fixture: E2eFixture, args: string[]): Promise<unknown>
 
 type ChiefTarget = { botId: string; initialThreadId: string; lineThreadId: string };
 
-async function createChiefTarget(fixture: E2eFixture, managedSections?: string[]): Promise<ChiefTarget> {
+async function createChiefTarget(
+  fixture: E2eFixture,
+  options: { managedSections?: string[] } = {},
+): Promise<ChiefTarget> {
   const created = createdBotSchema.parse(await runControl(fixture, [
     "new-bot", "--name", "LINE Chief fixture", "--section", "Leadership",
   ]));
   const chiefId = created.bot.id;
-  const chiefSettings = await api(fixture, "PATCH", `/api/bots/${chiefId}`, managedSections
-    ? { chiefOfStaff: true, managedSections, acknowledgePeerScope: true }
+  const chiefSettings = await api(fixture, "PATCH", `/api/bots/${chiefId}`, options.managedSections
+    ? { chiefOfStaff: true, managedSections: options.managedSections, acknowledgePeerScope: true }
     : { chiefOfStaff: true });
   expect(chiefSettings.status, JSON.stringify(chiefSettings.body)).toBe(200);
   const createdTask = await api(fixture, "POST", `/api/bots/${chiefId}/tasks`, {
@@ -248,7 +255,7 @@ async function createChiefTarget(fixture: E2eFixture, managedSections?: string[]
   return { botId: chiefId, initialThreadId: created.bot.activeTaskId, lineThreadId };
 }
 
-function configFor(fixture: E2eFixture, target: ChiefTarget): LineRelayConfig {
+function configFor(fixture: E2eFixture, target: ChiefTarget, approvalMode?: LineRelayApprovalMode): LineRelayConfig {
   return {
     appUrl: fixture.session.info.url,
     userId: lineUserId,
@@ -258,7 +265,17 @@ function configFor(fixture: E2eFixture, target: ChiefTarget): LineRelayConfig {
     channelSecret,
     accessToken,
     port: 0,
+    ...(approvalMode ? { approvalMode } : {}),
   };
+}
+
+async function readTaskApprovalMode(fixture: E2eFixture, target: ChiefTarget): Promise<string> {
+  const response = await api(fixture, "GET", "/api/bots?messages=0");
+  expect(response.status, JSON.stringify(response.body)).toBe(200);
+  const inventory = listedBotsSchema.parse(response.body);
+  const task = inventory.bots.find((bot) => bot.id === target.botId)?.tasks?.find((candidate) => candidate.threadId === target.lineThreadId);
+  if (!task?.approvalMode) throw new Error("The fixture did not return the dedicated task approval mode");
+  return task.approvalMode;
 }
 
 async function expectNoUserMessages(fixture: E2eFixture, threadId: string): Promise<void> {
@@ -346,6 +363,28 @@ describe("LINE relay against a disposable OpenMausBot runtime", () => {
     });
   }, 60_000);
 
+  it("uses Full only when the dedicated task and relay are both explicitly configured for it", async () => {
+    const fixture = await makeFixture(["LINE_FULL_MODE_FINAL"]);
+    const target = await createChiefTarget(fixture);
+    expect(await readTaskApprovalMode(fixture, target)).toBe("ask");
+    const operatorModeChange = await api(fixture, "PATCH", `/api/bots/${target.botId}/tasks/${target.lineThreadId}`, { approvalMode: "full" });
+    expect(operatorModeChange.status, JSON.stringify(operatorModeChange.body)).toBe(200);
+    expect(await readTaskApprovalMode(fixture, target)).toBe("full");
+    const relay = await startRelay(fixture, configFor(fixture, target, "full"));
+
+    const event = makeTextEvent("Review the fixture using the configured Full task.");
+    const webhook = await postWebhook(relay, event);
+    expect(webhook.status, JSON.stringify(webhook.body)).toBe(200);
+    const sendId = await waitForSendId(fixture, target.botId, target.lineThreadId, event.message.text);
+    await waitForSettled(fixture, target.botId, target.lineThreadId, sendId);
+    await expect.poll(() => fixture.pushes.map((push) => push.messages.map((message) => message.text).join("")), { timeout: 20_000 })
+      .toEqual(["LINE_FULL_MODE_FINAL"]);
+
+    expect(await readTaskApprovalMode(fixture, target)).toBe("full");
+    expect(fixture.sinkErrors).toEqual([]);
+    fixture.evidence.push({ approvalMode: "full", target, sendId, pushes: fixture.pushes });
+  }, 45_000);
+
   it("ignores invalid signatures, unknown LINE users, and group messages without extra Chief turns", async () => {
     const fixture = await makeFixture(["AUTHORIZED_LINE_REPLY"]);
     const target = await createChiefTarget(fixture);
@@ -387,7 +426,7 @@ describe("LINE relay against a disposable OpenMausBot runtime", () => {
     const teammate = createdBotSchema.parse(await runControl(fixture, [
       "new-bot", "--name", "LINE Engineering fixture", "--section", "Engineering",
     ]));
-    const target = await createChiefTarget(fixture, ["Engineering"]);
+    const target = await createChiefTarget(fixture, { managedSections: ["Engineering"] });
     const gatePath = join(fixture.session.info.dataDir, "line-engineering-gate");
     const planPath = join(fixture.session.info.dataDir, "room-plan.json");
     writeFileSync(planPath, JSON.stringify({
