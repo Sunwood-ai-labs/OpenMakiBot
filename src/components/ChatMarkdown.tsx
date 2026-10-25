@@ -572,8 +572,7 @@ export function MermaidDiagram({ code }: MermaidDiagramProps) {
 }
 
 // Keep message-local files out of hrefs: modified clicks must still pass the
-// main process' workspace containment check. The fork preview handles PDF and
-// Office files; upstream's table/HTML actions handle CSV, TSV, and HTML.
+// main process' workspace containment check.
 function LocalFileLink({ filePath, name, children, message }: { filePath: string; name?: string; children?: ReactNode; message?: MessageAttachmentContext }) {
   const save = useLocalFileSave(filePath, name, message);
   if (!message) {
