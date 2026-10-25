@@ -4,13 +4,13 @@ export type AttachmentCapabilityContext = Readonly<{
   generation: string;
 }>;
 
-export type AttachmentRequestOwner = Readonly<{
+export type AttachmentRequestOwner = {
   botId: string;
   generation: string;
   messageId?: string;
   turnId: string | null;
   stopped?: boolean;
-}>;
+};
 
 export type AttachmentRequestProvenance = Readonly<{
   requestMessageId: string;
@@ -22,7 +22,7 @@ export function attachmentRequestProvenance(
   senderBotId: string,
   threadId: string,
   currentGeneration: string | undefined,
-  owner: AttachmentRequestOwner | undefined,
+  owner: Readonly<AttachmentRequestOwner> | undefined,
 ): AttachmentRequestProvenance | undefined {
   if (capability.botId !== senderBotId || capability.threadId !== threadId ||
       capability.generation !== currentGeneration || !owner || owner.botId !== capability.botId ||
