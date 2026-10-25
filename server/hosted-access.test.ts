@@ -365,12 +365,15 @@ describe("hosted bridge in the full server", () => {
     } });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
     const botId = created.body.bot.id as string;
+    expect((await call(`/api/bots/${botId}`, { method: "PATCH", cookie: admin, body: { chiefOfStaff: true } })).status).toBe(200);
 
     expect((await call("/api/auth/session", { local: true })).body).toMatchObject({ kind: "loopback", scopes: ["client"], trust: "service" });
     const health = await call("/api/health", { local: true });
     expect(health.status).toBe(200);
     expect(health.body.capabilities).toMatchObject({ guardedMessages: 1, guardedRequests: 1, sharedWorkspaceFullAccess: 1 });
-    expect((await call("/api/bots?messages=0", { local: true })).status).toBe(200);
+    const serviceInventory = await call("/api/bots?messages=0", { local: true });
+    expect(serviceInventory.status).toBe(200);
+    expect(serviceInventory.body.bots.find((bot: any) => bot.id === botId)).toMatchObject({ chiefOfStaff: true });
     const task = await call(`/api/bots/${botId}/tasks`, { method: "POST", local: true, body: { title: "Slack · C1 · 1.0", approvalMode: "full" } });
     expect(task.status, JSON.stringify(task.body)).toBe(201);
     const threadId = task.body.task.threadId as string;
@@ -382,6 +385,7 @@ describe("hosted bridge in the full server", () => {
     } });
     expect(sent.status, JSON.stringify(sent.body)).toBe(202);
     expect((await call(`/api/bots/${botId}/requests/${sendId}?threadId=${threadId}`, { local: true })).status).toBe(200);
+    policyEvidence.push({ serviceSeesChiefMetadata: true, serviceGuardedSendStatus: sent.status });
 
     const refused: Array<[string, string, unknown?]> = [
       ["PUT", "/api/config", { budgets: { monthlyUsd: 0 } }],
