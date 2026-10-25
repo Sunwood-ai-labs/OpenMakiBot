@@ -3,7 +3,7 @@
 This review merges fork/develop `717ab09f` with the pinned
 `milind-soni/OpenMausBot` main commit `03a6e88bc13ad2c2fb5c16a80d1a0b732b88d588`
 (package version `0.1.127`). The merge is prepared on
-`codex/sync/upstream-20261025`; it has not been committed or published.
+`codex/sync/upstream-20261025`. The local merge is complete; protected-branch integration still requires a reviewed PR and successful CI.
 
 The merge keeps the OpenMakiBot identity and fork-only publishing boundaries.
 Upstream HTML, CSV/TSV table previews, folder listings, outside-workspace

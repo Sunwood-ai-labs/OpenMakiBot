@@ -18,8 +18,6 @@ function hasWrite(permissions) {
 function guarded(file, name, condition, expected = guard) {
   assert(typeof condition === 'string', `${file}/${name}: missing repository guard`);
   assert(condition === expected || condition.startsWith(`${expected} && `), `${file}/${name}: missing repository guard`);
-  // An OR inside the right-hand conjunct is safe (release/CLA event filters),
-  // but an OR at the top level can bypass the repository restriction.
   let depth = 0;
   let quote = '';
   for (let i = 0; i < condition.length; i++) {
