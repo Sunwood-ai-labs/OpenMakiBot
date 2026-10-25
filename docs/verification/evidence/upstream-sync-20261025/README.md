@@ -1,9 +1,9 @@
 # OpenMakiBot upstream synchronization — 2026-10-25
 
-This review merges fork/develop `717ab09f` with the pinned
+This original evidence snapshot covers the first integration of fork/develop `717ab09f` with pinned
 `milind-soni/OpenMausBot` main commit `03a6e88bc13ad2c2fb5c16a80d1a0b732b88d588`
-(package version `0.1.127`). The merge is prepared on
-`codex/sync/upstream-20261025`. The local merge is complete; protected-branch integration still requires a reviewed PR and successful CI.
+(package version `0.1.127`). The merge was prepared on
+`codex/sync/upstream-20261025`. The content through the CI compatibility notes records that earlier snapshot, not the later `f9191b5` integration or the update-check follow-up below.
 
 The merge keeps the OpenMakiBot identity and fork-only publishing boundaries.
 Upstream HTML, CSV/TSV table previews, folder listings, outside-workspace
@@ -18,7 +18,7 @@ the sources return before native verification is restored. This is not native
 test coverage. The fork's Vitest scope emits the real macOS, Ubuntu and Windows
 shard matrix: 4 macOS, 8 Ubuntu and 8 Windows shards. Ubuntu runs all E2E tests; macOS and Windows use upstream host-dependent E2E selection.
 
-## Isolated UI verification
+## Isolated UI verification in the 03a6e88 snapshot
 
 `scripts/verify-file-preview.ts --built` ran against a disposable fixture and
 the production build. It used generated sample files and fake bot responses,
@@ -57,23 +57,40 @@ Vite reported CSS warnings for `::highlight(search-result-text)` and
 `::highlight(omb-citation-source)`, plus a chunk larger than 500 kB. The build
 completed successfully.
 
-## Remaining verification
+## Remaining verification in the 03a6e88 snapshot
 
-Official CI on the exact published candidate has not run yet; it must confirm
-the configured three-platform matrix. Native Android/iOS functionality is not
-covered because upstream removed those projects. No publisher, release,
-deployment, Docker publish or external-secret workflow was executed locally;
-the fork policy validator checked their repository guards.
+At the time of this snapshot, official CI on the candidate had not run. This
+historical status does not describe the later runs listed below. Native
+Android/iOS functionality is not covered because upstream removed those
+projects. No publisher, release, deployment, Docker publish or external-secret
+workflow was executed locally; the fork policy validator checked their
+repository guards.
 
 The inherited SheetJS dependency remains pinned to
 `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`. Neither the fork-base
 lock nor the regenerated lock records an integrity hash for this existing
 tarball URL.
 
-## CI compatibility repairs
+## CI compatibility repairs recorded for the earlier source tree
 
 The workbook sheet picker now uses the shared Select component. The outside-workspace action and message-local file link live in separate components with direct imports. The line-size ratchet was lowered after extraction.
 
 The repaired source passed 161 focused preview and ratchet tests, the Select guard, targeted lint, and a full production build including both TypeScript checks. An independent source review passed. The After images above were recaptured from that production build in a disposable fixture; PDF page 2, workbook Checks, PPTX slide 2, and video playback were confirmed again. Independent image review passed, and the fixture exited through normal cleanup. The [source hashes](source-hashes.json) bind those captures to the repaired preview components.
 
-Hosted CI still requires confirmation. The earlier integration run also reported Linux Cloud/home fixture failures; a controlled baseline-versus-candidate comparison is being investigated separately.
+When this repair note was first written, hosted checks for that source tree
+were still pending. An earlier run also reported Linux Cloud/home fixture
+failures. These are historical results, not the status of PR #11 below.
+
+## Later integration and PR #11
+
+PR [#11](https://github.com/Sunwood-ai-labs/OpenMakiBot/pull/11) advances the sync to pinned upstream main `f9191b5384b9900b2371696336439ae5ad6e0117`. It merges that commit into fork/develop `717ab09facd7df729051292371841a0fe7399031` as `ae15688d56ef5137f55bbb3b17606166e890a3da`.
+
+The fresh independent UI acceptance before the update-check follow-up records source commit `e0455bbf994e6c2a03d93a4bdb56711a9bd5fdb3` and tree `59cd80485d42bb16105cdf57b5eea57cc48ac1db`. It includes reviewer-observed desktop checks and root-performed 390×844 phone viewport checks. The pre-UI, post-UI, and final renderer manifests match across 281 files and 25,298,555 bytes. Their manifest SHA-256 is `7d31daff9dcf268730d7ec1be307040f87e564e8e03a9eb37f50e8a100089830`. The checks cover previews, phone navigation, keyboard focus, a composer draft, and approval controls. The detailed receipt remains in ignored local scratch and is not linked from this document.
+
+The update-check follow-up changes only the server route. It returns `current`, `install`, and `available: false`. It does not request the OpenMausBot release feed or return a release URL, latest version, or update command. The generic upstream checker remains unchanged. The e0455bb UI receipt predates this route change and does not verify that route. The disposable HTTP route test below covers it.
+
+The follow-up passed `pnpm exec vitest run server/update-check.test.ts server/routes/update-check.test.ts` with 10 tests, `pnpm typecheck`, `pnpm lint`, `node scripts/check-fork-policy.mjs`, and `pnpm exec vitest run scripts/testing/verification-docs.test.ts` with 7 tests.
+
+Manual workflow-dispatch checks on `e0455bbf994e6c2a03d93a4bdb56711a9bd5fdb3` passed before this update-check follow-up: CI run [40164617755](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40164617755) finished with 41 successes and 3 skips out of 44 jobs, including all 20 Vitest shards. Fork policy [40164617574](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40164617574), Docker build and boot smoke [40164617732](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40164617732), and Docs [40164617523](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40164617523) also passed. The Docker publish step was skipped by the fork guard.
+
+Those results do not verify the update-check follow-up. PR-triggered [CI run 40168626736](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40168626736) on e0455bb reported a failure in [Ubuntu browser-driver S4 job 121095214909](https://github.com/Sunwood-ai-labs/OpenMakiBot/actions/runs/40168626736/job/121095214909); that result is under separate investigation. The follow-up is local and has no hosted checks yet. After it is committed and pushed, PR #11 must pass checks on its new head before merge. Use the PR link above for the current check state.

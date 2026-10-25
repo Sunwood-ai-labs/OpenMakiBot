@@ -1,12 +1,14 @@
-import { createServer, type Server } from "node:http";
+import { createServer, get as httpGet, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { serverVersion } from "../environment.ts";
 import { json, readBody } from "../harness/http.ts";
+import { SERVER_ROOT } from "../proxy-paths.ts";
 import { requiredScope } from "../request-auth.ts";
-import type { UpdateCheck } from "../update-check.ts";
+import { installKind, type UpdateCheck } from "../update-check.ts";
 import { dispatchRoutes } from "./table.ts";
-import { createUpdateCheckRoutes } from "./update-check.ts";
+import { createUpdateCheckRoutes, serverUpdateChecker } from "./update-check.ts";
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -28,6 +30,25 @@ async function serve(check: () => Promise<UpdateCheck>): Promise<string> {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 
+function getJson(url: string): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    httpGet(url, (response) => {
+      response.setEncoding("utf8");
+      let text = "";
+      response.on("data", (chunk: string) => { text += chunk; });
+      response.on("end", () => {
+        try {
+          const body: unknown = JSON.parse(text);
+          resolve({ status: response.statusCode ?? 0, body });
+        } catch (error) {
+          reject(error);
+        }
+      });
+      response.on("error", reject);
+    }).on("error", reject);
+  });
+}
+
 describe("update check route", () => {
   it("is open to chat-only sessions: it only reads a version", () => {
     expect(requiredScope("GET", "/api/updates/check")).toBe("client");
@@ -41,6 +62,24 @@ describe("update check route", () => {
     expect(await response.json()).toEqual(result);
     expect((await fetch(`${base}/api/updates/check`, { method: "POST" })).status).toBe(404);
     expect((await fetch(`${base}/api/updates`)).status).toBe(404);
+  });
+
+  it("does not expose the upstream release feed as an OpenMakiBot update", async () => {
+    const upstreamFetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected release-feed request"));
+    try {
+      const where = { desktopManaged: false, managed: false };
+      const base = await serve(serverUpdateChecker(where));
+      const response = await getJson(`${base}/api/updates/check`);
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        current: serverVersion(),
+        install: installKind({ ...where, serverRoot: SERVER_ROOT }),
+        available: false,
+      });
+      expect(upstreamFetch).not.toHaveBeenCalled();
+    } finally {
+      upstreamFetch.mockRestore();
+    }
   });
 
   it("reports a failed lookup as a 502 with the reason", async () => {
